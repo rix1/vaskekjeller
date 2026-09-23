@@ -30,6 +30,21 @@ export type Booking = {
 
 export type WaitEntry = { machine_id: number; date: string; start_min: number; apartment: string };
 
+/** Ready-made messages a resident can push to another apartment's reservation. */
+export const MESSAGES = {
+  "done-soon": "Er du ferdig snart?",
+  "forgot-clothes": "Du har glemt klær i maskinen",
+  "take-dryer": "Kan jeg ta over tørketrommelen?",
+} as const;
+export type MessageKey = keyof typeof MESSAGES;
+/** Messages one apartment may send about one reservation. */
+export const MAX_MESSAGES = 3;
+/** Messages one reservation may receive in total, across all senders. */
+export const MAX_MESSAGES_TOTAL = 10;
+/** The only message that can be sent after a slot ends, for this many minutes, without joining the waitlist. */
+export const LATE_MESSAGE: MessageKey = "forgot-clothes";
+export const LATE_MESSAGE_MIN = 120;
+
 export function apartmentList(t: Tenant): string[] {
   return (t.apartments ?? "")
     .split(/[\n,]/)
