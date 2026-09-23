@@ -93,6 +93,11 @@ async function updateBoard(
     void setupPush().catch(() => {});
   } catch (error) {
     if (controller.signal.aborted) return;
+    const menu = document.querySelector<HTMLDetailsElement>(".apartment-menu[open]");
+    if (menu) {
+      menu.open = false;
+      menu.querySelector("summary")?.focus();
+    }
     main.querySelector(".network-error")?.remove();
     main.querySelectorAll(".date-item, .machine-options a").forEach((el) => {
       el.classList.toggle("selected", el.hasAttribute("aria-current"));
