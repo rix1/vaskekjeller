@@ -74,7 +74,8 @@ reservations after an administrator changes the schedule. Apply migrations befor
 
 `npm run typecheck` checks server, client, scripts, and service-worker types.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
-reservations, atomic conflicts, household limits, ownership, comments, cancellation, and schedule overlaps.
+reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, and
+apartment selection.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
