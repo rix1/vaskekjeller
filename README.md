@@ -85,7 +85,7 @@ work as ordinary page requests. Notification setup appears after joining a waitl
 
 The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
-reservations after an administrator changes the schedule. Apply migrations before deploying this version.
+reservations after an administrator changes the schedule.
 
 ## Verification
 
