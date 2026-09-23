@@ -15,6 +15,7 @@ document.body.append(live);
 
 // Toasts arrive server-rendered with CSS timers (4 s, 8 s for the booking with Angre; errors stay).
 // Here they stack, pause while the tab is hidden, and close without a page load.
+// A repeated message restarts the toast already on screen instead of adding another.
 const MAX_TOASTS = 3;
 const toastText = (toast: Element) =>
   [...toast.querySelectorAll(".toast-text > *")].map((el) => el.textContent?.trim()).join(" ");
@@ -33,13 +34,21 @@ function showToast(toast: HTMLElement) {
   const stack = document.querySelector(".toaster");
   if (!stack) return;
   const text = toastText(toast);
-  stack.querySelectorAll(".toast").forEach((old) => {
-    if (toastText(old) === text) old.remove();
-  });
+  const same = [...stack.querySelectorAll<HTMLElement>(".toast:not(.leaving)")].find((old) => toastText(old) === text);
+  if (same) {
+    same.getAnimations().forEach((a) => {
+      if (a instanceof CSSAnimation && a.animationName === "toast-out") a.currentTime = 0;
+    });
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+      same.animate([{ scale: "1.03" }, { scale: "1" }], { duration: 250, easing: "ease-out" });
+    live.textContent = text;
+    return;
+  }
   trackToast(toast);
   stack.append(toast);
-  const visible = stack.querySelectorAll(".toast:not(.leaving)");
-  for (let i = 0; i < visible.length - MAX_TOASTS; i++) dismissToast(visible[i]!);
+  // Errors explain why something didn't happen, so only the resident closes them.
+  const closing = stack.querySelectorAll(".toast:not(.leaving):not(.error)");
+  for (let i = 0; i < closing.length - MAX_TOASTS; i++) dismissToast(closing[i]!);
   // Alerts announce themselves; status toasts go through the polite live region.
   if (toast.getAttribute("role") === "status") live.textContent = text;
 }
