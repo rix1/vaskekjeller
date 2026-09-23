@@ -166,7 +166,6 @@ type BoardProps = {
   apartments: string[];
   now: LocalNow;
   flash?: string;
-  changeApt: boolean;
   vapidKey: string;
   selectedDate?: string;
   mode?: string;
@@ -237,7 +236,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </span>
         </a>
         {p.apartment ? (
-          <details class="apartment-menu" open={p.changeApt}>
+          <details class="apartment-menu">
             <summary class="apartment-chip" aria-label={`Leilighet ${p.apartment}, endre leilighet`}>
               <Icon name="home" size={16} />
               <span>

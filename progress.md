@@ -2,7 +2,7 @@
 
 - [] add icons to "kun vask" and "kun tørk" as well.
 - [] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.)
-- [x] make the "endre leilighet" appear in a popup, similar to the "se detailjer" (2026-09-23: header chip opens a details/summary popover with the picker; `?bytt=1` opens it; first visit keeps the inline welcome.)
+- [x] make the "endre leilighet" appear in a popup, similar to the "se detailjer" (2026-09-23: header chip opens a details/summary popover with the picker; first visit keeps the inline welcome.)
 - [] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
 - [] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment.
 - [] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
