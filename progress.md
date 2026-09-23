@@ -40,3 +40,4 @@
 
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
 - 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters as "<short date> <start>–<end>: «note»" (tag `note-<date>-<start>-<apartment>` so the same holder's edits replace each other; `renotify` so a replacement still alerts).
+- 2026-09-23: Fixed service worker build: client/sw.ts is now a classic script (no `export {}`), so the compiled public/sw.js registers via `register("/sw.js")`; tests/sw.test.mjs builds it and runs it as a classic script.
