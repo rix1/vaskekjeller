@@ -85,6 +85,8 @@ if (pageToasts.length) announce(pageToasts.map(toastText).join(" "));
 document.addEventListener("visibilitychange", () => {
   document.querySelector(".toaster")?.classList.toggle("paused", document.hidden);
 });
+// Other page scripts (client/admin.ts) hand over toasts from pages they fetch.
+document.addEventListener("vk:toast", (event) => showToast((event as CustomEvent<HTMLElement>).detail));
 
 function cleanUrl(raw: string) {
   const url = new URL(raw, location.href);
