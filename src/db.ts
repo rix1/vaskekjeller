@@ -41,6 +41,9 @@ export type MessageKey = keyof typeof MESSAGES;
 export const MAX_MESSAGES = 3;
 /** Messages one reservation may receive in total, across all senders. */
 export const MAX_MESSAGES_TOTAL = 10;
+/** The only message that can be sent after a slot ends, for this many minutes, without joining the waitlist. */
+export const LATE_MESSAGE: MessageKey = "forgot-clothes";
+export const LATE_MESSAGE_MIN = 120;
 
 export function apartmentList(t: Tenant): string[] {
   return (t.apartments ?? "")

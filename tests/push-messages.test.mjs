@@ -1,6 +1,6 @@
 // Resident-to-holder push messages ("Send melding"). Same isolated harness as bookings.test.mjs:
 // the real Hono routes on SQLite, with a fake push service that decrypts what the worker sends.
-import { test, before, after } from "node:test";
+import { test, before, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -253,27 +253,101 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
     await mf.dispatchFetch(`http://localhost${response.headers.get("location")}`, { headers: { Cookie: "vk_apt=B2" } })
   ).text();
   assert.match(sent, /Meldingen er sendt\. Du står nå på ventelisten og får beskjed når kommentaren endres\./);
-  const waitlistSection = sent.match(/<h2>På venteliste<\/h2>([\s\S]*?)<\/section>/)?.[1] ?? "";
-  assert.equal(waitlistSection.match(/action="\/demo\/unwait/g)?.length, 1, "one way to leave the waitlist for the reservation");
-  assert.match(waitlistSection, /Vaskemaskin \+ Tørketrommel/);
+  assert.match(
+    sent,
+    new RegExp(
+      `action="/demo/unwait-reservation[^"]*"><input type="hidden" name="booking_id" value="${washer.id}"/><button class="link">Forlat venteliste`,
+    ),
+    "the sender can leave right away",
+  );
   assert.doesNotMatch(sent, /av 3 sendt/);
 
   // The holder's reply goes to the sender like to any other waiter.
+  const holderIds = async () =>
+    (await active()).results
+      .filter((b) => b.apartment === "A3")
+      .map((b) => b.id)
+      .join(",");
   pushed = [];
-  await post("note", { booking_ids: (await active()).results.map((b) => b.id).join(","), note: "Ferdig om 5 min" });
+  await post("note", { booking_ids: await holderIds(), note: "Ferdig om 5 min" });
   await settle();
   assert.deepEqual(
     pushed.map((p) => p.endpoint.split("/").pop()),
     ["B2"],
   );
 
-  // Leaving once, even from a single machine's row, leaves the whole reservation.
-  assert.equal(flash(await post("unwait", { machine_id: 1, date: tomorrow, start: 600 }, "B2")), "unwaited");
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM waitlist WHERE apartment = 'B2'").get().n, 0);
+  // Leaving after the message leaves the messaged reservation's machines, not other waits at that time.
+  await book(600, "C1", "3");
+  await post("wait", { machine_id: 3, date: tomorrow, start: 600 }, "B2");
+  assert.equal(flash(await post("unwait-reservation", { booking_id: washer.id }, "B2")), "unwaited");
+  assert.deepEqual(
+    sqlite
+      .prepare("SELECT machine_id FROM waitlist WHERE apartment = 'B2'")
+      .all()
+      .map((w) => w.machine_id),
+    [3],
+  );
   pushed = [];
-  await post("note", { booking_ids: (await active()).results.map((b) => b.id).join(","), note: "Ferdig nå" });
+  await post("note", { booking_ids: await holderIds(), note: "Ferdig nå" });
   await settle();
   assert.equal(pushed.length, 0);
+});
+
+test("leaving one machine's waitlist keeps the other machines", async () => {
+  await reset();
+  await book(600);
+  const [washer] = (await active()).results;
+  await subscribe("A3");
+  await message(washer.id);
+  assert.equal(flash(await post("unwait", { machine_id: 1, date: tomorrow, start: 600 }, "B2")), "unwaited");
+  assert.deepEqual(
+    sqlite
+      .prepare("SELECT machine_id FROM waitlist WHERE apartment = 'B2'")
+      .all()
+      .map((w) => w.machine_id),
+    [2],
+  );
+});
+
+test("for 2 hours after a slot ends, only the forgot-clothes message can be sent, without the waitlist", async () => {
+  await reset();
+  const day = "2030-01-15";
+  // 10:30 in Oslo (UTC+1 in January): A3's 08:00–10:00 slot ended half an hour ago.
+  mock.timers.enable({ apis: ["Date"], now: new Date(`${day}T09:30:00Z`) });
+  try {
+    await insertBooking(day, 1, "A3");
+    await insertBooking(day, 2, "A3");
+    const [washer] = (await active()).results;
+    await subscribe("A3");
+    const slot = (await board(day, "B2")).match(/08:00<span class="time-dash">–<\/span>10:00[\s\S]*?<\/article>/)?.[0] ?? "";
+    assert.match(slot, /Send melding til leil\. A3/);
+    assert.match(slot, /value="forgot-clothes"/);
+    assert.doesNotMatch(slot, /value="done-soon"|value="take-dryer"|action="\/demo\/wait/);
+
+    assert.equal(flash(await message(washer.id)), "over");
+    const response = await message(washer.id, { preset: "forgot-clothes", note: "Ligger i kurven" });
+    assert.equal(flash(response), "message-sent-over");
+    await settle();
+    assert.equal(pushed.length, 1);
+    assert.equal(pushed[0].message.title, `Leil. B2 om ${shortDay(day)} 08:00–10:00`);
+    assert.equal(pushed[0].message.body, "Du har glemt klær i maskinen «Ligger i kurven»");
+    assert.equal(pushed[0].message.url, `/demo?date=${day}`);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM waitlist").get().n, 0);
+    const sent = await (
+      await mf.dispatchFetch(`http://localhost${response.headers.get("location")}`, { headers: { Cookie: "vk_apt=B2" } })
+    ).text();
+    assert.match(sent, />Meldingen er sendt\.<\/p>/);
+    assert.doesNotMatch(sent, /unwait-reservation/);
+
+    // 11:59 is still inside the window; from 12:00 it is closed.
+    mock.timers.setTime(new Date(`${day}T10:59:00Z`).getTime());
+    assert.equal(flash(await message(washer.id, { preset: "forgot-clothes" })), "message-sent-over");
+    mock.timers.setTime(new Date(`${day}T11:00:00Z`).getTime());
+    assert.equal(flash(await message(washer.id, { preset: "forgot-clothes" })), "over");
+    assert.doesNotMatch(await board(day, "B2"), /Send melding/);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("tapping the message opens the holder's comment field", async () => {
@@ -375,6 +449,7 @@ test("messages to your own, cancelled, or past bookings are rejected", async () 
   await insertBooking(day, 1, "A3");
   const past = (await active()).results.find((b) => b.date === day);
   assert.equal(flash(await message(past.id)), "over");
+  assert.equal(flash(await message(past.id, { preset: "forgot-clothes" })), "over", "yesterday is past the 2-hour window");
   await post("cancel", { booking_ids: String(washer.id) }, "A3");
   assert.equal(flash(await message(washer.id)), "invalid");
   await settle();

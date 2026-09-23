@@ -18,6 +18,7 @@ function cleanUrl(raw: string) {
   url.searchParams.delete("m");
   url.searchParams.delete("reservation");
   url.searchParams.delete("note");
+  url.searchParams.delete("messaged");
   return url;
 }
 

@@ -2,6 +2,8 @@ import type { Child, FC } from "hono/jsx";
 import { bookingOptions } from "./booking-options.ts";
 import {
   KIND_LABEL,
+  LATE_MESSAGE,
+  LATE_MESSAGE_MIN,
   MAX_MESSAGES,
   MAX_MESSAGES_TOTAL,
   MESSAGES,
@@ -27,6 +29,7 @@ export const FLASH: Record<string, string> = {
   unwaited: "Du er fjernet fra ventelisten.",
   note: "Kommentaren er lagret.",
   "message-sent": "Meldingen er sendt. Du står nå på ventelisten og får beskjed når kommentaren endres.",
+  "message-sent-over": "Meldingen er sendt.",
   "message-limit": `Du har allerede sendt ${MAX_MESSAGES} meldinger om denne tiden.`,
   "message-full": `Denne tiden har allerede fått ${MAX_MESSAGES_TOTAL} meldinger. Sett deg på ventelisten for å få beskjed når kommentaren endres.`,
   "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
@@ -169,7 +172,12 @@ const Icon: FC<{
 );
 
 /** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
-const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean }> = ({ booking: b, action, notifiable }) => (
+const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; late: boolean }> = ({
+  booking: b,
+  action,
+  notifiable,
+  late,
+}) => (
   <div class="slot-message">
     {!notifiable ? (
       <small>Leil. {b.apartment} har ikke varsler på.</small>
@@ -182,19 +190,23 @@ const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean }>
           <Hidden fields={{ booking_id: b.id }} />
           <fieldset>
             <legend>Velg melding</legend>
-            {Object.entries(MESSAGES).map(([key, text], i) => (
-              <label class="message-choice">
-                <input type="radio" name="preset" value={key} required checked={i === 0} />
-                {text}
-              </label>
-            ))}
+            {Object.entries(MESSAGES)
+              .filter(([key]) => !late || key === LATE_MESSAGE)
+              .map(([key, text], i) => (
+                <label class="message-choice">
+                  <input type="radio" name="preset" value={key} required checked={i === 0} />
+                  {text}
+                </label>
+              ))}
           </fieldset>
           <label>
             Legg til (valgfritt)
             <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
           </label>
           <small>
-            Leil. {b.apartment} får et varsel og kan svare med en kommentar. Du settes på ventelisten.
+            {late
+              ? `Leil. ${b.apartment} får et varsel.`
+              : `Leil. ${b.apartment} får et varsel og kan svare med en kommentar. Du settes på ventelisten.`}
           </small>
           <button class="small-button">Send melding</button>
         </form>
@@ -220,6 +232,8 @@ type BoardProps = {
   notifiable: string[];
   /** Booking id whose comment field opens (from a message push). */
   openNote?: string;
+  /** Booking id just messaged, for leaving the waitlist the message joined. */
+  messagedId?: string;
   now: LocalNow;
   flash?: string;
   vapidKey: string;
@@ -258,6 +272,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
     !option ? 0 : p.slots.filter((s) => !slotIsOver(date, s.end, p.now) && !conflicts(date, s).length).length;
   const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
   const justBooked = p.flash === "booked" ? mine.filter((b) => (p.bookedIds ?? "").split(",").includes(String(b.id))) : [];
+  const messaged = p.flash === "message-sent" ? p.bookings.find((b) => String(b.id) === p.messagedId) : undefined;
   const groups = new Map<string, Booking[]>();
   for (const b of mine) {
     const key = `${b.date}|${b.start_min}|${b.end_min}`;
@@ -353,6 +368,15 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <form method="post" action={action("cancel")}>
               <Hidden fields={{ booking_ids: justBooked.map((b) => b.id).join(",") }} />
               <button class="link">Angre</button>
+            </form>
+          </div>
+        ) : messaged ? (
+          <div class="flash booking-success" role="status">
+            <Icon name="check" />
+            <div>{FLASH["message-sent"]}</div>
+            <form method="post" action={action("unwait-reservation")}>
+              <Hidden fields={{ booking_id: messaged.id }} />
+              <button class="link">Forlat venteliste</button>
             </form>
           </div>
         ) : (
@@ -519,6 +543,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const other = occupied.filter((b) => b.apartment !== p.apartment);
                   const free = !occupied.length && !over;
                   const ownAll = own.length > 0 && !other.length && option.machines.every((m) => own.some((b) => b.machine_id === m.id));
+                  const late = over && !!p.apartment && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
                   const label = `${option.label}, ${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
                   return (
                     <article class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : "occupied"}`}>
@@ -583,7 +608,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                             Se din tid <span aria-hidden="true">↗</span>
                           </a>
                         )}
-                        {!over && occupied.length > 0 && !ownAll && (
+                        {((!over && occupied.length > 0 && !ownAll) || late) && (
                           <details class="slot-details">
                             <summary>
                               Se detaljer <span aria-hidden="true">⌄</span>
@@ -611,6 +636,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                       <small>Ledig</small>
                                     )}
                                     {p.apartment &&
+                                      !over &&
                                       (bookings.length ? (
                                         bookings.every((b) => b.apartment === p.apartment) ? (
                                           <a href={`#reservation-${bookings[0]!.id}`}>Din reservasjon ↗</a>
@@ -635,11 +661,13 @@ export const BoardPage: FC<BoardProps> = (p) => {
                               {p.apartment &&
                                 other
                                   .filter((b, i) => other.findIndex((x) => x.apartment === b.apartment) === i)
-                                  .map((b) => <MessageForm booking={b} action={action("message")} notifiable={p.notifiable.includes(b.apartment)} />)}
+                                  .map((b) => (
+                                    <MessageForm booking={b} action={action("message")} notifiable={p.notifiable.includes(b.apartment)} late={over} />
+                                  ))}
                             </div>
                           </details>
                         )}
-                        {over && <span class="muted">—</span>}
+                        {over && !late && <span class="muted">—</span>}
                       </div>
                     </article>
                   );
@@ -756,30 +784,24 @@ export const BoardPage: FC<BoardProps> = (p) => {
             {myWaits.length > 0 && (
               <section class="waitlist-section">
                 <h2>På venteliste</h2>
-                {myWaits
-                  .filter((w, i) => myWaits.findIndex((x) => x.date === w.date && x.start_min === w.start_min) === i)
-                  .map((w) => (
-                    <div class="wait-entry">
-                      <strong>
-                        {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
-                      </strong>
-                      <small>
-                        {myWaits
-                          .filter((x) => x.date === w.date && x.start_min === w.start_min)
-                          .map((x) => machineName(x.machine_id))
-                          .join(" + ")}
-                      </small>
-                      <form method="post" action={`${base}/unwait${query(w.date)}`}>
-                        <Hidden
-                          fields={{
-                            date: w.date,
-                            start: w.start_min,
-                          }}
-                        />
-                        <button class="link">Forlat venteliste</button>
-                      </form>
-                    </div>
-                  ))}
+                {myWaits.map((w) => (
+                  <div class="wait-entry">
+                    <strong>
+                      {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
+                    </strong>
+                    <small>{machineName(w.machine_id)}</small>
+                    <form method="post" action={`${base}/unwait${query(w.date)}`}>
+                      <Hidden
+                        fields={{
+                          machine_id: w.machine_id,
+                          date: w.date,
+                          start: w.start_min,
+                        }}
+                      />
+                      <button class="link">Forlat venteliste</button>
+                    </form>
+                  </div>
+                ))}
                 <div id="push-banner" class="push-banner" hidden>
                   <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
                   <button type="button" id="push-toggle">

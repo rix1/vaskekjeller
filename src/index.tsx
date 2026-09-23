@@ -12,6 +12,8 @@ import {
   getTenant,
   getWaitlist,
   KIND_LABEL,
+  LATE_MESSAGE,
+  LATE_MESSAGE_MIN,
   MAX_MESSAGES,
   MAX_MESSAGES_TOTAL,
   MESSAGES,
@@ -145,6 +147,7 @@ t.get("/", async (c) => {
       apartments={apartmentList(tenant)}
       notifiable={notifiable?.results.map((r) => r.apartment) ?? []}
       openNote={c.req.query("note")}
+      messagedId={c.req.query("messaged")}
       now={now}
       flash={c.req.query("m")}
       selectedDate={c.req.query("date")}
@@ -311,10 +314,29 @@ t.post("/unwait", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
   const f = await form(c);
-  await c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND date = ? AND start_min = ? AND apartment = ?")
-    .bind(c.var.tenant.id, f.date ?? "", Number(f.start), apt)
+  await c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?")
+    .bind(c.var.tenant.id, Number(f.machine_id), f.date ?? "", Number(f.start), apt)
     .run();
   return back(c, "unwaited", `d-${f.date}`);
+});
+
+/** Leaves what a message joined: the waitlist for every machine in the messaged reservation. */
+t.post("/unwait-reservation", async (c) => {
+  const tenant = c.var.tenant;
+  const apt = currentApartment(c);
+  if (!apt) return back(c, "no-apt");
+  const f = await form(c);
+  const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ?")
+    .bind(Number(f.booking_id), tenant.id)
+    .first<Booking>();
+  if (!b) return back(c, "invalid");
+  await c.env.DB.prepare(
+    `DELETE FROM waitlist WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ?
+     AND machine_id IN (SELECT machine_id FROM bookings WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ?)`,
+  )
+    .bind(tenant.id, apt, b.date, b.start_min, tenant.id, b.apartment, b.date, b.start_min)
+    .run();
+  return back(c, "unwaited", `d-${b.date}`);
 });
 
 /** A one-way push to another apartment's reservation; the sender joins its waitlist to hear the answer. */
@@ -330,7 +352,9 @@ t.post("/message", async (c) => {
     .bind(Number(f.booking_id), tenant.id)
     .first<Booking>();
   if (!b || b.apartment === apt) return back(c, "invalid");
-  if (slotIsOver(b.date, b.end_min, localNow(tenant.timezone))) return back(c, "over", `d-${b.date}`);
+  const now = localNow(tenant.timezone);
+  const over = slotIsOver(b.date, b.end_min, now);
+  if (over && (f.preset !== LATE_MESSAGE || slotIsOver(b.date, b.end_min + LATE_MESSAGE_MIN, now))) return back(c, "over", `d-${b.date}`);
   const { results: subs } = await c.env.DB.prepare(
     "SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND apartment = ?",
   )
@@ -368,24 +392,27 @@ t.post("/message", async (c) => {
     return back(c, (sent ?? 0) >= MAX_MESSAGES ? "message-limit" : "message-full", `d-${b.date}`);
   }
   // Wait for every machine in the holder's reservation, as /wait does, so the sender hears the reply.
-  await c.env.DB.prepare(
-    `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
-     SELECT tenant_id, machine_id, date, start_min, ? FROM bookings
-     WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL`,
-  )
-    .bind(apt, tenant.id, b.apartment, b.date, b.start_min)
-    .run();
+  if (!over) {
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
+       SELECT tenant_id, machine_id, date, start_min, ? FROM bookings
+       WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL`,
+    )
+      .bind(apt, tenant.id, b.apartment, b.date, b.start_min)
+      .run();
+  }
   c.executionCtx.waitUntil(
     pushAll(c.env, tenant, subs, {
       title: `Leil. ${apt} om ${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}`,
-      body: `${text}${extra ? ` «${extra}»` : ""}\nSvar med en kommentar – de som venter får beskjed.`,
-      url: `/${tenant.slug}?date=${b.date}&note=${b.id}#reservation-${b.id}`,
+      body: `${text}${extra ? ` «${extra}»` : ""}${over ? "" : "\nSvar med en kommentar – de som venter får beskjed."}`,
+      url: over ? `/${tenant.slug}?date=${b.date}` : `/${tenant.slug}?date=${b.date}&note=${b.id}#reservation-${b.id}`,
       // One per sender and reservation: a follow-up replaces the earlier message but still alerts.
       tag: `message-${b.date}-${b.start_min}-${apt}`,
       renotify: true,
     }),
   );
-  return back(c, "message-sent", `d-${b.date}`);
+  if (over) return back(c, "message-sent-over", `d-${b.date}`);
+  return back(c, "message-sent", `d-${b.date}`, { messaged: String(b.id) });
 });
 
 // ---------------------------------------------------------------------------
