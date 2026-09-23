@@ -4,7 +4,7 @@
 - [] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.)
 - [] make the "endre leilighet" appear in a popup, similar to the "se detailjer"
 - [] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
-- [x] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment. (2026-09-23: card under Dine tider shows the waiter count; saving a new/changed comment pushes to waiters, tag per slot.)
+- [x] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment. (2026-09-23: card under Dine tider shows the waiter count; saving a new/changed comment pushes to waiters, tag per reservation.)
 - [] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
 - [] make it possible to see last 14 days as well (should default to this week).
 - [] make "fullt" on day-level more present/visible
@@ -39,4 +39,4 @@
 ## Log
 
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
-- 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters as "<short date> <start>–<end>: «note»" (tag `note-<date>-<start>` so edits replace each other; `renotify` so a replacement still alerts).
+- 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters as "<short date> <start>–<end>: «note»" (tag `note-<date>-<start>-<apartment>` so the same holder's edits replace each other; `renotify` so a replacement still alerts).
