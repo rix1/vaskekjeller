@@ -1,7 +1,7 @@
 import type { Child, FC } from "hono/jsx";
 import { KIND_LABEL, normalizeApartment, type Booking, type Machine, type Tenant } from "./db.ts";
 import { fmtDay, fmtMinute, slotsFor } from "./time.ts";
-import { FLASH, Icon, Layout } from "./views.tsx";
+import { FLASH, Icon, Layout, Toast, Toaster } from "./views.tsx";
 
 export type Stats = {
   daily: { day: string; views: number; visitors: number; notifications: number }[];
@@ -96,9 +96,18 @@ const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) =
   </svg>
 );
 
-const AdminPage: FC<{ tenant: Tenant; title: string; active: "overview" | "settings"; flash?: string; children: Child }> = (p) => {
+const AdminPage: FC<{
+  tenant: Tenant;
+  title: string;
+  active: "overview" | "settings";
+  flash?: string;
+  /** Error toast shown instead of the flash message, e.g. after a failed validation. */
+  alert?: Child;
+  children: Child;
+}> = (p) => {
   const base = `/${p.tenant.slug}`;
   const message = p.flash && ADMIN_FLASH[p.flash];
+  const here = p.active === "overview" ? `${base}/admin` : `${base}/admin/settings`;
   return (
     <Layout
       title={`${p.title} · ${p.tenant.name}`}
@@ -143,13 +152,21 @@ const AdminPage: FC<{ tenant: Tenant; title: string; active: "overview" | "setti
             </a>
           </nav>
         </div>
-        {message && (
-          <p role="status" class={`flash ${p.flash === "wrong-password" ? "err" : ""}`}>
-            {message}
-          </p>
-        )}
         {p.children}
       </main>
+      <Toaster dismissHref={here}>
+        {p.alert ? (
+          <Toast tone="error" dismissHref={here}>
+            {p.alert}
+          </Toast>
+        ) : (
+          message && (
+            <Toast tone={p.flash === "wrong-password" ? "error" : "success"} dismissHref={here}>
+              <p class="toast-title">{message}</p>
+            </Toast>
+          )
+        )}
+      </Toaster>
     </Layout>
   );
 };
@@ -363,13 +380,22 @@ export const AdminSettings: FC<
   const dayEnd = v("day_end", fmtMinute(tenant.day_end_min));
 
   return (
-    <AdminPage tenant={tenant} title="Innstillinger" active="settings" flash={flash}>
-      {Object.keys(errors).length > 0 && (
-        <p role="alert" class="flash err">
-          Noe må rettes før det kan lagres.{" "}
-          {card ? <a href={`#${card}`}>Gå til feltet som er markert.</a> : "Se feltet som er markert."}
-        </p>
-      )}
+    <AdminPage
+      tenant={tenant}
+      title="Innstillinger"
+      active="settings"
+      flash={flash}
+      alert={
+        Object.keys(errors).length > 0 && (
+          <>
+            <p class="toast-title">Noe må rettes før det kan lagres.</p>
+            <p class="toast-detail">
+              {card ? <a href={`#${card}`}>Gå til feltet som er markert.</a> : "Se feltet som er markert."}
+            </p>
+          </>
+        )
+      }
+    >
       <div class="settings-layout">
         <nav class="toc" aria-label="Innstillinger">
           <p class="toc-title">På denne siden</p>

@@ -72,10 +72,6 @@ button.header-link {
   border-color: #dfe3d9;
   box-shadow: 0 1px 3px #29372509;
 }
-.admin-main > .flash {
-  margin: 0 0 20px;
-  font-size: 14px;
-}
 
 /* Layout: table of contents beside the cards on desktop */
 .settings-layout {

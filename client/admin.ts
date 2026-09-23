@@ -172,9 +172,8 @@ async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusK
       const note = next.querySelector<HTMLElement>(`#maskin-${machineId} [data-saved-note]`);
       if (note) note.textContent = "Lagret";
     }
-    // The page-level message would be out of view; announce it and drop any stale one.
-    document.querySelector(".admin-main > .flash")?.remove();
-    live.textContent = doc.querySelector(".admin-main > .flash")?.textContent ?? "";
+    // client/app.ts stacks and announces the toasts of the fetched page.
+    doc.querySelectorAll(".toaster .toast").forEach((toast) => document.dispatchEvent(new CustomEvent("vk:toast", { detail: toast })));
   } catch {
     live.textContent = "Kunne ikke lagre. Prøver på nytt uten hurtigoppdatering.";
     HTMLFormElement.prototype.submit.call(form);

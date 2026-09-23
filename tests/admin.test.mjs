@@ -159,8 +159,8 @@ test("schedule rejects lengths outside the picker and shows the error next to th
   assert.equal(reversed.status, 422);
   const reversedPage = await reversed.text();
   assert.match(reversedPage, /name="day_end"[^>]*aria-invalid="true"/);
-  // Without JavaScript the error message links to the card that failed.
-  assert.match(reversedPage, /role="alert"[^>]*>[^<]*<a href="#tider">/);
+  // Without JavaScript the error toast links to the card that failed.
+  assert.match(reversedPage, /class="toast error" role="alert">[\s\S]*?<a href="#tider">/);
   // The submitted values are kept so the admin can correct them.
   assert.match(reversedPage, /name="day_start"[^>]*value="20:00"/);
   assert.equal(tenant().day_start_min, 480);
@@ -249,6 +249,8 @@ test("machines switch off and on, and are renamed in place", async () => {
   const off = await post("admin/machines/3/active", { active: "0" }, admin);
   assert.equal(location(off).searchParams.get("m"), "machine-off");
   assert.equal(machines().find((m) => m.id === 3).active, 0);
+  const toast = await (await get("admin/settings?m=machine-off", admin)).text();
+  assert.match(toast, /class="toast success auto" role="status">[\s\S]*?Maskinen er slått av\./);
   await post("admin/machines/3/active", { active: "1" }, admin);
   assert.equal(machines().find((m) => m.id === 3).active, 1);
 
@@ -381,7 +383,7 @@ test("a machine error keeps the other settings fields intact", async () => {
   assert.equal(response.status, 422);
   const page = await response.text();
   assert.match(page, /<input name="name" required="" maxlength="80" value="Test"/);
-  assert.match(page, /role="alert"[^>]*>[^<]*<a href="#maskin-3">/);
+  assert.match(page, /class="toast error" role="alert">[\s\S]*?<a href="#maskin-3">/);
   const added = await post("admin/machines", { name: "x".repeat(61), kind: "dryer" }, admin);
   const addedPage = await added.text();
   assert.match(addedPage, /<input name="name" required="" maxlength="80" value="Test"/);
