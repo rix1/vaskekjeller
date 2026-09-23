@@ -999,6 +999,33 @@ summary::-webkit-details-marker {
   font-style: italic;
   overflow-wrap: anywhere;
 }
+.reservation-waiting {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #fbf3df;
+  color: #6b5419;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.reservation-waiting strong {
+  font-weight: 600;
+}
+.waiting-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c58a16;
+  transform: translateY(-1px);
+}
+.note-hint {
+  color: #6b5419;
+  font-size: 11px;
+}
 .reservation-actions {
   display: flex;
   flex-wrap: wrap;

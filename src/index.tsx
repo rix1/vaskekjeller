@@ -272,11 +272,9 @@ t.post("/note", async (c) => {
   if (!bookings.length) return back(c, "invalid");
   const now = localNow(c.var.tenant.timezone);
   if (bookings.some((b) => slotIsOver(b.date, b.end_min, now))) return back(c, "over");
-  await c.env.DB.batch(
-    bookings.map((b) =>
-      c.env.DB.prepare("UPDATE bookings SET note = ? WHERE id = ?").bind((f.note || "").trim().slice(0, 140) || null, b.id),
-    ),
-  );
+  const note = (f.note || "").trim().slice(0, 140) || null;
+  await c.env.DB.batch(bookings.map((b) => c.env.DB.prepare("UPDATE bookings SET note = ? WHERE id = ?").bind(note, b.id)));
+  if (note && bookings.some((b) => b.note !== note)) c.executionCtx.waitUntil(notifyNote(c.env, c.var.tenant, bookings, note));
   return back(c, "note", `d-${bookings[0]!.date}`);
 });
 
@@ -375,12 +373,37 @@ async function notifyWaitlist(env: Env, tenant: Tenant, b: Booking) {
     .all<PushSubscriptionRow & { id: number }>();
   if (!subs.length) return;
   const machine = await env.DB.prepare("SELECT name FROM machines WHERE id = ?").bind(b.machine_id).first<string>("name");
-  const message = {
+  await pushAll(env, tenant, subs, {
     title: `${machine} er ledig!`,
     body: `${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)} ble nettopp ledig. Først til mølla.`,
     url: `/${tenant.slug}?date=${b.date}&mode=${b.machine_id}`,
     tag: `slot-${b.machine_id}-${b.date}-${b.start_min}`,
-  };
+  });
+}
+
+/** Tell everyone waiting for a reservation (any of its machines) about the holder's new comment. */
+async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: string) {
+  const b = bookings[0]!;
+  const { results: subs } = await env.DB.prepare(
+    `SELECT DISTINCT p.id, p.endpoint, p.p256dh, p.auth FROM waitlist w
+     JOIN push_subscriptions p ON p.tenant_id = w.tenant_id AND p.apartment = w.apartment
+     WHERE w.tenant_id = ? AND w.machine_id IN (SELECT value FROM json_each(?))
+       AND w.date = ? AND w.start_min = ? AND w.apartment != ?`,
+  )
+    .bind(tenant.id, JSON.stringify(bookings.map((x) => x.machine_id)), b.date, b.start_min, b.apartment)
+    .all<PushSubscriptionRow & { id: number }>();
+  if (!subs.length) return;
+  await pushAll(env, tenant, subs, {
+    title: "Ny kommentar på tiden du venter på",
+    body: `${fmtDay(b.date, "long").split(" ")[0]} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}: «${note}»`,
+    url: `/${tenant.slug}?date=${b.date}`,
+    // Stable per slot, so a later edit replaces the earlier notification instead of stacking.
+    tag: `note-${b.date}-${b.start_min}`,
+  });
+}
+
+/** Sends one message to each subscription, drops expired ones and counts deliveries. */
+async function pushAll(env: Env, tenant: Tenant, subs: (PushSubscriptionRow & { id: number })[], message: unknown) {
   const results = await Promise.all(subs.map((s) => sendPush(s, message, vapid(env)).catch(() => "error" as const)));
   const gone = subs.filter((_, i) => results[i] === "gone").map((s) => s.id);
   const sent = results.filter((r) => r === "ok").length;
