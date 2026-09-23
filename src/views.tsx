@@ -695,7 +695,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
             {option && !past && available(selected) === 0 && (
               <p class="next-day">
                 {dayStatus(selected).state === "partial"
-                  ?"Ingen tider med alle maskinene ledige denne dagen."
+                  ? "Ingen tider med alle maskinene ledige denne dagen."
                   : "Ingen ledige tider igjen denne dagen."}{" "}
                 {p.days.find((d) => d > selected && available(d) > 0) ? (
                   <a href={url(p.days.find((d) => d > selected && available(d) > 0)!)}>Se neste ledige dag →</a>
