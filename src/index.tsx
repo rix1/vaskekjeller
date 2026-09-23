@@ -123,7 +123,6 @@ t.get("/", async (c) => {
       apartments={apartmentList(tenant)}
       now={now}
       flash={c.req.query("m")}
-      changeApt={c.req.query("bytt") === "1"}
       selectedDate={c.req.query("date")}
       mode={c.req.query("mode")}
       bookedIds={c.req.query("reservation")}

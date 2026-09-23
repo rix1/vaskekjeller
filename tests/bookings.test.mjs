@@ -204,8 +204,8 @@ test("invalid dates, modes, tenant machines, and past slots are rejected", async
   assert.equal((await active()).results.length, 0);
 });
 
-const board = (query = "", apartment) =>
-  mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2${query}`, {
+const board = (apartment) =>
+  mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2`, {
     headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
   });
 
@@ -229,12 +229,8 @@ test("first visit shows the inline welcome; a saved apartment gets the chip popo
   assert.match(first, /Hei, nabo\./);
   assert.doesNotMatch(first, /apartment-menu/);
 
-  const saved = await (await board("", "A3")).text();
+  const saved = await (await board("A3")).text();
   assert.doesNotMatch(saved, /Hei, nabo\./);
   assert.match(saved, /<details class="apartment-menu">/);
   assert.match(saved, /class="apartment-popover"[\s\S]*action="\/demo\/apartment\?date=/);
-
-  const fallback = await (await board("&bytt=1", "A3")).text();
-  assert.match(fallback, /<details class="apartment-menu" open/);
-  assert.doesNotMatch(fallback, /Hei, nabo\./);
 });
