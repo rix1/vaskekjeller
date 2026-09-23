@@ -39,4 +39,5 @@
 ## Log
 
 - 2026-09-23: Status banners replaced by in-house toasts (booking page, login, admin); Angre booking toast 8 s, success 4 s, errors stay; CSS-only fade without JS.
+- 2026-09-23: Push toggle results (enabled, blocked, error) are toasts; the banner keeps the toggle, an on/off label and the iPhone hint.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
