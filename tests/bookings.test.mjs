@@ -306,7 +306,7 @@ test("saving an apartment validates it, sets the cookie and keeps the view", asy
   await db.prepare("UPDATE tenants SET apartments = 'A3\nB2'").run();
   try {
     const bad = await post("apartment", { apartment: "Z9" });
-    assert.notEqual(flash(bad), "apartment");
+    assert.equal(flash(bad), "bad-apt");
     assert.doesNotMatch(bad.headers.get("set-cookie") ?? "", /vk_apt=Z9/);
     const ok = await post("apartment", { apartment: "b2" });
     assert.equal(flash(ok), "apartment");
