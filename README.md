@@ -18,7 +18,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Messages**: under "Se detaljer" on someone else's booking, "Send melding" pushes a ready-made question (plus an
   optional 140-character note) to the holder's devices. It is only offered when the holder has notifications on.
   The holder answers by updating their comment; the sender is put on that slot's waitlist to hear it. At most 3
-  messages per apartment per booking; only that count is stored, never the text.
+  messages per apartment and 10 in total per booking; only those counts are stored, never the text.
+  Leaving the waitlist ("Forlat venteliste") leaves every machine at that time.
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats.

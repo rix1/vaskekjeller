@@ -253,8 +253,10 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
     await mf.dispatchFetch(`http://localhost${response.headers.get("location")}`, { headers: { Cookie: "vk_apt=B2" } })
   ).text();
   assert.match(sent, /Meldingen er sendt\. Du står nå på ventelisten og får beskjed når kommentaren endres\./);
-  assert.match(sent, /<h2>På venteliste<\/h2>[\s\S]*action="\/demo\/unwait/, "the sender can leave the waitlist");
-  assert.match(sent, /1 av 3 sendt\./);
+  const waitlistSection = sent.match(/<h2>På venteliste<\/h2>([\s\S]*?)<\/section>/)?.[1] ?? "";
+  assert.equal(waitlistSection.match(/action="\/demo\/unwait/g)?.length, 1, "one way to leave the waitlist for the reservation");
+  assert.match(waitlistSection, /Vaskemaskin \+ Tørketrommel/);
+  assert.doesNotMatch(sent, /av 3 sendt/);
 
   // The holder's reply goes to the sender like to any other waiter.
   pushed = [];
@@ -264,6 +266,14 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
     pushed.map((p) => p.endpoint.split("/").pop()),
     ["B2"],
   );
+
+  // Leaving once, even from a single machine's row, leaves the whole reservation.
+  assert.equal(flash(await post("unwait", { machine_id: 1, date: tomorrow, start: 600 }, "B2")), "unwaited");
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM waitlist WHERE apartment = 'B2'").get().n, 0);
+  pushed = [];
+  await post("note", { booking_ids: (await active()).results.map((b) => b.id).join(","), note: "Ferdig nå" });
+  await settle();
+  assert.equal(pushed.length, 0);
 });
 
 test("tapping the message opens the holder's comment field", async () => {
@@ -306,9 +316,52 @@ test("only 3 messages per apartment per reservation; only the count is stored", 
     const dump = JSON.stringify(sqlite.prepare(`SELECT * FROM "${name}"`).all());
     assert.doesNotMatch(dump, /ferdig snart|tørketrommelen\?|Hei/, `${name} holds no message text`);
   }
-  const html = await board(tomorrow, "B2");
-  assert.match(html, /Du har sendt 3 av 3 meldinger til leil\. A3/);
-  assert.doesNotMatch(html, /action="\/demo\/message/);
+});
+
+test("a reservation receives at most 10 messages in total across senders", async () => {
+  await reset();
+  await book(600);
+  const [washer] = (await active()).results;
+  await subscribe("A3");
+  for (const sender of ["B1", "B2", "B3"]) {
+    for (let i = 0; i < 3; i++) assert.equal(flash(await message(washer.id, {}, sender)), "message-sent");
+  }
+  assert.equal(flash(await message(washer.id, {}, "C1")), "message-sent");
+  const full = await message(washer.id, {}, "C2");
+  assert.equal(flash(full), "message-full");
+  assert.equal(flash(await message(washer.id, {}, "C1")), "message-full");
+  assert.equal(flash(await message(washer.id, {}, "B1")), "message-limit");
+  await settle();
+  assert.equal(pushed.length, 10);
+  assert.equal(sqlite.prepare("SELECT SUM(sent) AS n FROM message_counts").get().n, 10);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM waitlist WHERE apartment = 'C2'").get().n, 0);
+  const html = await (
+    await mf.dispatchFetch(`http://localhost${full.headers.get("location")}`, { headers: { Cookie: "vk_apt=C2" } })
+  ).text();
+  assert.match(html, /class="flash err">Denne tiden har allerede fått 10 meldinger\./);
+});
+
+test("the apartment cookie is validated like a saved apartment", async () => {
+  await reset();
+  await book(600);
+  const [washer] = (await active()).results;
+  await subscribe("A3");
+  const long = "X".repeat(21);
+  assert.equal(flash(await message(washer.id, {}, long)), "no-apt");
+  assert.doesNotMatch(await board(tomorrow, long), new RegExp(long));
+  assert.equal(flash(await message(washer.id, {}, "b%202")), "message-sent");
+  await db.prepare("UPDATE tenants SET apartments = 'A3\nB2'").run();
+  try {
+    assert.equal(flash(await message(washer.id, {}, "C1")), "no-apt");
+  } finally {
+    await db.prepare("UPDATE tenants SET apartments = NULL").run();
+  }
+  await settle();
+  assert.deepEqual(
+    pushed.map((p) => p.message.title.split(" om ")[0]),
+    ["Leil. B2"],
+  );
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM message_counts WHERE sender <> 'B2'").get().n, 0);
 });
 
 test("messages to your own, cancelled, or past bookings are rejected", async () => {

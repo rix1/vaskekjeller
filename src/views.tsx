@@ -3,11 +3,11 @@ import { bookingOptions } from "./booking-options.ts";
 import {
   KIND_LABEL,
   MAX_MESSAGES,
+  MAX_MESSAGES_TOTAL,
   MESSAGES,
   slotKey,
   type Booking,
   type Machine,
-  type MessageCount,
   type Tenant,
   type WaitEntry,
 } from "./db.ts";
@@ -28,6 +28,7 @@ export const FLASH: Record<string, string> = {
   note: "Kommentaren er lagret.",
   "message-sent": "Meldingen er sendt. Du står nå på ventelisten og får beskjed når kommentaren endres.",
   "message-limit": `Du har allerede sendt ${MAX_MESSAGES} meldinger om denne tiden.`,
+  "message-full": `Denne tiden har allerede fått ${MAX_MESSAGES_TOTAL} meldinger. Sett deg på ventelisten for å få beskjed når kommentaren endres.`,
   "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
   "wrong-password": "Feil passord.",
   saved: "Lagret.",
@@ -60,7 +61,7 @@ const Flash: FC<{ code?: string }> = ({ code }) =>
   code && FLASH[code] ? (
     <p
       role="status"
-      class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password", "message-limit", "no-push"].includes(code) ? "err" : ""}`}
+      class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password", "message-limit", "message-full", "no-push"].includes(code) ? "err" : ""}`}
     >
       {FLASH[code]}
     </p>
@@ -168,19 +169,10 @@ const Icon: FC<{
 );
 
 /** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
-const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; sent: number }> = ({
-  booking: b,
-  action,
-  notifiable,
-  sent,
-}) => (
+const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean }> = ({ booking: b, action, notifiable }) => (
   <div class="slot-message">
     {!notifiable ? (
       <small>Leil. {b.apartment} har ikke varsler på.</small>
-    ) : sent >= MAX_MESSAGES ? (
-      <small>
-        Du har sendt {MAX_MESSAGES} av {MAX_MESSAGES} meldinger til leil. {b.apartment} om denne tiden.
-      </small>
     ) : (
       <details>
         <summary>
@@ -202,8 +194,7 @@ const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; s
             <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
           </label>
           <small>
-            Leil. {b.apartment} får et varsel og kan svare med en kommentar.{" "}
-            {sent > 0 ? `${sent} av ${MAX_MESSAGES} sendt.` : "Du settes på ventelisten."}
+            Leil. {b.apartment} får et varsel og kan svare med en kommentar. Du settes på ventelisten.
           </small>
           <button class="small-button">Send melding</button>
         </form>
@@ -227,7 +218,6 @@ type BoardProps = {
   apartments: string[];
   /** Apartments with upcoming bookings that have at least one device with notifications on. */
   notifiable: string[];
-  messagesSent: MessageCount[];
   /** Booking id whose comment field opens (from a message push). */
   openNote?: string;
   now: LocalNow;
@@ -287,10 +277,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
         )
         .map((w) => w.apartment),
     ).size;
-  const messageState = (b: Booking) => ({
-    notifiable: p.notifiable.includes(b.apartment),
-    sent: p.messagesSent.find((m) => m.date === b.date && m.start_min === b.start_min && m.holder === b.apartment)?.sent ?? 0,
-  });
   const weekIndex = p.weeks.findIndex((w) => w.includes(selected));
   const week = p.weeks[weekIndex] ?? [];
   // Opening a week selects today when it is in that week, else its first viewable day.
@@ -649,7 +635,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                               {p.apartment &&
                                 other
                                   .filter((b, i) => other.findIndex((x) => x.apartment === b.apartment) === i)
-                                  .map((b) => <MessageForm booking={b} action={action("message")} {...messageState(b)} />)}
+                                  .map((b) => <MessageForm booking={b} action={action("message")} notifiable={p.notifiable.includes(b.apartment)} />)}
                             </div>
                           </details>
                         )}
@@ -770,24 +756,30 @@ export const BoardPage: FC<BoardProps> = (p) => {
             {myWaits.length > 0 && (
               <section class="waitlist-section">
                 <h2>På venteliste</h2>
-                {myWaits.map((w) => (
-                  <div class="wait-entry">
-                    <strong>
-                      {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
-                    </strong>
-                    <small>{machineName(w.machine_id)}</small>
-                    <form method="post" action={`${base}/unwait${query(w.date)}`}>
-                      <Hidden
-                        fields={{
-                          machine_id: w.machine_id,
-                          date: w.date,
-                          start: w.start_min,
-                        }}
-                      />
-                      <button class="link">Forlat venteliste</button>
-                    </form>
-                  </div>
-                ))}
+                {myWaits
+                  .filter((w, i) => myWaits.findIndex((x) => x.date === w.date && x.start_min === w.start_min) === i)
+                  .map((w) => (
+                    <div class="wait-entry">
+                      <strong>
+                        {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
+                      </strong>
+                      <small>
+                        {myWaits
+                          .filter((x) => x.date === w.date && x.start_min === w.start_min)
+                          .map((x) => machineName(x.machine_id))
+                          .join(" + ")}
+                      </small>
+                      <form method="post" action={`${base}/unwait${query(w.date)}`}>
+                        <Hidden
+                          fields={{
+                            date: w.date,
+                            start: w.start_min,
+                          }}
+                        />
+                        <button class="link">Forlat venteliste</button>
+                      </form>
+                    </div>
+                  ))}
                 <div id="push-banner" class="push-banner" hidden>
                   <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
                   <button type="button" id="push-toggle">

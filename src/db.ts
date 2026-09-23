@@ -39,8 +39,8 @@ export const MESSAGES = {
 export type MessageKey = keyof typeof MESSAGES;
 /** Messages one apartment may send about one reservation. */
 export const MAX_MESSAGES = 3;
-/** How many messages the viewer has sent about a reservation (holder, date, start_min). */
-export type MessageCount = { date: string; start_min: number; holder: string; sent: number };
+/** Messages one reservation may receive in total, across all senders. */
+export const MAX_MESSAGES_TOTAL = 10;
 
 export function apartmentList(t: Tenant): string[] {
   return (t.apartments ?? "")
