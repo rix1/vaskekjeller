@@ -345,7 +345,7 @@ t.post("/push/test", async (c) => {
     sub,
     {
       title: "Varsler er på ✅",
-      body: "Du får beskjed når en tid du venter på blir ledig.",
+      body: "Du får beskjed når en tid du venter på blir ledig eller får en ny kommentar.",
       url: base(c),
     },
     vapid(c.env),
