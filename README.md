@@ -36,7 +36,7 @@ npm run typecheck
 
 ```sh
 npx wrangler login
-npx wrangler deploy                        # first deploy provisions the D1 database automatically
+npx wrangler deploy
 npm run db:migrate:remote
 node scripts/gen-vapid.ts                  # then:
 npx wrangler secret put VAPID_PUBLIC_KEY
@@ -44,6 +44,10 @@ npx wrangler secret put VAPID_PRIVATE_KEY
 npx wrangler secret put SESSION_SECRET     # any long random string
 node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote
 ```
+
+The production D1 database `vaskekjeller` is already created with EU jurisdiction
+(`wrangler d1 create vaskekjeller --jurisdiction eu`) and pinned by `database_id` in `wrangler.jsonc`, so deploy
+does not auto-provision one. A database's jurisdiction can't be changed later; to recreate it, keep `--jurisdiction eu`.
 
 Set `DEFAULT_TENANT` and `VAPID_SUBJECT` (a `mailto:` address push services can contact) in `wrangler.jsonc`.
 Don't rotate the VAPID keys after launch: existing push subscriptions stop working.
