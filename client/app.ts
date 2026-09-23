@@ -210,10 +210,10 @@ document.addEventListener("click", (event) => {
     details.querySelector("summary")?.focus();
     return;
   }
-  const close = event.target.closest(".toast-close");
-  if (close) {
+  const toastClose = event.target.closest(".toast-close");
+  if (toastClose) {
     event.preventDefault();
-    dismissToast(close.closest(".toast")!);
+    dismissToast(toastClose.closest(".toast")!);
     return;
   }
   const link = event.target.closest<HTMLAnchorElement>("a[href]");
