@@ -61,7 +61,9 @@ and hand over the admin password.
 
 The default selection reserves one washer and one dryer together in a single atomic write.
 Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
-A confirmation shows the date, time, and machines with an immediate **Angre** action.
+A confirmation toast shows the date, time, and machines with an **Angre** action for about 8 seconds
+(paused while hovered or focused). Other status messages are toasts too: success toasts close after about
+4 seconds, errors stay until closed. Without JavaScript the same toasts are server-rendered and fade out with CSS.
 Machine-only reservations, partial availability, and waitlists remain available.
 
 The date strip shows Monday-to-Sunday weeks and opens on today. It reaches back 14 days and forward to the

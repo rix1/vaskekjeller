@@ -43,12 +43,37 @@ export const Layout: FC<{
   </html>
 );
 
-const Flash: FC<{ code?: string }> = ({ code }) =>
-  code && FLASH[code] ? (
-    <p role="status" class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password"].includes(code) ? "err" : ""}`}>
-      {FLASH[code]}
-    </p>
-  ) : null;
+// Codes that explain why something did not happen stay until closed.
+const ERROR_CODES = ["taken", "limit", "invalid", "over", "no-apt", "bad-apt", "wrong-password"];
+
+// Server-rendered toasts: CSS fades them out without JavaScript, client/app.ts adds stacking and dismissal.
+export const Toaster: FC<{ code?: string; error?: string; dismissHref: string; children?: Child }> = (p) => {
+  const message = p.error ?? (p.code ? FLASH[p.code] : undefined);
+  const isError = !!p.error || ERROR_CODES.includes(p.code ?? "");
+  return (
+    <div class="toaster">
+      {p.children ||
+        (message && (
+          <Toast tone={isError ? "error" : "success"} dismissHref={p.dismissHref}>
+            <p class="toast-title">{message}</p>
+          </Toast>
+        ))}
+    </div>
+  );
+};
+
+export const Toast: FC<{ tone: "success" | "error"; long?: boolean; dismissHref: string; action?: Child; children: Child }> = (p) => (
+  <div class={`toast ${p.tone}${p.tone === "error" ? "" : p.long ? " auto long" : " auto"}`} role={p.tone === "error" ? "alert" : "status"}>
+    <span class="toast-icon">
+      <Icon name={p.tone === "error" ? "alert" : "check"} size={16} />
+    </span>
+    <div class="toast-text">{p.children}</div>
+    {p.action}
+    <a class="toast-close" href={p.dismissHref} aria-label="Lukk varsel">
+      <span aria-hidden="true">×</span>
+    </a>
+  </div>
+);
 
 const Hidden: FC<{ fields: Record<string, string | number> }> = ({ fields }) => (
   <>
@@ -67,7 +92,6 @@ export const PasswordPage: FC<{
   <Layout title={p.tenant.name} tenant={p.tenant}>
     <main class="narrow">
       <h1>{p.heading}</h1>
-      <Flash code={p.flash} />
       <form method="post" action={p.action} class="stack">
         <label>
           Passord
@@ -76,6 +100,7 @@ export const PasswordPage: FC<{
         <button>Logg inn</button>
       </form>
     </main>
+    <Toaster code={p.flash} dismissHref={p.action} />
   </Layout>
 );
 
@@ -109,7 +134,7 @@ export const ApartmentPicker: FC<{
 );
 
 const Icon: FC<{
-  name?: "washer" | "arrow" | "clock" | "check" | "home" | "calendar";
+  name?: "washer" | "arrow" | "clock" | "check" | "home" | "calendar" | "alert";
   size?: number;
 }> = ({ name = "washer", size = 20 }) => (
   <svg
@@ -138,6 +163,8 @@ const Icon: FC<{
       </>
     ) : name === "check" ? (
       <path d="m5 12 4 4L19 6" />
+    ) : name === "alert" ? (
+      <path d="M12 7v6m0 4h.01" stroke-width="2.2" />
     ) : name === "home" ? (
       <>
         <path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8" />
@@ -284,24 +311,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
             </span>
           </div>
         </div>
-        {justBooked.length > 0 ? (
-          <div class="flash booking-success" role="status">
-            <Icon name="check" />
-            <div>
-              <strong>Tiden er din!</strong>
-              <span>
-                {fmtDay(justBooked[0]!.date, "short")} · {fmtMinute(justBooked[0]!.start_min)}–{fmtMinute(justBooked[0]!.end_min)} ·{" "}
-                {groupLabel(justBooked)}
-              </span>
-            </div>
-            <form method="post" action={action("cancel")}>
-              <Hidden fields={{ booking_ids: justBooked.map((b) => b.id).join(",") }} />
-              <button class="link">Angre</button>
-            </form>
-          </div>
-        ) : (
-          <Flash code={p.flash} />
-        )}
         {groups.size > 0 && (
           <a class="mobile-mine-link" href="#mine">
             <Icon name="calendar" size={17} />
@@ -737,6 +746,27 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </aside>
         </div>
       </main>
+      <Toaster code={p.flash} dismissHref={url()}>
+        {justBooked.length > 0 && (
+          <Toast
+            tone="success"
+            long
+            dismissHref={url()}
+            action={
+              <form method="post" action={action("cancel")} class="toast-action">
+                <Hidden fields={{ booking_ids: justBooked.map((b) => b.id).join(",") }} />
+                <button class="toast-button">Angre</button>
+              </form>
+            }
+          >
+            <p class="toast-title">Tiden er din!</p>
+            <p class="toast-detail">
+              {fmtDay(justBooked[0]!.date, "short")} · {fmtMinute(justBooked[0]!.start_min)}–{fmtMinute(justBooked[0]!.end_min)} ·{" "}
+              {groupLabel(justBooked)}
+            </p>
+          </Toast>
+        )}
+      </Toaster>
       <footer class="foot resident-foot">
         <span>Felles vaskerom, færre løse tråder.</span>
         <a href={`${base}/admin`}>
