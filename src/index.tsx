@@ -1,7 +1,18 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
-import { AdminOverview, AdminSettings, apartmentSummary, SECTIONS, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
+import {
+  AdminClosed,
+  AdminOverview,
+  AdminSettings,
+  apartmentSummary,
+  AUDIT_PAGE,
+  SECTIONS,
+  SLOT_LENGTHS,
+  type SettingsState,
+  type Stats,
+} from "./admin-views.tsx";
+import { audit, AUDIT_RETENTION, auditEntries, auditStatement, CLOSED_GRACE_DAYS, purgeDate, sameName } from "./audit.ts";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
 import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
@@ -25,7 +36,7 @@ import {
 } from "./db.ts";
 import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
 import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, parseHHMM, slotIsOver, slotsFor } from "./time.ts";
-import { BoardPage, PasswordPage } from "./views.tsx";
+import { BoardPage, ClosedPage, DeletedPage, PasswordPage } from "./views.tsx";
 
 type App = { Bindings: Env; Variables: { tenant: Tenant } };
 type Ctx = Context<App>;
@@ -47,6 +58,8 @@ t.use(async (c, next) => {
   if (!tenant) return c.notFound();
   c.set("tenant", tenant);
   const sub = c.req.path.slice(tenant.slug.length + 1);
+  // A closed building is offline for residents (including feeds); only the admin page still works.
+  if (tenant.closed_at && !sub.startsWith("/admin")) return c.html(<ClosedPage tenant={tenant} />, 410);
   const open = sub.startsWith("/admin") || sub === "/login";
   if (!open && tenant.access_password_hash && !(await auth.has(c, tenant, "access"))) {
     if (c.req.method === "GET") return c.redirect(`/${tenant.slug}/login`);
@@ -487,6 +500,7 @@ async function cancelBooking(c: Ctx, b: Booking, by: "resident" | "admin") {
     .bind(by, b.id)
     .run();
   if (res.meta.changes) c.executionCtx.waitUntil(notifyWaitlist(c.env, c.var.tenant, b));
+  return res.meta.changes > 0;
 }
 
 /** Tell everyone waiting for this slot that it's free. First to book it wins. */
@@ -598,6 +612,10 @@ admin.post("/login", async (c) => {
 admin.use(async (c, next) => {
   if (c.req.path.endsWith("/admin/login")) return next();
   if (!(await auth.has(c, c.var.tenant, "admin"))) return c.redirect(`${adminBase(c)}/login`, 303);
+  // While closed, the admin can only reopen, delete now, or log out; everything else leads to that choice.
+  const sub = c.req.path.slice(adminBase(c).length);
+  if (c.var.tenant.closed_at && !(sub === "" || sub === "/" || ["/reopen", "/delete", "/logout"].includes(sub)))
+    return c.redirect(adminBase(c), 303);
   await next();
 });
 
@@ -609,6 +627,7 @@ admin.post("/logout", (c) => {
 admin.get("/", async (c) => {
   const tenant = c.var.tenant;
   const db = c.env.DB;
+  if (tenant.closed_at) return renderClosed(c);
   const now = localNow(tenant.timezone);
   const from30 = addDays(now.date, -29);
   const from90 = addDays(now.date, -89);
@@ -682,7 +701,15 @@ admin.post("/bookings/:id/cancel", async (c) => {
   const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ? AND cancelled_at IS NULL")
     .bind(Number(c.req.param("id")), c.var.tenant.id)
     .first<Booking>();
-  if (b) await cancelBooking(c, b, "admin");
+  if (b) {
+    const machine = await c.env.DB.prepare("SELECT name FROM machines WHERE id = ?").bind(b.machine_id).first<string>("name");
+    if (await cancelBooking(c, b, "admin"))
+      await audit(
+        c,
+        "booking",
+        `Avbestilte Leil. ${b.apartment}, ${fmtDay(b.date, "short").toLowerCase()} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)} (${machine})`,
+      );
+  }
   return c.redirect(`${adminBase(c)}?m=cancelled`, 303);
 });
 
@@ -690,14 +717,43 @@ const settingsSections = new Set<string>(SECTIONS.map(([id]) => id));
 
 async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 422 = 200) {
   const tenant = c.var.tenant;
-  const [machines, residentPassword] = await Promise.all([
+  const showAll = c.req.query("aktivitet") === "alle";
+  const [machines, residentPassword, log] = await Promise.all([
     getMachines(c.env.DB, tenant.id, true),
     tenant.access_password_enc ? decryptText(c.env.SESSION_SECRET, tenant.access_password_enc, accessContext(tenant)) : null,
+    auditEntries(c.env.DB, tenant.id, showAll ? AUDIT_MAX : AUDIT_PAGE + 1),
   ]);
   // The page can show the resident password in plain text.
   c.header("Cache-Control", "no-store");
   return c.html(
-    <AdminSettings tenant={tenant} machines={machines} residentPassword={residentPassword} flash={c.req.query("m")} {...state} />,
+    <AdminSettings
+      tenant={tenant}
+      machines={machines}
+      residentPassword={residentPassword}
+      log={log.slice(0, showAll ? AUDIT_MAX : AUDIT_PAGE)}
+      moreLog={!showAll && log.length > AUDIT_PAGE}
+      flash={c.req.query("m")}
+      {...state}
+    />,
+    status,
+  );
+}
+
+/** Upper bound for "Vis alle" in the activity log; 12 months of admin changes stays far below it. */
+const AUDIT_MAX = 2000;
+
+async function renderClosed(c: Ctx, state: { error?: string; dialog?: boolean } = {}, status: 200 | 422 = 200) {
+  const tenant = c.var.tenant;
+  const log = await auditEntries(c.env.DB, tenant.id, AUDIT_PAGE);
+  c.header("Cache-Control", "no-store");
+  return c.html(
+    <AdminClosed
+      tenant={tenant}
+      purgeOn={purgeDate(tenant.closed_at!, tenant.timezone)}
+      log={log}
+      flash={c.req.query("m")}
+      {...state}
+    />,
     status,
   );
 }
@@ -752,16 +808,55 @@ admin.post("/settings", async (c) => {
     else updates.apartments = unique.join("\n") || null;
   }
   if (Object.keys(errors).length) return renderSettings(c, { errors, values: f, card: settingsSection(f.section ?? "") }, 422);
-  const columns = Object.keys(updates);
-  if (columns.length)
-    await c.env.DB.prepare(`UPDATE tenants SET ${columns.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`)
-      .bind(...Object.values(updates), tenant.id)
-      .run();
+  const changed = Object.entries(updates).filter(([k, value]) => tenant[k as keyof Tenant] !== value);
+  if (changed.length)
+    await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE tenants SET ${changed.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ?`).bind(
+        ...changed.map(([, value]) => value),
+        tenant.id,
+      ),
+      ...changed.map(([k, value]) => auditStatement(c, "settings", settingChange(k, tenant[k as keyof Tenant], value))),
+    ]);
   return settingsBack(c, "saved", f.section ?? "");
 });
 
+/** One audit line for a changed setting, e.g. "Lengde per tid: 120 → 90 min". */
+function settingChange(column: string, before: unknown, after: unknown): string {
+  const limit = (n: unknown) => (n === 0 ? "ubegrenset" : String(n));
+  switch (column) {
+    case "name":
+      return `Navn: «${before}» → «${after}»`;
+    case "day_start_min":
+      return `Første tid starter: ${fmtMinute(before as number)} → ${fmtMinute(after as number)}`;
+    case "day_end_min":
+      return `Siste tid slutter: ${fmtMinute(before as number)} → ${fmtMinute(after as number)}`;
+    case "slot_min":
+      return `Lengde per tid: ${before} → ${after} min`;
+    case "booking_horizon_days":
+      return `Kan booke dager frem: ${before} → ${after}`;
+    case "max_active_bookings":
+      return `Maks aktive tider per leilighet: ${limit(before)} → ${limit(after)}`;
+    case "apartments": {
+      const list = (v: unknown) => (typeof v === "string" && v ? v.split("\n") : []);
+      const [was, now] = [list(before), list(after)];
+      const some = (xs: string[]) => (xs.length > 8 ? `${xs.slice(0, 8).join(", ")} og ${xs.length - 8} til` : xs.join(", "));
+      const added = now.filter((a) => !was.includes(a));
+      const removed = was.filter((a) => !now.includes(a));
+      if (!now.length) return `Leiligheter: fjernet listen (${was.length}). Alle numre er tillatt.`;
+      const parts = [added.length && `la til ${some(added)}`, removed.length && `fjernet ${some(removed)}`].filter(Boolean);
+      return `Leiligheter: ${parts.join("; ") || "endret rekkefølgen"} (${now.length} i alt)`;
+    }
+    default:
+      return `${column}: ${before} → ${after}`;
+  }
+}
+
 const isKind = (k: string | undefined): k is MachineKind => !!k && k in KIND_LABEL;
 const machineId = (c: Ctx) => Number(c.req.param("id"));
+const machineById = (c: Ctx, id: number) =>
+  c.env.DB.prepare("SELECT id, kind, name, active FROM machines WHERE id = ? AND tenant_id = ?")
+    .bind(id, c.var.tenant.id)
+    .first<{ id: number; kind: MachineKind; name: string; active: number }>();
 
 admin.post("/machines", async (c) => {
   const f = await form(c);
@@ -776,11 +871,12 @@ admin.post("/machines", async (c) => {
       },
       422,
     );
-  await c.env.DB.prepare(
-    "INSERT INTO machines (tenant_id, kind, name, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM machines WHERE tenant_id = ?))",
-  )
-    .bind(c.var.tenant.id, f.kind, name, c.var.tenant.id)
-    .run();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO machines (tenant_id, kind, name, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM machines WHERE tenant_id = ?))",
+    ).bind(c.var.tenant.id, f.kind, name, c.var.tenant.id),
+    auditStatement(c, "machine", `La til maskin «${name}» (${KIND_LABEL[f.kind]})`),
+  ]);
   return settingsBack(c, "machine-added", "maskiner");
 });
 
@@ -798,9 +894,17 @@ admin.post("/machines/:id", async (c) => {
       },
       422,
     );
-  await c.env.DB.prepare("UPDATE machines SET name = ?, kind = ? WHERE id = ? AND tenant_id = ?")
-    .bind(name, f.kind, id, c.var.tenant.id)
-    .run();
+  const before = await machineById(c, id);
+  if (before && (before.name !== name || before.kind !== f.kind)) {
+    const changes = [
+      before.name !== name && `Endret navn på maskin «${before.name}» → «${name}»`,
+      before.kind !== f.kind && `Endret type for «${name}»: ${KIND_LABEL[before.kind]} → ${KIND_LABEL[f.kind]}`,
+    ].filter((x): x is string => !!x);
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE machines SET name = ?, kind = ? WHERE id = ? AND tenant_id = ?").bind(name, f.kind, id, c.var.tenant.id),
+      auditStatement(c, "machine", changes.join(". ")),
+    ]);
+  }
   return settingsBack(c, "machine-saved", "maskiner");
 });
 
@@ -811,19 +915,26 @@ admin.post("/machines/:id/move", async (c) => {
   const i = machines.findIndex((m) => m.id === machineId(c));
   const j = dir === "up" ? i - 1 : dir === "down" ? i + 1 : -1;
   if (i >= 0 && j >= 0 && j < machines.length) {
+    const moved = machines[i]!;
     [machines[i], machines[j]] = [machines[j]!, machines[i]!];
-    await c.env.DB.batch(
-      machines.map((m, index) =>
+    await c.env.DB.batch([
+      ...machines.map((m, index) =>
         c.env.DB.prepare("UPDATE machines SET sort_order = ? WHERE id = ? AND tenant_id = ?").bind(index + 1, m.id, c.var.tenant.id),
       ),
-    );
+      auditStatement(c, "machine", `Flyttet maskin «${moved.name}» ${dir === "up" ? "opp" : "ned"}`),
+    ]);
   }
   return settingsBack(c, undefined, "maskiner");
 });
 
 admin.post("/machines/:id/active", async (c) => {
   const active = (await form(c)).active === "1" ? 1 : 0;
-  await c.env.DB.prepare("UPDATE machines SET active = ? WHERE id = ? AND tenant_id = ?").bind(active, machineId(c), c.var.tenant.id).run();
+  const machine = await machineById(c, machineId(c));
+  if (machine && machine.active !== active)
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE machines SET active = ? WHERE id = ? AND tenant_id = ?").bind(active, machine.id, c.var.tenant.id),
+      auditStatement(c, "machine", `${active ? "Slo på" : "Slo av"} maskin «${machine.name}»`),
+    ]);
   return settingsBack(c, active ? "machine-on" : "machine-off", "maskiner");
 });
 
@@ -840,18 +951,21 @@ admin.post("/access", async (c) => {
     );
   const hash = await hashPassword(pw);
   const encrypted = await encryptText(c.env.SESSION_SECRET, pw, accessContext(tenant));
-  await c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?")
-    .bind(hash, encrypted, tenant.id)
-    .run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?").bind(hash, encrypted, tenant.id),
+    auditStatement(c, "access-password", tenant.access_password_hash ? "Endret beboerpassordet" : "Slo på beboerpassord"),
+  ]);
   // Keep the admin's own device signed in as a resident
   await auth.grant(c, { ...tenant, access_password_hash: hash }, "access");
   return settingsBack(c, tenant.access_password_hash ? "access-changed" : "access-on", "tilgang");
 });
 
 admin.post("/access/off", async (c) => {
-  await c.env.DB.prepare("UPDATE tenants SET access_password_hash = NULL, access_password_enc = NULL WHERE id = ?")
-    .bind(c.var.tenant.id)
-    .run();
+  if (c.var.tenant.access_password_hash)
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE tenants SET access_password_hash = NULL, access_password_enc = NULL WHERE id = ?").bind(c.var.tenant.id),
+      auditStatement(c, "access-password", "Slo av beboerpassord"),
+    ]);
   return settingsBack(c, "access-off", "tilgang");
 });
 
@@ -863,9 +977,55 @@ admin.post("/admin-password", async (c) => {
   else if (f.admin_password_confirm !== pw) errors.admin_password_confirm = "Passordene er ikke like.";
   if (Object.keys(errors).length) return renderSettings(c, { errors, dialog: "adminpassord" }, 422);
   const hash = await hashPassword(pw);
-  await c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ?").bind(hash, c.var.tenant.id).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ?").bind(hash, c.var.tenant.id),
+    auditStatement(c, "admin-password", "Byttet adminpassordet"),
+  ]);
   await auth.grant(c, { ...c.var.tenant, admin_password_hash: hash }, "admin");
   return settingsBack(c, "admin-password", "tilgang");
+});
+
+// ---------------------------------------------------------------------------
+// Closing and deleting the building
+// ---------------------------------------------------------------------------
+
+const nameError = (tenant: Tenant) => `Navnet stemmer ikke. Skriv «${tenant.name}» for å bekrefte.`;
+
+// Closing takes the booking page offline at once; the data is deleted by the daily cron after a grace period.
+admin.post("/close", async (c) => {
+  const tenant = c.var.tenant;
+  if (!sameName((await form(c)).confirm_name ?? "", tenant.name))
+    return renderSettings(c, { errors: { confirm_close: nameError(tenant) }, dialog: "steng" }, 422);
+  const closedAt = new Date().toISOString().slice(0, 19).replace("T", " ");
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tenants SET closed_at = ? WHERE id = ? AND closed_at IS NULL").bind(closedAt, tenant.id),
+    auditStatement(
+      c,
+      "building",
+      `Stengte vaskekjelleren. Slettes permanent ${fmtDay(purgeDate(closedAt, tenant.timezone)).toLowerCase()} (etter ${CLOSED_GRACE_DAYS} dager).`,
+    ),
+  ]);
+  return c.redirect(`${adminBase(c)}?m=closed`, 303);
+});
+
+admin.post("/reopen", async (c) => {
+  if (c.var.tenant.closed_at)
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE tenants SET closed_at = NULL WHERE id = ?").bind(c.var.tenant.id),
+      auditStatement(c, "building", "Gjenåpnet vaskekjelleren"),
+    ]);
+  return c.redirect(`${adminBase(c)}/settings?m=reopened`, 303);
+});
+
+// Only a closed building can be deleted right away, and it takes typing the name again.
+admin.post("/delete", async (c) => {
+  const tenant = c.var.tenant;
+  if (!tenant.closed_at) return c.redirect(`${adminBase(c)}/settings#tilgang`, 303);
+  if (!sameName((await form(c)).confirm_name ?? "", tenant.name)) return renderClosed(c, { error: nameError(tenant), dialog: true }, 422);
+  await c.env.DB.batch(deleteTenant(c.env.DB, tenant.id));
+  auth.revoke(c, tenant, "admin");
+  auth.revoke(c, tenant, "access");
+  return c.html(<DeletedPage name={tenant.name} />);
 });
 
 t.route("/admin", admin);
@@ -875,13 +1035,27 @@ app.route("/:slug", t);
 // Daily housekeeping
 // ---------------------------------------------------------------------------
 
+/** Deletes a building and everything it owns. Every table with a tenant_id cascades from tenants,
+ * except visitor_hashes, which has no foreign key and is deleted explicitly. */
+function deleteTenant(db: D1Database, id: number) {
+  return [
+    db.prepare("DELETE FROM visitor_hashes WHERE tenant_id = ?").bind(id),
+    db.prepare("DELETE FROM tenants WHERE id = ?").bind(id),
+  ];
+}
+
 async function scheduled(_: ScheduledController, env: Env) {
   // Using UTC "yesterday" is conservative enough for any European tenant.
   const yesterday = addDays(new Date().toISOString().slice(0, 10), -1);
+  const { results: expired } = await env.DB.prepare("SELECT id FROM tenants WHERE closed_at <= datetime('now', ?)")
+    .bind(`-${CLOSED_GRACE_DAYS} days`)
+    .all<{ id: number }>();
   await env.DB.batch([
     env.DB.prepare("DELETE FROM waitlist WHERE date < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM visitor_hashes WHERE day < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM message_counts WHERE date < ?").bind(yesterday),
+    env.DB.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', ?)").bind(AUDIT_RETENTION),
+    ...expired.flatMap((t) => deleteTenant(env.DB, t.id)),
   ]);
 }
 

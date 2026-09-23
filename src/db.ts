@@ -13,6 +13,8 @@ export type Tenant = {
   /** Encrypted copy of the resident password so admins can read it back; see crypto.ts encryptText. */
   access_password_enc: string | null;
   admin_password_hash: string;
+  /** When an admin closed the building (UTC); the booking page is offline and the data is deleted 7 days later. */
+  closed_at: string | null;
 };
 
 export type MachineKind = "washer" | "dryer";

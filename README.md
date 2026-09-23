@@ -26,6 +26,20 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
   cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,
   a bottom drawer on phones) that falls back to an in-page `#anchor` target without JavaScript.
+- **Activity log**: the "Aktivitet" section of the admin settings lists admin changes, newest first, in a
+  scrollable box: resident and admin passwords turned on, changed or off; schedule and rule changes as
+  before → after (e.g. "Lengde per tid: 120 → 90 min"); machines added, changed, moved or switched off;
+  bookings an admin cancelled; the building closed or reopened. Residents' own bookings are not logged.
+  Everyone shares one admin login, so each entry records only a coarse device label such as
+  "iPhone · Safari" (derived in `src/audit.ts`), never the IP address or the raw User-Agent. Entries are
+  deleted by the daily cron after 12 months.
+- **Closing a building**: "Steng og slett" at the bottom of the Tilgang section needs the building's name
+  typed to confirm. The booking page, every resident route and any feed under `/<slug>` then answer
+  410 with "Denne vaskekjelleren er stengt". Admin login still works and shows only "Stengt – slettes
+  permanent <dato>" with "Gjenåpne" and "Slett permanent nå" (which needs the name again). The daily cron
+  deletes a building 7 days after it was closed. Deleting removes the tenant row; every table cascades
+  from it except `visitor_hashes`, which is deleted explicitly. A new table with a `tenant_id` needs
+  `REFERENCES tenants(id) ON DELETE CASCADE` or an explicit delete in `deleteTenant` (`src/index.tsx`).
 - **Passwords**: the resident password is a shared door code. It is verified against a PBKDF2 hash (which
   resident cookies are bound to) and also stored AES-GCM encrypted with a key derived from `SESSION_SECRET`,
   so admins can view and copy it. Rotating `SESSION_SECRET` makes it unreadable until an admin sets a new one.
@@ -117,7 +131,8 @@ reservations, atomic conflicts, household limits, ownership, comments, cancellat
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
 toasts (Angre confirmation, errors), messages to booking holders (`tests/push-messages.test.mjs`), the admin
-settings, machine, and password routes, and the settings table of contents and inline machine updates in
+settings, machine, and password routes, the activity log and closing/deleting a building
+(`tests/audit-danger.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it as a classic
 script, since `/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
