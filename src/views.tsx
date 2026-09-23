@@ -1,6 +1,19 @@
 import type { Child, FC } from "hono/jsx";
 import { bookingOptions } from "./booking-options.ts";
-import { KIND_LABEL, slotKey, type Booking, type Machine, type MachineKind, type Tenant, type WaitEntry } from "./db.ts";
+import {
+  KIND_LABEL,
+  LATE_MESSAGE,
+  LATE_MESSAGE_MIN,
+  MAX_MESSAGES,
+  MAX_MESSAGES_TOTAL,
+  MESSAGES,
+  slotKey,
+  type Booking,
+  type Machine,
+  type MachineKind,
+  type Tenant,
+  type WaitEntry,
+} from "./db.ts";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
@@ -16,6 +29,11 @@ export const FLASH: Record<string, string> = {
   waiting: "Du står på ventelisten. Slå på varsler for å få beskjed når tiden blir ledig eller får en ny kommentar.",
   unwaited: "Du er fjernet fra ventelisten.",
   note: "Kommentaren er lagret.",
+  "message-sent": "Meldingen er sendt. Du står nå på ventelisten og får beskjed når kommentaren endres.",
+  "message-sent-over": "Meldingen er sendt.",
+  "message-limit": `Du har allerede sendt ${MAX_MESSAGES} meldinger om denne tiden.`,
+  "message-full": `Denne tiden har allerede fått ${MAX_MESSAGES_TOTAL} meldinger. Sett deg på ventelisten for å få beskjed når kommentaren endres.`,
+  "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
   "wrong-password": "Feil passord.",
   saved: "Lagret.",
 };
@@ -44,7 +62,7 @@ export const Layout: FC<{
 );
 
 // Codes that explain why something did not happen stay until closed.
-const ERROR_CODES = ["taken", "limit", "invalid", "over", "no-apt", "bad-apt", "wrong-password"];
+const ERROR_CODES = ["taken", "limit", "invalid", "over", "no-apt", "bad-apt", "wrong-password", "message-limit", "message-full", "no-push"];
 
 // Server-rendered toasts: CSS fades them out without JavaScript, client/app.ts adds stacking and dismissal.
 export const Toaster: FC<{ code?: string; error?: string; dismissHref: string; children?: Child }> = (p) => {
@@ -196,6 +214,50 @@ const MachineIcons: FC<{ machines: Machine[]; size?: number }> = ({ machines, si
   </span>
 );
 
+/** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
+const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; late: boolean }> = ({
+  booking: b,
+  action,
+  notifiable,
+  late,
+}) => (
+  <div class="slot-message">
+    {!notifiable ? (
+      <small>Leil. {b.apartment} har ikke varsler på.</small>
+    ) : (
+      <details>
+        <summary>
+          Send melding til leil. {b.apartment} <span aria-hidden="true">⌄</span>
+        </summary>
+        <form method="post" action={action} class="message-form">
+          <Hidden fields={{ booking_id: b.id }} />
+          <fieldset>
+            <legend>Velg melding</legend>
+            {Object.entries(MESSAGES)
+              .filter(([key]) => !late || key === LATE_MESSAGE)
+              .map(([key, text], i) => (
+                <label class="message-choice">
+                  <input type="radio" name="preset" value={key} required checked={i === 0} />
+                  {text}
+                </label>
+              ))}
+          </fieldset>
+          <label>
+            Legg til (valgfritt)
+            <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
+          </label>
+          <small>
+            {late
+              ? `Leil. ${b.apartment} får et varsel.`
+              : `Leil. ${b.apartment} får et varsel og kan svare med en kommentar. Du settes på ventelisten.`}
+          </small>
+          <button class="small-button">Send melding</button>
+        </form>
+      </details>
+    )}
+  </div>
+);
+
 type BoardProps = {
   tenant: Tenant;
   /** Includes inactive machines, so past days still show who used them. */
@@ -209,6 +271,12 @@ type BoardProps = {
   waitlist: WaitEntry[];
   apartment?: string;
   apartments: string[];
+  /** Apartments with bookings from today on (including ended ones) that have at least one device with notifications on. */
+  notifiable: string[];
+  /** Booking id whose comment field opens (from a message push). */
+  openNote?: string;
+  /** Booking id just messaged, for leaving the waitlist the message joined. */
+  messagedId?: string;
   now: LocalNow;
   flash?: string;
   vapidKey: string;
@@ -265,6 +333,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
   };
   const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
   const justBooked = p.flash === "booked" ? mine.filter((b) => (p.bookedIds ?? "").split(",").includes(String(b.id))) : [];
+  const messaged = p.flash === "message-sent" ? p.bookings.find((b) => String(b.id) === p.messagedId) : undefined;
   const groups = new Map<string, Booking[]>();
   for (const b of mine) {
     const key = `${b.date}|${b.start_min}|${b.end_min}`;
@@ -513,6 +582,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const partial = !over && partlyFree(selected, s);
                   const freeMachines = option.machines.filter((m) => !occupied.some((b) => b.machine_id === m.id));
                   const holder = (b: Booking) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`);
+                  const late = over && !!p.apartment && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
                   const time = `${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
                   const label = `${option.label}, ${time}`;
                   return (
@@ -634,7 +704,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                             Se din tid <span aria-hidden="true">↗</span>
                           </a>
                         )}
-                        {!over && occupied.length > 0 && !ownAll && (
+                        {((!over && occupied.length > 0 && !ownAll) || late) && (
                           <details class="slot-details">
                             <summary>
                               Se detaljer <span aria-hidden="true">⌄</span>
@@ -662,6 +732,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                       <small>Ledig</small>
                                     )}
                                     {p.apartment &&
+                                      !over &&
                                       (bookings.length ? (
                                         bookings.every((b) => b.apartment === p.apartment) ? (
                                           <a href={`#reservation-${bookings[0]!.id}`}>Din reservasjon ↗</a>
@@ -683,10 +754,16 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                   </div>
                                 );
                               })}
+                              {p.apartment &&
+                                other
+                                  .filter((b, i) => other.findIndex((x) => x.apartment === b.apartment) === i)
+                                  .map((b) => (
+                                    <MessageForm booking={b} action={action("message")} notifiable={p.notifiable.includes(b.apartment)} late={over} />
+                                  ))}
                             </div>
                           </details>
                         )}
-                        {over && <span class="muted">—</span>}
+                        {over && !late && <span class="muted">—</span>}
                       </div>
                     </article>
                   );
@@ -737,6 +814,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 const b = bookings[0]!;
                 const ids = bookings.map((x) => x.id).join(",");
                 const waiting = waiters(bookings);
+                const openNote = bookings.some((x) => String(x.id) === p.openNote);
                 return (
                   <article class={`reservation-card ${index === 0 ? "next-reservation" : ""}`} id={`reservation-${b.id}`}>
                     {bookings.slice(1).map((x) => (
@@ -762,7 +840,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                       </p>
                     )}
                     <div class="reservation-actions">
-                      <details>
+                      <details open={openNote}>
                         <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
                         <form method="post" action={`${base}/note${query(b.date)}`} class="note-form">
                           <Hidden fields={{ booking_ids: ids }} />
@@ -773,6 +851,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                               maxlength={140}
                               value={b.note ?? ""}
                               placeholder="F.eks. ferdig litt før"
+                              autofocus={openNote}
                               aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
                             />
                           </label>
@@ -849,7 +928,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
         </div>
       </main>
       <Toaster code={p.flash} dismissHref={url()}>
-        {justBooked.length > 0 && (
+        {justBooked.length > 0 ? (
           <Toast
             tone="success"
             long
@@ -867,7 +946,22 @@ export const BoardPage: FC<BoardProps> = (p) => {
               {groupLabel(justBooked)}
             </p>
           </Toast>
-        )}
+        ) : messaged ? (
+          <Toast
+            tone="success"
+            long
+            dismissHref={url()}
+            action={
+              <form method="post" action={action("unwait-reservation")} class="toast-action">
+                <Hidden fields={{ booking_id: messaged.id }} />
+                <button class="toast-button">Forlat venteliste</button>
+              </form>
+            }
+          >
+            <p class="toast-title">Meldingen er sendt.</p>
+            <p class="toast-detail">Du står nå på ventelisten og får beskjed når kommentaren endres.</p>
+          </Toast>
+        ) : null}
       </Toaster>
       <footer class="foot resident-foot">
         <span>Felles vaskerom, færre løse tråder.</span>

@@ -12,9 +12,15 @@ import {
   getTenant,
   getWaitlist,
   KIND_LABEL,
+  LATE_MESSAGE,
+  LATE_MESSAGE_MIN,
+  MAX_MESSAGES,
+  MAX_MESSAGES_TOTAL,
+  MESSAGES,
   normalizeApartment,
   type Booking,
   type MachineKind,
+  type MessageKey,
   type Tenant,
 } from "./db.ts";
 import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
@@ -62,11 +68,15 @@ const aptCookie = "vk_apt";
 // Set after the first booking on a device; hides the "one tap reserves" hint.
 const bookedCookie = "vk_booked";
 
-function currentApartment(c: Ctx): string | undefined {
-  const apt = getCookie(c, aptCookie);
-  if (!apt) return undefined;
+/** The normalized apartment if the tenant accepts it (on its list, or any short name without a list). */
+function validApartment(c: Ctx, raw: string): string | undefined {
+  const apt = normalizeApartment(raw);
   const allowed = apartmentList(c.var.tenant);
-  return !allowed.length || allowed.includes(apt) ? apt : undefined;
+  return apt && apt.length <= 20 && (!allowed.length || allowed.includes(apt)) ? apt : undefined;
+}
+
+function currentApartment(c: Ctx): string | undefined {
+  return validApartment(c, getCookie(c, aptCookie) ?? "");
 }
 
 function rememberApartment(c: Ctx, apt: string) {
@@ -116,6 +126,16 @@ t.get("/", async (c) => {
   c.executionCtx.waitUntil(recordVisit(c, now.date));
   const apartment = currentApartment(c);
   if (apartment) rememberApartment(c, apartment);
+  // "Send melding" needs to know which holders from today on have notifications on (today includes
+  // slots that just ended, for the late forgot-clothes message).
+  const holders = [...new Set(bookings.filter((b) => b.date >= now.date && b.apartment !== apartment).map((b) => b.apartment))];
+  const notifiable = apartment
+    ? await c.env.DB.prepare(
+        "SELECT DISTINCT apartment FROM push_subscriptions WHERE tenant_id = ? AND apartment IN (SELECT value FROM json_each(?))",
+      )
+        .bind(tenant.id, JSON.stringify(holders))
+        .all<{ apartment: string }>()
+    : undefined;
   const days = Array.from({ length: LOOKBACK_DAYS + tenant.booking_horizon_days }, (_, i) => addDays(first, i));
   return c.html(
     <BoardPage
@@ -128,6 +148,9 @@ t.get("/", async (c) => {
       waitlist={waitlist}
       apartment={apartment}
       apartments={apartmentList(tenant)}
+      notifiable={notifiable?.results.map((r) => r.apartment) ?? []}
+      openNote={c.req.query("note")}
+      messagedId={c.req.query("messaged")}
       now={now}
       flash={c.req.query("m")}
       selectedDate={c.req.query("date")}
@@ -140,9 +163,8 @@ t.get("/", async (c) => {
 });
 
 t.post("/apartment", async (c) => {
-  const apt = normalizeApartment((await form(c)).apartment ?? "");
-  const allowed = apartmentList(c.var.tenant);
-  if (!apt || apt.length > 20 || (allowed.length && !allowed.includes(apt))) return back(c, "bad-apt");
+  const apt = validApartment(c, (await form(c)).apartment ?? "");
+  if (!apt) return back(c, "bad-apt");
   rememberApartment(c, apt);
   return back(c, "apartment");
 });
@@ -307,6 +329,101 @@ t.post("/unwait", async (c) => {
     .bind(c.var.tenant.id, Number(f.machine_id), f.date ?? "", Number(f.start), apt)
     .run();
   return back(c, "unwaited", `d-${f.date}`);
+});
+
+/** Leaves what a message joined: the waitlist for every machine in the messaged reservation. */
+t.post("/unwait-reservation", async (c) => {
+  const tenant = c.var.tenant;
+  const apt = currentApartment(c);
+  if (!apt) return back(c, "no-apt");
+  const f = await form(c);
+  const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ?")
+    .bind(Number(f.booking_id), tenant.id)
+    .first<Booking>();
+  if (!b) return back(c, "invalid");
+  await c.env.DB.prepare(
+    `DELETE FROM waitlist WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ?
+     AND machine_id IN (SELECT machine_id FROM bookings WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ?)`,
+  )
+    .bind(tenant.id, apt, b.date, b.start_min, tenant.id, b.apartment, b.date, b.start_min)
+    .run();
+  return back(c, "unwaited", `d-${b.date}`);
+});
+
+/** A one-way push to another apartment's reservation; the sender joins its waitlist to hear the answer. */
+t.post("/message", async (c) => {
+  const tenant = c.var.tenant;
+  const apt = currentApartment(c);
+  if (!apt) return back(c, "no-apt");
+  const f = await form(c);
+  const text = Object.hasOwn(MESSAGES, f.preset ?? "") ? MESSAGES[f.preset as MessageKey] : undefined;
+  const extra = (f.note ?? "").trim();
+  if (!text || extra.length > 140) return back(c, "invalid");
+  const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ? AND cancelled_at IS NULL")
+    .bind(Number(f.booking_id), tenant.id)
+    .first<Booking>();
+  if (!b || b.apartment === apt) return back(c, "invalid");
+  const now = localNow(tenant.timezone);
+  const over = slotIsOver(b.date, b.end_min, now);
+  if (over && (f.preset !== LATE_MESSAGE || slotIsOver(b.date, b.end_min + LATE_MESSAGE_MIN, now))) return back(c, "over", `d-${b.date}`);
+  const { results: subs } = await c.env.DB.prepare(
+    "SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND apartment = ?",
+  )
+    .bind(tenant.id, b.apartment)
+    .all<PushSubscriptionRow & { id: number }>();
+  if (!subs.length) return back(c, "no-push", `d-${b.date}`);
+  // Only the counts are stored. The conditional upsert returns no row once either limit is reached.
+  const counted = await c.env.DB.prepare(
+    `INSERT INTO message_counts (tenant_id, date, start_min, holder, sender, sent)
+     SELECT ?, ?, ?, ?, ?, 1 WHERE (SELECT COALESCE(SUM(sent), 0) FROM message_counts
+       WHERE tenant_id = ? AND date = ? AND start_min = ? AND holder = ?) < ?
+     ON CONFLICT (tenant_id, date, start_min, holder, sender) DO UPDATE SET sent = sent + 1 WHERE sent < ?
+     RETURNING sent`,
+  )
+    .bind(
+      tenant.id,
+      b.date,
+      b.start_min,
+      b.apartment,
+      apt,
+      tenant.id,
+      b.date,
+      b.start_min,
+      b.apartment,
+      MAX_MESSAGES_TOTAL,
+      MAX_MESSAGES,
+    )
+    .first<number>("sent");
+  if (!counted) {
+    const sent = await c.env.DB.prepare(
+      "SELECT sent FROM message_counts WHERE tenant_id = ? AND date = ? AND start_min = ? AND holder = ? AND sender = ?",
+    )
+      .bind(tenant.id, b.date, b.start_min, b.apartment, apt)
+      .first<number>("sent");
+    return back(c, (sent ?? 0) >= MAX_MESSAGES ? "message-limit" : "message-full", `d-${b.date}`);
+  }
+  // Wait for every machine in the holder's reservation (/wait adds one), so the sender hears the reply.
+  if (!over) {
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
+       SELECT tenant_id, machine_id, date, start_min, ? FROM bookings
+       WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL`,
+    )
+      .bind(apt, tenant.id, b.apartment, b.date, b.start_min)
+      .run();
+  }
+  c.executionCtx.waitUntil(
+    pushAll(c.env, tenant, subs, {
+      title: `Leil. ${apt} om ${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}`,
+      body: `${text}${extra ? ` «${extra}»` : ""}${over ? "" : "\nSvar med en kommentar – de som venter får beskjed."}`,
+      url: over ? `/${tenant.slug}?date=${b.date}` : `/${tenant.slug}?date=${b.date}&note=${b.id}#reservation-${b.id}`,
+      // One per sender and reservation: a follow-up replaces the earlier message but still alerts.
+      tag: `message-${b.date}-${b.start_min}-${apt}`,
+      renotify: true,
+    }),
+  );
+  if (over) return back(c, "message-sent-over", `d-${b.date}`);
+  return back(c, "message-sent", `d-${b.date}`, { messaged: String(b.id) });
 });
 
 // ---------------------------------------------------------------------------
@@ -655,6 +772,7 @@ async function scheduled(_: ScheduledController, env: Env) {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM waitlist WHERE date < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM visitor_hashes WHERE day < ?").bind(yesterday),
+    env.DB.prepare("DELETE FROM message_counts WHERE date < ?").bind(yesterday),
   ]);
 }
 

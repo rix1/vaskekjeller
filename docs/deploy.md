@@ -30,7 +30,7 @@ Already done, don't redo:
    token, and add **Account** → **D1** → **Edit**. You can also create a token with those permissions
    yourself and select it under **Settings** → **Build** → **API token**.
 5. **Run the first build.** Push a commit to `main` (merging a PR counts). The build log
-   should show both migrations (`0001_init.sql`, `0002_booking_overlap.sql`) applied, then the deploy.
+   should show every migration in `migrations/` applied, then the deploy.
 6. **Create the first building** from your own machine (after `npm install` and `npx wrangler login`),
    once the first build has applied the migrations. It prompts for the admin password:
 

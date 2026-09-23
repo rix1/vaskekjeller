@@ -90,6 +90,8 @@ function cleanUrl(raw: string) {
   const url = new URL(raw, location.href);
   url.searchParams.delete("m");
   url.searchParams.delete("reservation");
+  url.searchParams.delete("note");
+  url.searchParams.delete("messaged");
   return url;
 }
 
@@ -149,6 +151,9 @@ async function updateBoard(
       if (dayBounds.left < stripBounds.left) dateStrip.scrollLeft -= stripBounds.left - dayBounds.left;
     }
     document.querySelectorAll(".toast.network-error").forEach(dismissToast);
+    // A toast's own action (Forlat venteliste after a message) is done once it has gone through.
+    const actionToast = options.form?.closest(".toast");
+    if (actionToast) dismissToast(actionToast);
     // Angre only applies while all of its bookings are still listed under "Dine tider".
     document.querySelectorAll<HTMLInputElement>('.toast-action [name="booking_ids"]').forEach((input) => {
       if (input.value.split(",").some((id) => !nextMain.querySelector(`#reservation-${id}`))) dismissToast(input.closest(".toast")!);
