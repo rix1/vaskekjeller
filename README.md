@@ -63,6 +63,14 @@ your machine (after `npx wrangler login`) as in Workers Builds; use it when Work
 Previews are off because they would share the live database: preview builds for branches and PRs are disabled in
 the dashboard, and per-version preview URLs by `"preview_urls": false` in `wrangler.jsonc`.
 
+### Domain
+
+The app is served at `https://www.vaskekjeller.no/<slug>` (for example `/lofotgata`); the `*.workers.dev`
+address keeps working too. The `routes` entry with `"custom_domain": true` in `wrangler.jsonc` makes each deploy
+create and own the `www` DNS record and its certificate, so never add a `www` DNS record by hand. The bare domain
+`vaskekjeller.no` redirects to www via a Cloudflare Redirect Rule, not the app; see
+[docs/deploy.md](docs/deploy.md#domain). All links the app builds are relative, so nothing depends on the host.
+
 One-time dashboard setup (connecting the repo, build token permissions, creating the first building) is in
 [docs/deploy.md](docs/deploy.md).
 

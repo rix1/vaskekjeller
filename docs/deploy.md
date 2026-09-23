@@ -38,9 +38,23 @@ Already done, don't redo:
    node scripts/create-tenant.ts --slug lofotgata --name "Lofotgata" --remote
    ```
 
-7. **Open it.** The app is public at `https://vaskekjeller.<your-subdomain>.workers.dev/lofotgata`
-   (the exact address is on the Worker's overview page). The admin page is `/lofotgata/admin`.
+7. **Open it.** The app is public at `https://www.vaskekjeller.no/lofotgata` (also at
+   `https://vaskekjeller.<your-subdomain>.workers.dev/lofotgata`). The admin page is `/lofotgata/admin`.
    `/` shows a plain placeholder until a landing page exists.
+
+## Domain
+
+`vaskekjeller.no` is registered at Domeneshop with its nameservers pointing to Cloudflare, where the zone
+is active.
+
+- **www.vaskekjeller.no** is a Workers Custom Domain declared in `routes` in `wrangler.jsonc`. Deploy
+  creates the DNS record and certificate. Never add a `www` DNS record by hand: a conflicting record makes
+  the deploy fail.
+- **vaskekjeller.no** (apex) redirects to www:
+  1. **DNS** → **Records**: add `AAAA` `@` → `100::`, **Proxied** (a placeholder so requests reach Cloudflare).
+  2. **Rules** → **Redirect Rules** → create a rule: when hostname equals `vaskekjeller.no`, dynamic
+     redirect to `concat("https://www.vaskekjeller.no", http.request.uri.path)`, status **301**,
+     **Preserve query string** on.
 
 ## If a build fails
 

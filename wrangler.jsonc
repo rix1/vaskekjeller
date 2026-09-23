@@ -6,6 +6,9 @@
   "observability": { "enabled": true },
   // No per-version preview URLs: old versions would keep serving against the live database
   "preview_urls": false,
+  // Served at www.vaskekjeller.no; deploy creates the DNS record and certificate. workers.dev stays on too.
+  "routes": [{ "pattern": "www.vaskekjeller.no", "custom_domain": true }],
+  "workers_dev": true,
   // Listen on all interfaces so the dev server is reachable over Tailscale/LAN
   "dev": { "ip": "0.0.0.0", "port": 8787 },
   // Compiles client/*.ts (page scripts + service worker) into public/
