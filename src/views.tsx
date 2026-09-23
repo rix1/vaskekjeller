@@ -165,7 +165,7 @@ const CalendarSubscription: FC<{
 }> = (p) => (
   <section class="calendar-feed" aria-labelledby="calendar-feed-title">
     <strong id="calendar-feed-title">Tidene i kalenderen</strong>
-    <p>Abonner, så dukker tidene dine opp i Apple Kalender og holder seg oppdatert. Lenken er personlig.</p>
+    <p>Abonner, så dukker tidene dine opp i Apple Kalender og holder seg oppdatert. Lenken er personlig, og byttes hvis beboerpassordet endres.</p>
     <form method="post" action={`/${p.tenant.slug}/calendar/others${p.context}`}>
       <Hidden fields={{ include_others: p.includeOthers ? "0" : "1" }} />
       <button class="calendar-switch" role="switch" aria-checked={p.includeOthers ? "true" : "false"}>

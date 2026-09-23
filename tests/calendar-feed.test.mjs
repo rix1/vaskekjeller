@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
+import { pbkdf2Sync, randomBytes } from "node:crypto";
 
 // Calendar subscription: the secret per-apartment .ics feed and its popover controls.
 // Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
@@ -106,10 +107,27 @@ after(async () => {
   if (temp) await rm(temp, { recursive: true, force: true });
 });
 
+// Cookie from a resident login, sent with every board load once the password is on.
+let access = "";
 const boardFor = (apartment) =>
   mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2`, {
-    headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
+    headers: { Cookie: [apartment && `vk_apt=${apartment}`, access].filter(Boolean).join("; ") },
   });
+/** Sets (or with no argument removes) the resident password the way the app stores it, and logs in. */
+const residentPassword = async (password) => {
+  const salt = randomBytes(16);
+  const hash = password && `pbkdf2$1$${salt.toString("base64url")}$${pbkdf2Sync(password, salt, 1, 32, "sha256").toString("base64url")}`;
+  await db.prepare("UPDATE tenants SET access_password_hash = ?").bind(hash ?? null).run();
+  access = "";
+  if (!password) return;
+  const login = await mf.dispatchFetch("http://localhost/demo/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost" },
+    body: new URLSearchParams({ password }),
+    redirect: "manual",
+  });
+  access = login.headers.get("set-cookie").split(";")[0];
+};
 const feedUrl = async (apartment = "A3") => {
   const html = await (await boardFor(apartment)).text();
   return /id="calendar-url" readonly="" value="([^"]+)"/.exec(html)?.[1];
@@ -232,10 +250,11 @@ test("the feed answers If-None-Match with 304 until its bookings change", async 
 
 test("the feed works without the resident password; managing it does not", async () => {
   await reset();
-  const url = await feedUrl();
   await book(480, "A3");
-  await db.prepare("UPDATE tenants SET access_password_hash = 'pbkdf2$1$x$y'").run();
+  await residentPassword("1234-dør");
   try {
+    const url = await feedUrl();
+    access = "";
     assert.equal((await boardFor("A3")).status, 302);
     const res = await fetchFeed(url);
     assert.equal(res.status, 200);
@@ -244,6 +263,34 @@ test("the feed works without the resident password; managing it does not", async
     assert.equal((await post("calendar/new-link", {})).status, 401);
     assert.equal((await fetchFeed(url)).status, 200, "the link was not replaced");
   } finally {
-    await db.prepare("UPDATE tenants SET access_password_hash = NULL").run();
+    await residentPassword();
+  }
+});
+
+test("setting, changing or removing the resident password retires every link", async () => {
+  await reset();
+  await post("calendar/others", { include_others: "1" });
+  const before = [await feedUrl("A3"), await feedUrl("D4")];
+  try {
+    await residentPassword("1234-dør");
+    for (const url of before) assert.equal((await fetchFeed(url)).status, 404);
+    const first = await feedUrl();
+    assert.ok(first && !before.includes(first), "the popover shows a new link");
+    assert.equal(await feedUrl(), first, "the new link is stable across page loads");
+    assert.equal((await fetchFeed(first)).status, 200);
+    assert.match(await (await boardFor("A3")).text(), /role="switch" aria-checked="true"/, "the setting survives");
+
+    await residentPassword("1234-dør"); // saved again, even unchanged
+    assert.equal((await fetchFeed(first)).status, 404);
+    const second = await feedUrl();
+    assert.equal((await fetchFeed(second)).status, 200);
+
+    await residentPassword();
+    assert.equal((await fetchFeed(second)).status, 404);
+    const third = await feedUrl();
+    assert.ok(![...before, first, second].includes(third));
+    assert.equal((await fetchFeed(third)).status, 200);
+  } finally {
+    await residentPassword();
   }
 });

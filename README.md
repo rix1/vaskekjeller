@@ -27,7 +27,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   with "Inkluder andres bookinger", everyone else's as free "Opptatt" events. The setting is saved on the link,
   so an existing subscription follows it. The feed needs no resident password, asks for a refresh every 15
   minutes, and covers 14 days back to the booking horizon. "Lag ny lenke" replaces the token; the old link
-  returns 404. Google Calendar refreshes subscriptions only every several hours, so only Apple is offered.
+  returns 404. Setting, changing or removing the resident password retires every link the same way, and each
+  apartment gets a new one in the popover. Google Calendar refreshes subscriptions only every several hours, so only Apple is offered.
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
   cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,

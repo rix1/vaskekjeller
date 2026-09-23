@@ -4,6 +4,8 @@ import { addDays, localNow, zonedToUtc } from "./time.ts";
 
 // Subscribed calendars (webcal://) for residents. One secret link per apartment;
 // the token is the only key, so the feed is served without the resident password.
+// Each link is bound to the resident password it was made under: changing that
+// password retires every link, and residents get a new one in the popover.
 
 export type CalendarFeed = { apartment: string; token: string; include_others: number };
 
@@ -14,25 +16,51 @@ const REFRESH = "PT15M";
 
 export const newFeedToken = () => b64url(crypto.getRandomValues(new Uint8Array(32)));
 
-export async function ensureFeed(db: D1Database, tenantId: number, apartment: string): Promise<CalendarFeed> {
+/** Fingerprint of the current resident password ('' when it is off); salted hashes make every change new. */
+export async function passwordKey(tenant: Tenant): Promise<string> {
+  return tenant.access_password_hash ? (await sha256Hex(tenant.access_password_hash)).slice(0, 32) : "";
+}
+
+/** The apartment's link, made on first use and replaced when the resident password has changed since. */
+export async function ensureFeed(db: D1Database, tenant: Tenant, apartment: string): Promise<CalendarFeed> {
+  const key = await passwordKey(tenant);
   const select = () =>
     db
-      .prepare("SELECT apartment, token, include_others FROM calendar_feeds WHERE tenant_id = ? AND apartment = ?")
-      .bind(tenantId, apartment)
-      .first<CalendarFeed>();
+      .prepare("SELECT apartment, token, include_others, password_key FROM calendar_feeds WHERE tenant_id = ? AND apartment = ?")
+      .bind(tenant.id, apartment)
+      .first<CalendarFeed & { password_key: string }>();
   const existing = await select();
-  if (existing) return existing;
+  if (existing?.password_key === key) return existing;
+  // Conditional, so concurrent page loads agree on one replacement token.
   await db
-    .prepare("INSERT INTO calendar_feeds (tenant_id, apartment, token) VALUES (?, ?, ?) ON CONFLICT (tenant_id, apartment) DO NOTHING")
-    .bind(tenantId, apartment, newFeedToken())
+    .prepare(
+      `INSERT INTO calendar_feeds (tenant_id, apartment, token, password_key) VALUES (?, ?, ?, ?)
+       ON CONFLICT (tenant_id, apartment) DO UPDATE
+         SET token = excluded.token, password_key = excluded.password_key, created_at = datetime('now')
+         WHERE calendar_feeds.password_key <> excluded.password_key`,
+    )
+    .bind(tenant.id, apartment, newFeedToken(), key)
     .run();
   return (await select())!;
 }
 
-export function feedByToken(db: D1Database, tenantId: number, token: string) {
+/** "Lag ny lenke": a fresh token under the current resident password; the setting stays. */
+export async function replaceFeedToken(db: D1Database, tenant: Tenant, apartment: string) {
+  await db
+    .prepare(
+      `INSERT INTO calendar_feeds (tenant_id, apartment, token, password_key) VALUES (?, ?, ?, ?)
+       ON CONFLICT (tenant_id, apartment) DO UPDATE
+         SET token = excluded.token, password_key = excluded.password_key, created_at = datetime('now')`,
+    )
+    .bind(tenant.id, apartment, newFeedToken(), await passwordKey(tenant))
+    .run();
+}
+
+/** Only links made under the current resident password open a feed. */
+export async function feedByToken(db: D1Database, tenant: Tenant, token: string) {
   return db
-    .prepare("SELECT apartment, token, include_others FROM calendar_feeds WHERE tenant_id = ? AND token = ?")
-    .bind(tenantId, token)
+    .prepare("SELECT apartment, token, include_others FROM calendar_feeds WHERE tenant_id = ? AND token = ? AND password_key = ?")
+    .bind(tenant.id, token, await passwordKey(tenant))
     .first<CalendarFeed>();
 }
 

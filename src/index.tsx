@@ -4,7 +4,7 @@ import { csrf } from "hono/csrf";
 import { AdminOverview, AdminSettings, apartmentSummary, SECTIONS, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
-import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken } from "./calendar.ts";
+import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
 import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import {
   apartmentList,
@@ -126,7 +126,7 @@ t.get("/", async (c) => {
     getMachines(c.env.DB, tenant.id, true),
     getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
-    apartment ? ensureFeed(c.env.DB, tenant.id, apartment) : undefined,
+    apartment ? ensureFeed(c.env.DB, tenant, apartment) : undefined,
   ]);
   c.executionCtx.waitUntil(recordVisit(c, now.date));
   if (apartment) rememberApartment(c, apartment);
@@ -185,7 +185,7 @@ t.post("/apartment", async (c) => {
 
 t.get("/cal/:file", async (c) => {
   const token = /^([\w-]{20,})\.ics$/.exec(c.req.param("file"))?.[1];
-  const feed = token ? await feedByToken(c.env.DB, c.var.tenant.id, token) : null;
+  const feed = token ? await feedByToken(c.env.DB, c.var.tenant, token) : null;
   if (!feed) return c.text("Ukjent kalenderlenke", 404);
   const ics = await buildFeed(c.env.DB, c.var.tenant, feed, new URL(c.req.url).origin);
   const etag = await feedEtag(ics);
@@ -204,10 +204,10 @@ t.post("/calendar/others", async (c) => {
   if (!apt) return back(c, "no-apt");
   const on = (await form(c)).include_others === "1";
   await c.env.DB.prepare(
-    `INSERT INTO calendar_feeds (tenant_id, apartment, token, include_others) VALUES (?, ?, ?, ?)
+    `INSERT INTO calendar_feeds (tenant_id, apartment, token, include_others, password_key) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (tenant_id, apartment) DO UPDATE SET include_others = excluded.include_others`,
   )
-    .bind(c.var.tenant.id, apt, newFeedToken(), on ? 1 : 0)
+    .bind(c.var.tenant.id, apt, newFeedToken(), on ? 1 : 0, await passwordKey(c.var.tenant))
     .run();
   return back(c, on ? "cal-others-on" : "cal-others-off");
 });
@@ -215,12 +215,7 @@ t.post("/calendar/others", async (c) => {
 t.post("/calendar/new-link", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
-  await c.env.DB.prepare(
-    `INSERT INTO calendar_feeds (tenant_id, apartment, token) VALUES (?, ?, ?)
-     ON CONFLICT (tenant_id, apartment) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
-  )
-    .bind(c.var.tenant.id, apt, newFeedToken())
-    .run();
+  await replaceFeedToken(c.env.DB, c.var.tenant, apt);
   return back(c, "cal-new-link");
 });
 
