@@ -19,7 +19,12 @@ document.body.append(live);
 const MAX_TOASTS = 3;
 const toastText = (toast: Element) =>
   [...toast.querySelectorAll(".toast-text > *")].map((el) => el.textContent?.trim()).join(" ");
-const announce = (text: string) => setTimeout(() => (live.textContent = text), 500);
+let announceTimer: ReturnType<typeof setTimeout> | undefined;
+function announce(text: string) {
+  clearTimeout(announceTimer);
+  live.textContent = "";
+  announceTimer = setTimeout(() => (live.textContent = text), 500);
+}
 
 function trackToast(toast: HTMLElement) {
   toast.addEventListener("animationend", (event) => {
