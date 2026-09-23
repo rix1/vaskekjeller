@@ -43,4 +43,4 @@
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
 - 2026-09-23: Apartment change moved into a popover on the header chip (`.apartment-menu`); popover body is sections so the calendar-subscription link can be added as another `<section>`.
-- 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters (tag `note-<date>-<start>` so edits replace each other).
+- 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters as "<short date> <start>–<end>: «note»" (tag `note-<date>-<start>` so edits replace each other).

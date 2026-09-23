@@ -395,7 +395,7 @@ async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: s
   if (!subs.length) return;
   await pushAll(env, tenant, subs, {
     title: "Ny kommentar på tiden du venter på",
-    body: `${fmtDay(b.date, "long").split(" ")[0]} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}: «${note}»`,
+    body: `${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}: «${note}»`,
     url: `/${tenant.slug}?date=${b.date}`,
     // Stable per slot, so a later edit replaces the earlier notification instead of stacking.
     tag: `note-${b.date}-${b.start_min}`,
