@@ -292,7 +292,9 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
 };
 
 /** A dialog that is a centered modal on desktop and a bottom drawer on phones.
- * Without JavaScript the trigger links to `#id`, and CSS shows the dialog as its `:target`. */
+ * Without JavaScript the trigger links to `#id`, and CSS shows the dialog as its `:target`.
+ * `closeTo` is the settings page URL, not just a `#section`, so a dialog the server reopened
+ * after a validation error (`open`, at the POST URL) also closes without JavaScript. */
 const Sheet: FC<{ id: string; title: string; closeTo: string; open?: boolean; children: Child }> = (p) => (
   <dialog id={p.id} class="sheet" aria-labelledby={`${p.id}-title`} open={p.open} data-autoshow={p.open ? "" : undefined} closedby="any">
     <div class="sheet-panel">

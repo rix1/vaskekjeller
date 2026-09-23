@@ -155,6 +155,8 @@ async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusK
       active.form !== form
     ) {
       const field = target;
+      // Setting `value` resets the browser's change baseline, so leaving the field wouldn't
+      // fire `change` and autosave; save it on the way out instead.
       field.value = active.value;
       field.addEventListener(
         "focusout",
