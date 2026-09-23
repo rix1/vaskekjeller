@@ -42,4 +42,6 @@
   Ledig / Delvis ledig / Reservert with per-machine holders and a one-tap confirm for the free machine, day strip
   "Delvis" vs a stronger "Fullt", separate rounded tinted rows with equal side padding, muted green focus ring,
   and the booking hint hidden after a device's first booking (`vk_booked` cookie).
+  Review follow-up: popover entrance (all `.slot-details` popovers) is a subtle 160ms fade plus 4px drop, only under
+  `prefers-reduced-motion: no-preference`.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
