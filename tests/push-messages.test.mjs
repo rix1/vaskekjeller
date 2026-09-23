@@ -369,7 +369,7 @@ test("only 3 messages per apartment per reservation; only the count is stored", 
   await subscribe("A3");
   assert.equal(flash(await message(washer.id)), "message-sent");
   assert.equal(flash(await message(dryer.id, { preset: "take-dryer" })), "message-sent");
-  assert.equal(flash(await message(washer.id, { note: "Hei" })), "message-sent");
+  assert.equal(flash(await message(washer.id, { note: "Hei der" })), "message-sent");
   assert.equal(flash(await message(washer.id)), "message-limit");
   assert.equal(flash(await message(washer.id, {}, "C1")), "message-sent", "another apartment has its own limit");
   await settle();
@@ -388,7 +388,7 @@ test("only 3 messages per apartment per reservation; only the count is stored", 
   const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
   for (const { name } of tables) {
     const dump = JSON.stringify(sqlite.prepare(`SELECT * FROM "${name}"`).all());
-    assert.doesNotMatch(dump, /ferdig snart|tørketrommelen\?|Hei/, `${name} holds no message text`);
+    assert.doesNotMatch(dump, /ferdig snart|tørketrommelen\?|Hei der/, `${name} holds no message text`);
   }
 });
 

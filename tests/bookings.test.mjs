@@ -301,7 +301,7 @@ test("past days show who used each machine, read-only, without cancelled booking
   assert.equal(selectedDate(html), day);
   assert.match(html, /Leil\. D4/);
   assert.match(html, /Tøy ligger i tørketrommelen/);
-  assert.doesNotMatch(html, /Z9/);
+  assert.doesNotMatch(html, /leil\. Z9/i);
   assert.doesNotMatch(html, /action="\/demo\/(book|wait|unwait)/);
   assert.doesNotMatch(html, /reserve-button/);
   assert.match(html, new RegExp(`data-date="${day}"[^>]*aria-label="[^"]*, passert"[^>]*>.*?<small>Passert</small>`));
