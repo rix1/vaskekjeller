@@ -280,16 +280,29 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")
 const tocLinks = [...document.querySelectorAll<HTMLAnchorElement>(".toc a")];
 // The last section can be too short to reach the observed band; at the bottom of the page it wins.
 const atBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+// Near the bottom, jumps to the last few sections all end at the bottom of the page. A section the admin
+// jumped to (a TOC link, or `#section` in the URL) stays marked until it moves on screen.
+let jump: { hash: string; top?: number } | undefined;
+const sectionTop = (hash: string) => document.getElementById(hash.slice(1))?.getBoundingClientRect().top ?? NaN;
 const markToc = (hash: string) => {
   for (const link of tocLinks) {
     if (link.hash === hash) link.setAttribute("aria-current", "true");
     else link.removeAttribute("aria-current");
   }
 };
+const jumpTo = (hash: string) => {
+  if (!tocLinks.some((link) => link.hash === hash)) return;
+  const landed: typeof jump = { hash };
+  jump = landed;
+  markToc(hash);
+  // The browser scrolls to the section after this; note where it ends up.
+  requestAnimationFrame(() => requestAnimationFrame(() => (landed.top = sectionTop(hash))));
+};
 const tocObserver =
   tocLinks.length && "IntersectionObserver" in window
     ? new IntersectionObserver(
         (entries) => {
+          if (jump) return;
           for (const entry of entries) {
             if (entry.isIntersecting) markToc(atBottom() ? tocLinks.at(-1)!.hash : `#${entry.target.id}`);
           }
@@ -300,10 +313,14 @@ const tocObserver =
 for (const link of tocLinks) {
   const section = document.getElementById(link.hash.slice(1));
   if (section) tocObserver?.observe(section);
+  link.addEventListener("click", () => jumpTo(link.hash));
 }
+jumpTo(location.hash);
 addEventListener(
   "scroll",
   () => {
+    if (jump && (jump.top === undefined || Math.abs(sectionTop(jump.hash) - jump.top) < 2)) return;
+    jump = undefined;
     if (tocLinks.length && atBottom()) markToc(tocLinks.at(-1)!.hash);
   },
   { passive: true },

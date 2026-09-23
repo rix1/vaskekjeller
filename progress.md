@@ -38,6 +38,8 @@
 
 ## Log
 
+- 2026-09-23: Fixed: the settings TOC marked "Tilgang" after a jump to "Maskiner". Near the bottom, both jumps end at the same scroll position, so a section jumped to (TOC click or `#section` on load) now stays marked until it moves on screen. Verified live in wrangler dev + headless Chrome, including the inline machine update after landing on `#maskiner`. Still open: when scrolling up from the bottom, the previous mark can linger until a new section enters the observed band (the IntersectionObserver only reports changes).
+- 2026-09-23: Re-ran the live admin tests (wrangler dev + headless Chrome, desktop, phone, no-JS). Everything passes except one TOC issue: clicking "Maskiner" (or landing on `#maskiner` after a machine save) now marks "Tilgang", because the page is at the bottom and the last-link rule wins. Open.
 - 2026-09-23: Fixed: the settings TOC marked "Maskiner" instead of "Tilgang" at the bottom of the page (the IntersectionObserver callback overwrote the bottom-of-page scroll handler). Both now share one marker in `client/admin.ts`, and at the bottom the last link wins. Verified live in headless Chrome.
 - 2026-09-23: Live-tested the admin redesign in wrangler dev + headless Chrome (desktop, phone, no-JS): all intent items work.
 - 2026-09-23: Admin review fixes: inline machine changes are queued and sent in order (no aborted writes; the switch posts the state it shows); the schedule preview skips a slot length that isn't a positive integer instead of looping forever.
