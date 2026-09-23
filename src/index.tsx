@@ -397,8 +397,8 @@ async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: s
     title: "Ny kommentar på tiden du venter på",
     body: `${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}: «${note}»`,
     url: `/${tenant.slug}?date=${b.date}`,
-    // Stable per slot, so a later edit replaces the earlier notification instead of stacking.
-    tag: `note-${b.date}-${b.start_min}`,
+    // Stable per reservation, so a later edit replaces the earlier notification instead of stacking.
+    tag: `note-${b.date}-${b.start_min}-${b.apartment}`,
     renotify: true,
   });
 }

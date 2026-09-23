@@ -408,7 +408,7 @@ test("reservation card shows how many other households are waiting", async () =>
 
   await wait("C1", 1, 480);
   await wait("D4", 1, 480);
-  await wait("A3", 2, 480); // the holder's own apartment never counts
+  await wait("A3", 1, 480); // the holder's own apartment never counts
   await wait("E5", 1, 600); // a different slot does not count
   html = await board(tomorrow, "A3");
   assert.match(html, /<strong>3 venter på denne tiden<\/strong>/);
@@ -454,7 +454,7 @@ test("adding or changing a comment notifies each waiting household's devices onc
   const expected = `${day.charAt(0).toUpperCase()}${day.slice(1)} 10:00–12:00: «ferdig kl. 11»`;
   for (const { message } of pushed) {
     assert.equal(message.body, expected);
-    assert.equal(message.tag, `note-${tomorrow}-600`);
+    assert.equal(message.tag, `note-${tomorrow}-600-A3`);
     assert.equal(message.url, `/demo?date=${tomorrow}`);
   }
   assert.equal(await db.prepare("SELECT notifications FROM daily_stats").first("notifications"), 3);
@@ -463,8 +463,30 @@ test("adding or changing a comment notifies each waiting household's devices onc
   await post("note", { booking_ids: ids, note: "ferdig kl. 10:30" });
   await settle();
   assert.equal(pushed.length, 3);
-  assert.ok(pushed.every((p) => p.message.tag === `note-${tomorrow}-600`), "edits replace the earlier notification");
+  assert.ok(pushed.every((p) => p.message.tag === `note-${tomorrow}-600-A3`), "edits replace the earlier notification");
   assert.ok(pushed.every((p) => p.message.renotify === true), "a replaced notification alerts again");
+});
+
+test("comments from different households on the same slot do not replace each other", async () => {
+  await reset();
+  await book(600, "A3", "1");
+  await book(600, "B2", "2");
+  await wait("C1", 1, 600);
+  await wait("C1", 2, 600);
+  await subscribe("C1");
+  const note = async (apartment, text) => {
+    const ids = (await active()).results.filter((b) => b.apartment === apartment).map((b) => b.id);
+    await post("note", { booking_ids: ids.join(","), note: text }, apartment);
+    await settle();
+  };
+
+  await note("A3", "ferdig kl. 11");
+  await note("B2", "ferdig kl. 11:30");
+  await note("A3", "ferdig kl. 10:30");
+  assert.deepEqual(
+    pushed.map((p) => p.message.tag),
+    [`note-${tomorrow}-600-A3`, `note-${tomorrow}-600-B2`, `note-${tomorrow}-600-A3`],
+  );
 });
 
 test("clearing or re-saving an unchanged comment sends nothing", async () => {
