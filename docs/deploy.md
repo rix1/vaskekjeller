@@ -17,13 +17,14 @@ Already done, don't redo:
    one. The Worker name must stay `vaskekjeller` to match `name` in `wrangler.jsonc`.
 2. **Build settings:**
    - Production branch: `main`
-   - Build command: `npm ci`
-   - Deploy command: `npx wrangler d1 migrations apply vaskekjeller --remote && npx wrangler deploy`
+   - Build command: leave empty (Workers Builds installs dependencies itself)
+   - Deploy command: `npm run deploy`
    - Root directory: leave empty (repo root)
    - Build variables: none needed. Node comes from `.node-version`.
 3. **Turn off preview builds.** **Settings** → **Build** → **Branch control**: uncheck **Enable Preview
-   Builds** (builds for non-production branches). Previews would use the live database.
-4. **Give the build token D1 access.** The deploy command applies migrations, which needs **D1 Edit**.
+   Builds** (builds for non-production branches). Previews would use the live database. Per-version
+   preview URLs are already off via `"preview_urls": false` in `wrangler.jsonc`.
+4. **Give the build token D1 access.** `npm run deploy` applies migrations first, which needs **D1 Edit**.
    The token Workers Builds creates by default (**Create new token** in the connect dialog) has Workers
    Scripts, KV and R2 edit, but not D1. After connecting, go to **My Profile** → **API Tokens**, edit that
    token, and add **Account** → **D1** → **Edit**. You can also create a token with those permissions

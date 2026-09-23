@@ -38,18 +38,15 @@ Deploys are GitOps via [Workers Builds](https://developers.cloudflare.com/worker
 own Git integration: every push to `main` builds and deploys to production. That includes quick fixes pushed
 straight to `main`, which skip CI; everything else goes through a PR, where CI runs typecheck and tests.
 
-Each build runs `npm ci`, then:
+Each build installs dependencies, then runs `npm run deploy` (defined in `package.json`), which applies pending
+D1 migrations to the remote database and then runs `wrangler deploy`. Migrations run first, and the deploy only
+happens if they succeed, so the app never runs against an outdated database. A failed migration leaves the
+previous version live. `wrangler deploy` runs the `build` hook in `wrangler.jsonc`, which compiles `client/*.ts`
+into `public/`. Write migrations so the currently deployed version keeps working until the new one is live.
+When Workers Builds is unavailable, run `npm run deploy` from your machine (after `npx wrangler login`).
 
-```sh
-npx wrangler d1 migrations apply vaskekjeller --remote && npx wrangler deploy
-```
-
-Migrations run first, and the deploy only happens if they succeed, so the app never runs against an outdated
-database. A failed migration leaves the previous version live. `wrangler deploy` runs the `build` hook in
-`wrangler.jsonc`, which compiles `client/*.ts` into `public/`. Write migrations so the currently deployed
-version keeps working until the new one is live.
-
-Preview builds for branches and PRs are off: they would share the live database.
+Previews are off because they would share the live database: preview builds for branches and PRs are disabled in
+the dashboard, and per-version preview URLs by `"preview_urls": false` in `wrangler.jsonc`.
 
 One-time dashboard setup (connecting the repo, build token permissions, creating the first building) is in
 [docs/deploy.md](docs/deploy.md).
@@ -67,9 +64,6 @@ One-time dashboard setup (connecting the repo, build token permissions, creating
 The production D1 database `vaskekjeller` is created with EU jurisdiction
 (`wrangler d1 create vaskekjeller --jurisdiction eu`) and pinned by `database_id` in `wrangler.jsonc`, so deploy
 does not auto-provision one. A database's jurisdiction can't be changed later; to recreate it, keep `--jurisdiction eu`.
-
-`npm run deploy` does the same migrate-then-deploy from your machine (after `npx wrangler login`), for when
-Workers Builds is unavailable.
 
 To keep the app alive after you move out, add a second Cloudflare account member (or transfer the account),
 and hand over the admin password.
