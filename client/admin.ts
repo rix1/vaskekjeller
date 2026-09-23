@@ -142,7 +142,6 @@ async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusK
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const activeKey = section.contains(active) ? active?.dataset.focusKey : undefined;
     section.replaceWith(next);
-    tocObserver?.observe(next);
     const restore = (key: string | undefined) => (key ? next.querySelector<HTMLElement>(`[data-focus-key="${key}"]`) : null);
     let target = restore(activeKey) ?? restore(focusKey);
     if (target instanceof HTMLButtonElement && target.disabled) {
@@ -278,7 +277,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")
 // ---------------------------------------------------------------------------
 
 const tocLinks = [...document.querySelectorAll<HTMLAnchorElement>(".toc a")];
-// The last section can be too short to reach the observed band; at the bottom of the page it wins.
+// The last section can be too short to scroll near the top; at the bottom of the page it wins.
 const atBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
 // Near the bottom, jumps to the last few sections all end at the bottom of the page. A section the admin
 // jumped to (a TOC link, or `#section` in the URL) stays marked until it moves on screen.
@@ -298,30 +297,19 @@ const jumpTo = (hash: string) => {
   // The browser scrolls to the section after this; note where it ends up.
   requestAnimationFrame(() => requestAnimationFrame(() => (landed.top = sectionTop(hash))));
 };
-const tocObserver =
-  tocLinks.length && "IntersectionObserver" in window
-    ? new IntersectionObserver(
-        (entries) => {
-          if (jump) return;
-          for (const entry of entries) {
-            if (entry.isIntersecting) markToc(atBottom() ? tocLinks.at(-1)!.hash : `#${entry.target.id}`);
-          }
-        },
-        { rootMargin: "-20% 0px -70% 0px" },
-      )
-    : undefined;
-for (const link of tocLinks) {
-  const section = document.getElementById(link.hash.slice(1));
-  if (section) tocObserver?.observe(section);
-  link.addEventListener("click", () => jumpTo(link.hash));
-}
+// Work the mark out from where the sections are now: the last one that starts in the top 30% of the
+// screen or above it (the first while none does).
+const markInView = () => {
+  if (jump && (jump.top === undefined || Math.abs(sectionTop(jump.hash) - jump.top) < 2)) return;
+  jump = undefined;
+  if (!tocLinks.length) return;
+  const band = innerHeight * 0.3;
+  const inView = atBottom() ? tocLinks.at(-1)! : tocLinks.filter((link, i) => !i || sectionTop(link.hash) <= band).at(-1)!;
+  markToc(inView.hash);
+};
+for (const link of tocLinks) link.addEventListener("click", () => jumpTo(link.hash));
+// Back and Forward between sections near the bottom may not scroll at all.
+addEventListener("hashchange", () => jumpTo(location.hash));
 jumpTo(location.hash);
-addEventListener(
-  "scroll",
-  () => {
-    if (jump && (jump.top === undefined || Math.abs(sectionTop(jump.hash) - jump.top) < 2)) return;
-    jump = undefined;
-    if (tocLinks.length && atBottom()) markToc(tocLinks.at(-1)!.hash);
-  },
-  { passive: true },
-);
+markInView();
+addEventListener("scroll", markInView, { passive: true });
