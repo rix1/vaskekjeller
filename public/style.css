@@ -1581,7 +1581,7 @@ button.cancel-link,
     toast-in 400ms var(--ease-out) both,
     toast-out 300ms ease 4s forwards;
 }
-.toast.auto.long {
+.toast.long {
   animation:
     toast-in 400ms var(--ease-out) both,
     toast-out 300ms ease 8s forwards;
