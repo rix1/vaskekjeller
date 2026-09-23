@@ -501,22 +501,6 @@ button.text-button {
   font-size: 12px;
   font-weight: 550;
 }
-.saved-note {
-  color: var(--free-fg);
-  font-size: 12px;
-  animation: fade-out 2.4s ease forwards;
-}
-.saved-note:empty {
-  display: none;
-}
-@keyframes fade-out {
-  70% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
 .machine-fields .field-error {
   flex-basis: 100%;
   padding-left: 8px;
@@ -1015,8 +999,5 @@ dialog.sheet:focus-visible {
   dialog.sheet,
   dialog.sheet[open] {
     transform: none;
-  }
-  .saved-note {
-    animation: none;
   }
 }

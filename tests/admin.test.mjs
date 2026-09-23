@@ -181,15 +181,6 @@ test("a rejected slot length renders the error page promptly", { timeout: 5000 }
   assert.equal(tenant().slot_min, 120);
 });
 
-test("a legacy slot length stays valid until another length is picked", async () => {
-  sqlite.exec("UPDATE tenants SET slot_min = 45");
-  const page = await (await get("admin/settings", admin)).text();
-  assert.match(page, /value="45" checked/);
-  const response = await post("admin/settings", schedule({ slot_min: "45", horizon: "21" }), admin);
-  assert.equal(response.status, 303);
-  assert.equal(tenant().booking_horizon_days, 21);
-});
-
 test("each settings card only changes its own fields", async () => {
   assert.equal((await post("admin/settings", { section: "generelt", name: "  Borettslaget  " }, admin)).status, 303);
   assert.equal(tenant().name, "Borettslaget");

@@ -729,8 +729,7 @@ admin.post("/settings", async (c) => {
     if (start === null) errors.day_start = "Skriv inn et klokkeslett, f.eks. 08:00.";
     if (end === null) errors.day_end = "Skriv inn et klokkeslett, f.eks. 20:00.";
     else if (start !== null && start >= end) errors.day_end = "Siste tid må slutte etter at første tid starter.";
-    // Keep a legacy length (e.g. 45 min) valid until the admin picks one of the standard lengths.
-    if (!SLOT_LENGTHS.includes(slot) && slot !== tenant.slot_min) errors.slot_min = "Velg en av lengdene.";
+    if (!SLOT_LENGTHS.includes(slot)) errors.slot_min = "Velg en av lengdene.";
     else if (start !== null && end !== null && start < end && slot > end - start)
       errors.slot_min = "Lengden per tid er lengre enn åpningstiden.";
     if (!errors.day_start && !errors.day_end && !errors.slot_min)

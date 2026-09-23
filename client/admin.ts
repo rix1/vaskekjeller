@@ -167,11 +167,6 @@ async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusK
       );
     }
     target?.focus({ preventScroll: true });
-    const machineId = form.id.replace("machine-", "");
-    if (form.hasAttribute("data-autosave") && res.ok) {
-      const note = next.querySelector<HTMLElement>(`#maskin-${machineId} [data-saved-note]`);
-      if (note) note.textContent = "Lagret";
-    }
     // client/app.ts stacks and announces the toasts of the fetched page.
     doc.querySelectorAll(".toaster .toast").forEach((toast) => document.dispatchEvent(new CustomEvent("vk:toast", { detail: toast })));
   } catch {

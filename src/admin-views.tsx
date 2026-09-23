@@ -367,7 +367,6 @@ export const AdminSettings: FC<
   const back = (section: string) => `${base}/settings#${section}`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
   const slot = Number(v("slot_min", String(tenant.slot_min)));
-  const slotChoices = SLOT_LENGTHS.includes(tenant.slot_min) ? SLOT_LENGTHS : [...SLOT_LENGTHS, tenant.slot_min].sort((a, b) => a - b);
   const apartmentsText = v("apartments", tenant.apartments ?? "");
   const apartments = apartmentSummary(apartmentsText);
   const passwordOn = !!tenant.access_password_hash;
@@ -449,7 +448,7 @@ export const AdminSettings: FC<
               <fieldset class="field" aria-describedby={["slot-preview", errors.slot_min && "slot_min-error"].filter(Boolean).join(" ")}>
                 <legend>Lengde per tid</legend>
                 <div class="segmented">
-                  {slotChoices.map((m) => (
+                  {SLOT_LENGTHS.map((m) => (
                     <label>
                       <input
                         type="radio"
@@ -597,7 +596,6 @@ export const AdminSettings: FC<
                             Lagre
                           </button>
                         </noscript>
-                        <span class="saved-note" role="status" data-saved-note></span>
                         <FieldError id={`machine-${m.id}`} error={error} />
                       </div>
                       <form method="post" action={`${base}/machines/${m.id}/active`} data-inline class="machine-switch">
