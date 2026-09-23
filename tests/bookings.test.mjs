@@ -66,7 +66,8 @@ const reset = async () => {
   await db.batch([
     db.prepare("DELETE FROM bookings"),
     db.prepare("DELETE FROM waitlist"),
-    db.prepare("UPDATE tenants SET max_active_bookings = 0"),
+    db.prepare("UPDATE tenants SET max_active_bookings = 0, day_start_min = 480"),
+    db.prepare("UPDATE machines SET active = 1"),
   ]);
 };
 const flash = (response) => new URL(response.headers.get("location"), "http://localhost").searchParams.get("m");
@@ -202,4 +203,96 @@ test("invalid dates, modes, tenant machines, and past slots are rejected", async
   assert.equal(flash(await book(481)), "invalid");
   assert.equal(flash(await post("book", { date: "2026-09-31", start: 480, mode: "pair-1-2" })), "invalid");
   assert.equal((await active()).results.length, 0);
+});
+
+// Dates in the tenant's timezone (Europe/Oslo), shifted by whole days.
+const localDate = (offset = 0) => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo" }).format(new Date());
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
+const board = async (date) => (await mf.dispatchFetch(`http://localhost/demo${date ? `?date=${date}` : ""}`)).text();
+const insertBooking = (date, machine, apartment, note = null, cancelled = false) =>
+  db
+    .prepare(
+      `INSERT INTO bookings (tenant_id,machine_id,date,start_min,end_min,apartment,note,cancelled_at) VALUES (1,?,?,480,600,?,?,${cancelled ? "datetime('now')" : "NULL"})`,
+    )
+    .bind(machine, date, apartment, note)
+    .run();
+const stripDates = (html) => [...html.matchAll(/data-date="([\d-]+)"/g)].map((m) => m[1]);
+const selectedDate = (html) => /data-date="([\d-]+)"[^>]*aria-current="date"/.exec(html)?.[1];
+
+test("past days show who used each machine, read-only, without cancelled bookings", async () => {
+  await reset();
+  const day = localDate(-3);
+  await insertBooking(day, 1, "D4", "Tøy ligger i tørketrommelen");
+  await insertBooking(day, 2, "Z9", null, true);
+  const html = await board(day);
+  assert.equal(selectedDate(html), day);
+  assert.match(html, /Leil\. D4/);
+  assert.match(html, /Tøy ligger i tørketrommelen/);
+  assert.doesNotMatch(html, /Z9/);
+  assert.doesNotMatch(html, /action="\/demo\/(book|wait|unwait)/);
+  assert.doesNotMatch(html, /reserve-button/);
+  assert.match(html, new RegExp(`data-date="${day}"[^>]*aria-label="[^"]*, passert"[^>]*>.*?<small>Passert</small>`));
+});
+
+test("past days still show bookings on since-deactivated machines and outside today's opening hours", async () => {
+  await reset();
+  const day = localDate(-2);
+  await insertBooking(day, 2, "E5", "Glemte tøy i tørketrommelen");
+  await db.prepare("UPDATE machines SET active = 0 WHERE id = 2").run();
+  let html = await board(day);
+  assert.match(html, /class="usage-machine">Tørketrommel</);
+  assert.match(html, /Leil\. E5/);
+  assert.match(html, /Glemte tøy i tørketrommelen/);
+
+  await db.prepare("UPDATE tenants SET day_start_min = 600").run();
+  html = await board(day);
+  assert.match(html, /08:00<span class="time-dash">–<\/span>10:00/);
+  assert.match(html, /Leil\. E5/);
+
+  await db.prepare("UPDATE machines SET active = 0").run();
+  assert.match(await board(day), /Leil\. E5/);
+});
+
+test("writes to past slots are still rejected", async () => {
+  await reset();
+  const day = localDate(-1);
+  await insertBooking(day, 1, "A3");
+  const id = String((await active()).results[0].id);
+  assert.equal(flash(await post("book", { date: day, start: 480, mode: "pair-1-2" })), "invalid");
+  assert.equal(flash(await post("wait", { machine_id: 2, date: day, start: 480 })), "invalid");
+  assert.equal(flash(await post("note", { booking_ids: id, note: "for sent" })), "over");
+  assert.equal(flash(await post("cancel", { booking_ids: id })), "over");
+  const rows = (await active()).results;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].note, null);
+  assert.equal(await db.prepare("SELECT COUNT(*) AS n FROM waitlist").first("n"), 0);
+});
+
+test("the date strip shows Monday-to-Sunday weeks within the 14-day look-back and horizon", async () => {
+  await reset();
+  const weekday = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
+  const today = await board();
+  assert.equal(selectedDate(today), localDate());
+  const week = stripDates(today);
+  assert.equal(week.length, 7);
+  assert.equal(weekday(week[0]), 1);
+  assert.equal(weekday(week[6]), 0);
+  assert.ok(week.includes(localDate()));
+
+  const first = await board(localDate(-14));
+  assert.equal(selectedDate(first), localDate(-14));
+  assert.match(first, /aria-label="Forrige uke" aria-disabled="true"/);
+  for (const d of stripDates(first).filter((d) => d < localDate(-14))) {
+    assert.match(first, new RegExp(`<span class="date-item unavailable" data-date="${d}"`));
+  }
+  // Outside the window falls back to today.
+  assert.equal(selectedDate(await board(localDate(-15))), localDate());
+  assert.equal(selectedDate(await board(localDate(14))), localDate());
+  const last = await board(localDate(13));
+  assert.equal(selectedDate(last), localDate(13));
+  assert.match(last, /aria-label="Neste uke" aria-disabled="true"/);
 });

@@ -6,7 +6,7 @@
 - [] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
 - [] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment.
 - [] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
-- [] make it possible to see last 14 days as well (should default to this week).
+- [x] make it possible to see last 14 days as well (should default to this week). (2026-09-23: date strip uses Mon–Sun calendar weeks from today-14 to the horizon; past days are read-only and show who used each machine plus comments.)
 - [] make "fullt" on day-level more present/visible
 - [] tone the obnoxious focus ring a bit down: mute/change the color. 
 
@@ -38,4 +38,7 @@
 
 ## Log
 
+- 2026-09-23: README documents the calendar-week strip and read-only past days.
+- 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
+- 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.

@@ -153,8 +153,12 @@ const Icon: FC<{
 
 type BoardProps = {
   tenant: Tenant;
+  /** Includes inactive machines, so past days still show who used them. */
   machines: Machine[];
+  /** Every viewable day, from the look-back window through the booking horizon. */
   days: string[];
+  /** Monday-to-Sunday weeks covering `days`. */
+  weeks: string[][];
   slots: Slot[];
   bookings: Booking[];
   waitlist: WaitEntry[];
@@ -171,9 +175,20 @@ type BoardProps = {
 
 export const BoardPage: FC<BoardProps> = (p) => {
   const base = `/${p.tenant.slug}`;
-  const options = bookingOptions(p.machines);
+  const options = bookingOptions(p.machines.filter((m) => m.active));
   const option = options.find((o) => o.key === p.mode) ?? options[0];
-  const selected = p.days.includes(p.selectedDate ?? "") ? p.selectedDate! : p.days[0]!;
+  const selected = p.days.includes(p.selectedDate ?? "") ? p.selectedDate! : p.now.date;
+  const past = selected < p.now.date;
+  // Past days follow what was booked, even if machines or opening hours have changed since.
+  const overlaps = (b: Booking, s: Slot) => b.start_min < s.end && b.end_min > s.start;
+  const dayBookings = p.bookings.filter((b) => b.date === selected);
+  const pastMachines = p.machines.filter((m) => m.active || dayBookings.some((b) => b.machine_id === m.id));
+  const pastSlots = [
+    ...p.slots,
+    ...dayBookings.filter((b) => !p.slots.some((s) => overlaps(b, s))).map((b) => ({ start: b.start_min, end: b.end_min })),
+  ]
+    .filter((s, i, all) => all.findIndex((o) => o.start === s.start && o.end === s.end) === i)
+    .sort((a, b) => a.start - b.start);
   const mode = option?.key ?? "";
   const query = (date = selected, key = mode) => `?date=${date}&mode=${key}`;
   const url = (date = selected, key = mode) => `${base}${query(date, key)}`;
@@ -196,8 +211,12 @@ export const BoardPage: FC<BoardProps> = (p) => {
   const myWaits = p.waitlist.filter((w) => w.apartment === p.apartment && !slotIsOver(w.date, w.start_min + p.tenant.slot_min, p.now));
   const machineName = (id: number) => p.machines.find((m) => m.id === id)?.name ?? "Maskin";
   const groupLabel = (bookings: Booking[]) => bookings.map((b) => machineName(b.machine_id)).join(" + ");
-  const weekIndex = Math.floor(p.days.indexOf(selected) / 7);
-  const week = p.days.slice(weekIndex * 7, weekIndex * 7 + 7);
+  const weekIndex = p.weeks.findIndex((w) => w.includes(selected));
+  const week = p.weeks[weekIndex] ?? [];
+  // Opening a week selects today when it is in that week, else its first viewable day.
+  const weekTarget = (w: string[]) => (w.includes(p.now.date) ? p.now.date : w.find((d) => p.days.includes(d))!);
+  const prevWeek = p.weeks[weekIndex - 1];
+  const nextWeek = p.weeks[weekIndex + 1];
   const duration =
     p.tenant.slot_min % 60 === 0 ? `${p.tenant.slot_min / 60} ${p.tenant.slot_min === 60 ? "time" : "timer"}` : `${p.tenant.slot_min} min`;
   const month = new Intl.DateTimeFormat("nb-NO", {
@@ -307,55 +326,118 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   I dag
                 </a>
                 <a
-                  class={`icon-button ${weekIndex === 0 ? "disabled" : ""}`}
+                  class={`icon-button ${prevWeek ? "" : "disabled"}`}
                   aria-label="Forrige uke"
-                  aria-disabled={weekIndex === 0 ? "true" : undefined}
-                  href={weekIndex > 0 ? url(p.days[(weekIndex - 1) * 7]!) : undefined}
+                  aria-disabled={prevWeek ? undefined : "true"}
+                  href={prevWeek ? url(weekTarget(prevWeek)) : undefined}
                 >
                   ‹
                 </a>
                 <a
-                  class={`icon-button ${(weekIndex + 1) * 7 >= p.days.length ? "disabled" : ""}`}
+                  class={`icon-button ${nextWeek ? "" : "disabled"}`}
                   aria-label="Neste uke"
-                  aria-disabled={(weekIndex + 1) * 7 >= p.days.length ? "true" : undefined}
-                  href={(weekIndex + 1) * 7 < p.days.length ? url(p.days[(weekIndex + 1) * 7]!) : undefined}
+                  aria-disabled={nextWeek ? undefined : "true"}
+                  href={nextWeek ? url(weekTarget(nextWeek)) : undefined}
                 >
                   ›
                 </a>
               </div>
             </div>
             <nav class="date-strip" aria-label="Velg dag">
-              {week.map((date) => (
-                <a
-                  href={url(date)}
-                  class={`date-item ${date === selected ? "selected" : ""}`}
-                  aria-current={date === selected ? "date" : undefined}
-                  aria-label={`${dayLabel(date)}, ${fmtDay(date)}, ${available(date)} ledige tider`}
-                >
-                  <span>{dayLabel(date)}</span>
-                  <strong>{Number(date.slice(-2))}</strong>
-                  <small>{available(date) > 0 ? `${available(date)} ledige` : "Fullt"}</small>
-                </a>
-              ))}
+              {week.map((date) =>
+                p.days.includes(date) ? (
+                  <a
+                    href={url(date)}
+                    data-date={date}
+                    class={`date-item ${date === selected ? "selected" : ""} ${date < p.now.date ? "past" : ""}`}
+                    aria-current={date === selected ? "date" : undefined}
+                    aria-label={`${dayLabel(date)}, ${fmtDay(date)}, ${date < p.now.date ? "passert" : `${available(date)} ledige tider`}`}
+                  >
+                    <span>{dayLabel(date)}</span>
+                    <strong>{Number(date.slice(-2))}</strong>
+                    <small>{date < p.now.date ? "Passert" : available(date) > 0 ? `${available(date)} ledige` : "Fullt"}</small>
+                  </a>
+                ) : (
+                  <span
+                    class="date-item unavailable"
+                    data-date={date}
+                    aria-disabled="true"
+                    aria-label={`${fmtDay(date)}, ikke tilgjengelig`}
+                  >
+                    <span>{dayLabel(date)}</span>
+                    <strong>{Number(date.slice(-2))}</strong>
+                    <small aria-hidden="true">–</small>
+                  </span>
+                ),
+              )}
             </nav>
             <div class="day-heading">
               <h3>
                 {dayLabel(selected) === "I dag" || dayLabel(selected) === "I morgen" ? `${dayLabel(selected)}, ` : ""}
                 {fmtDay(selected).toLowerCase()}
               </h3>
-              <span>
-                <span class="legend-dot" /> Ledig
-              </span>
+              {past ? (
+                <span>Hvem brukte maskinene</span>
+              ) : (
+                <span>
+                  <span class="legend-dot" /> Ledig
+                </span>
+              )}
             </div>
             <div class="slots" id={`d-${selected}`}>
-              {!option && (
+              {!option && !past && (
                 <div class="empty-state">
                   <Icon />
                   <h3>Vaskerommet gjøres klart</h3>
                   <p>Ingen maskiner er lagt til ennå.</p>
                 </div>
               )}
+              {past &&
+                pastSlots.map((s) => {
+                  const usage = pastMachines.map((m) => ({
+                    machine: m,
+                    bookings: dayBookings.filter((b) => b.machine_id === m.id && overlaps(b, s)),
+                  }));
+                  const used = usage.some((u) => u.bookings.length);
+                  return (
+                    <article class={`time-slot elapsed past-slot ${used ? "used" : ""}`}>
+                      <div class="slot-time">
+                        <strong>
+                          {fmtMinute(s.start)}
+                          <span class="time-dash">–</span>
+                          {fmtMinute(s.end)}
+                        </strong>
+                        <span>Passert</span>
+                      </div>
+                      {used ? (
+                        <ul class="slot-usage" aria-label={`Hvem brukte maskinene ${fmtMinute(s.start)}–${fmtMinute(s.end)}`}>
+                          {usage.map(({ machine, bookings }) => (
+                            <li>
+                              <span class="usage-machine">{machine.name}</span>
+                              {bookings.length ? (
+                                bookings.map((b) => (
+                                  <span class="usage-who">
+                                    <strong>
+                                      Leil. {b.apartment}
+                                      {b.apartment === p.apartment ? " (deg)" : ""}
+                                    </strong>
+                                    {b.note && <small>“{b.note}”</small>}
+                                  </span>
+                                ))
+                              ) : (
+                                <span class="usage-who idle">Ikke i bruk</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p class="slot-usage idle">Ingen brukte maskinene</p>
+                      )}
+                    </article>
+                  );
+                })}
               {option &&
+                !past &&
                 p.slots.map((s) => {
                   const over = slotIsOver(selected, s.end, p.now);
                   const ongoing = selected === p.now.date && s.start < p.now.minute && !over;
@@ -486,14 +568,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   );
                 })}
             </div>
-            <div class="schedule-note">
+            <div class="schedule-note" hidden={past}>
               <Icon name="check" size={16} />
               <span>
                 {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Du kan avbestille
                 under Dine tider.
               </span>
             </div>
-            {option && available(selected) === 0 && (
+            {option && !past && available(selected) === 0 && (
               <p class="next-day">
                 Ingen ledige tider igjen denne dagen.{" "}
                 {p.days.find((d) => d > selected && available(d) > 0) ? (

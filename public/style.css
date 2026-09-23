@@ -1565,6 +1565,67 @@ button.cancel-link,
 .time-slot.elapsed {
   background: #fafbf8;
 }
+/* Past days: read-only record of who used which machine. */
+.date-item.past:not(.selected) {
+  background: #fafbf8;
+}
+.date-item.past:not(.selected) strong {
+  color: #636d5d;
+}
+.date-item.unavailable {
+  opacity: 0.35;
+  border-style: dashed;
+}
+.time-slot.past-slot {
+  grid-template-columns: 1fr 2.3fr;
+}
+.slot-usage {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.slot-usage li {
+  display: grid;
+  grid-template-columns: minmax(0, 10em) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.usage-machine {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.usage-who strong {
+  display: block;
+  font-weight: 550;
+  color: var(--ink);
+}
+.usage-who small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.slot-usage.idle,
+.usage-who.idle {
+  color: #7b8476;
+}
+@media (max-width: 740px) {
+  .time-slot.past-slot {
+    grid-template-columns: 0.8fr 2.2fr;
+  }
+  .slot-usage {
+    font-size: 11px;
+  }
+  .slot-usage li {
+    grid-template-columns: 1fr;
+    gap: 1px;
+  }
+}
 .time-dash {
   color: #737b6c;
 }
