@@ -62,6 +62,10 @@ Residents select a day, then tap **Reserver**; comments are added afterward unde
 A confirmation shows the date, time, and machines with an immediate **Angre** action.
 Machine-only reservations, partial availability, and waitlists remain available.
 
+The date strip shows Monday-to-Sunday weeks and opens on today. It reaches back 14 days and forward to the
+booking horizon. Past days are read-only: each slot shows who had each machine and any comment, including
+machines deactivated since then. Cancelled bookings are not shown.
+
 Date/machine navigation and resident forms update in place with JavaScript. URLs, browser back/forward,
 keyboard focus, and server-side validation are preserved. Without JavaScript, the same links and forms
 work as ordinary page requests. Notification setup appears after joining a waitlist.
@@ -74,7 +78,8 @@ reservations after an administrator changes the schedule. Apply migrations befor
 
 `npm run typecheck` checks server, client, scripts, and service-worker types.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
-reservations, atomic conflicts, household limits, ownership, comments, cancellation, and schedule overlaps.
+reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
+calendar-week date strip, and the read-only past-day view.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License

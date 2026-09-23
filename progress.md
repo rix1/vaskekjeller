@@ -38,6 +38,7 @@
 
 ## Log
 
+- 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
