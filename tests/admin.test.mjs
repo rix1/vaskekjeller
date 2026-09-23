@@ -170,6 +170,17 @@ test("schedule rejects lengths outside the picker and shows the error next to th
   assert.match(await tooLong.text(), /lengre enn åpningstiden/);
 });
 
+test("a rejected slot length renders the error page promptly", { timeout: 5000 }, async () => {
+  for (const slot_min of ["0", "-30", "", "0.5"]) {
+    const response = await post("admin/settings", schedule({ slot_min }), admin);
+    assert.equal(response.status, 422, `slot ${JSON.stringify(slot_min)}`);
+    const page = await response.text();
+    assert.match(page, /Velg en av lengdene\./);
+    assert.match(page, /id="slot-preview"[^>]*>Velg en lengde per tid\./);
+  }
+  assert.equal(tenant().slot_min, 120);
+});
+
 test("a legacy slot length stays valid until another length is picked", async () => {
   sqlite.exec("UPDATE tenants SET slot_min = 45");
   const page = await (await get("admin/settings", admin)).text();

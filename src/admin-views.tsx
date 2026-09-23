@@ -37,6 +37,7 @@ const hour = (min: number) => (min % 60 === 0 ? String(min / 60).padStart(2, "0"
 
 export function schedulePreview(start: number | null, end: number | null, slot: number): string {
   if (start === null || end === null || start >= end) return "Velg når første tid starter og siste tid slutter.";
+  if (!Number.isInteger(slot) || slot < 1) return "Velg en lengde per tid.";
   const slots = slotsFor({ day_start_min: start, day_end_min: end, slot_min: slot });
   if (!slots.length) return "Ingen tider får plass. Velg en kortere lengde eller lengre åpningstid.";
   const shown = slots.length > 6 ? [...slots.slice(0, 5), null, slots.at(-1)!] : slots;

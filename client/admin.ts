@@ -114,28 +114,30 @@ document.addEventListener("pointerdown", (event) => {
 // Machines: reorder, switch on/off and rename in place
 // ---------------------------------------------------------------------------
 
-let pending: AbortController | undefined;
+// Every change is a write, so they are sent one at a time, in order, and only the
+// response to the last one is rendered.
+let queue = Promise.resolve();
+let waiting = 0;
 
-async function updateMachines(form: HTMLFormElement, submitter: HTMLElement | null) {
-  pending?.abort();
-  const controller = new AbortController();
-  pending = controller;
-  const section = document.getElementById("maskiner")!;
-  section.setAttribute("aria-busy", "true");
-  const focusKey = submitter?.dataset.focusKey;
+function updateMachines(form: HTMLFormElement, submitter: HTMLElement | null) {
+  const body = new URLSearchParams([...new FormData(form)].map(([k, v]) => [k, String(v)]));
+  waiting++;
+  document.getElementById("maskiner")!.setAttribute("aria-busy", "true");
+  queue = queue.then(() => sendMachines(form, body, submitter?.dataset.focusKey));
+}
+
+async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusKey: string | undefined) {
   try {
-    const res = await fetch(form.action, {
-      method: "POST",
-      body: new URLSearchParams([...new FormData(form)].map(([k, v]) => [k, String(v)])),
-      signal: controller.signal,
-      headers: { "X-Requested-With": "Vaskekjeller" },
-    });
-    const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+    const res = await fetch(form.action, { method: "POST", body, headers: { "X-Requested-With": "Vaskekjeller" } });
+    const html = await res.text();
+    if (--waiting) return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
     const next = doc.getElementById("maskiner");
     if (!next) {
       location.assign(res.url);
       return;
     }
+    const section = document.getElementById("maskiner")!;
     // Keep whatever the admin is doing now: focus, and unsaved text in another row.
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const activeKey = section.contains(active) ? active?.dataset.focusKey : undefined;
@@ -165,11 +167,10 @@ async function updateMachines(form: HTMLFormElement, submitter: HTMLElement | nu
     document.querySelector(".admin-main > .flash")?.remove();
     live.textContent = doc.querySelector(".admin-main > .flash")?.textContent ?? "";
   } catch {
-    if (controller.signal.aborted) return;
     live.textContent = "Kunne ikke lagre. Prøver på nytt uten hurtigoppdatering.";
     HTMLFormElement.prototype.submit.call(form);
-  } finally {
-    if (pending === controller) document.getElementById("maskiner")?.removeAttribute("aria-busy");
+    // The page is leaving; hold back the changes queued after this one.
+    return new Promise<void>(() => {});
   }
 }
 
@@ -179,10 +180,13 @@ document.addEventListener("submit", (event) => {
   if (!form.hasAttribute("data-inline") && !form.hasAttribute("data-autosave")) return;
   event.preventDefault();
   const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
-  // Flip the switch right away; the server response confirms it.
-  if (submitter?.getAttribute("role") === "switch")
-    submitter.setAttribute("aria-checked", submitter.getAttribute("aria-checked") === "true" ? "false" : "true");
-  void updateMachines(form, submitter);
+  // Flip the switch right away and post the state it now shows; the server response confirms it.
+  if (submitter?.getAttribute("role") === "switch") {
+    const on = submitter.getAttribute("aria-checked") !== "true";
+    submitter.setAttribute("aria-checked", String(on));
+    (form.elements.namedItem("active") as HTMLInputElement).value = on ? "1" : "0";
+  }
+  updateMachines(form, submitter);
 });
 
 // Name and type save as soon as they change; Enter in the name field saves too.
@@ -207,6 +211,7 @@ const parseClock = (s: string) => {
 
 function schedulePreview(start: number | null, end: number | null, slot: number): string {
   if (start === null || end === null || start >= end) return "Velg når første tid starter og siste tid slutter.";
+  if (!Number.isInteger(slot) || slot < 1) return "Velg en lengde per tid.";
   const slots: [number, number][] = [];
   for (let s = start; s + slot <= end; s += slot) slots.push([s, s + slot]);
   if (!slots.length) return "Ingen tider får plass. Velg en kortere lengde eller lengre åpningstid.";
