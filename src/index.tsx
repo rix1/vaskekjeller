@@ -59,6 +59,8 @@ const back = (c: Ctx, flash: string, anchor = "", extra: Record<string, string> 
   return c.redirect(`${base(c)}?${params}`, 303);
 };
 const aptCookie = "vk_apt";
+// Set after the first booking on a device; hides the "one tap reserves" hint.
+const bookedCookie = "vk_booked";
 
 function currentApartment(c: Ctx): string | undefined {
   const apt = getCookie(c, aptCookie);
@@ -127,6 +129,7 @@ t.get("/", async (c) => {
       selectedDate={c.req.query("date")}
       mode={c.req.query("mode")}
       bookedIds={c.req.query("reservation")}
+      hideHint={getCookie(c, bookedCookie) === "1"}
       vapidKey={c.env.VAPID_PUBLIC_KEY}
     />,
   );
@@ -221,6 +224,13 @@ t.post("/book", async (c) => {
       ).bind(tenant.id, apt, s.date, s.slot.start, JSON.stringify(option.machines.map((m) => m.id))),
     ]);
     if (!result[0]!.results.length) return back(c, "limit", `d-${s.date}`);
+    setCookie(c, bookedCookie, "1", {
+      path: base(c),
+      httpOnly: true,
+      secure: new URL(c.req.url).protocol === "https:",
+      sameSite: "Lax",
+      maxAge: 60 * 60 * 24 * 400,
+    });
     return back(c, "booked", `d-${s.date}`, {
       reservation: result[0]!.results.map((row) => String((row as { id: number }).id)).join(","),
     });

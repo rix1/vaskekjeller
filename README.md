@@ -61,6 +61,9 @@ The default selection reserves one washer and one dryer together in a single ato
 Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
 A confirmation shows the date, time, and machines with an immediate **Angre** action.
 Machine-only reservations, partial availability, and waitlists remain available.
+In the paired view a partly taken slot shows who holds each machine and offers the free machine in one tap,
+behind a small in-place confirmation; the day strip reads "Delvis" when only single machines are left and
+marks a fully booked day. The "Ett trykk reserverer" hint disappears after a device's first booking (`vk_booked` cookie).
 
 Date/machine navigation and resident forms update in place with JavaScript. URLs, browser back/forward,
 keyboard focus, and server-side validation are preserved. Without JavaScript, the same links and forms

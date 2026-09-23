@@ -203,3 +203,76 @@ test("invalid dates, modes, tenant machines, and past slots are rejected", async
   assert.equal(flash(await post("book", { date: "2026-09-31", start: 480, mode: "pair-1-2" })), "invalid");
   assert.equal((await active()).results.length, 0);
 });
+
+const board = async (cookie = "vk_apt=A3", mode = "pair-1-2") =>
+  (await mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=${mode}`, { headers: { Cookie: cookie } })).text();
+const dayItem = (html) =>
+  html.match(new RegExp(`<a href="/demo\\?date=${tomorrow}&amp;mode=[^"]*" class="date-item[^"]*"[^>]*>.*?</a>`))?.[0] ?? "";
+const bookAllSlots = async (machines) => {
+  for (const start of [480, 600, 720, 840, 960, 1080])
+    for (const machine of machines)
+      await db
+        .prepare("INSERT INTO bookings (tenant_id,machine_id,date,start_min,end_min,apartment) VALUES (1,?,?,?,?,?)")
+        .bind(machine, tomorrow, start, start + 120, "D4")
+        .run();
+};
+
+test("a partly free pair shows who holds each machine and books the free one after confirmation", async () => {
+  await reset();
+  assert.equal(flash(await book(480, "D4", "1")), "booked");
+  const html = await board();
+  assert.match(html, /Delvis ledig/);
+  assert.match(html, /Vask: Leil. D4/);
+  assert.match(html, /Tørk: ledig/);
+  assert.match(html, /Kun tørketrommelen er ledig. Vil du reservere den\?/);
+  const confirm = html.match(/<details class="slot-details slot-confirm">.*?<\/details>/)?.[0] ?? "";
+  assert.match(confirm, /name="mode" value="2"/);
+  assert.match(confirm, /name="start" value="480"/);
+  const response = await book(480, "A3", "2");
+  assert.equal(flash(response), "booked");
+  assert.match(response.headers.get("location"), /mode=pair-1-2/);
+  assert.deepEqual(
+    (await active()).results.map((b) => [b.machine_id, b.apartment]),
+    [
+      [1, "D4"],
+      [2, "A3"],
+    ],
+  );
+  assert.match(await board(), /Reservert/);
+});
+
+test("day strip says Delvis when every slot is partly taken and Fullt only when fully booked", async () => {
+  await reset();
+  await bookAllSlots([1]);
+  let day = dayItem(await board());
+  assert.match(day, /class="date-item[^"]*\bpartial\b/);
+  assert.match(day, /<small>Delvis<\/small>/);
+  assert.match(day, /aria-label="[^"]*delvis ledig, 6 tider med én maskin ledig"/);
+  day = dayItem(await board("vk_apt=A3", "1"));
+  assert.match(day, /class="date-item[^"]*\bfull\b/);
+  assert.match(day, /<small>Fullt<\/small>/);
+  await bookAllSlots([2]);
+  day = dayItem(await board());
+  assert.match(day, /class="date-item[^"]*\bfull\b/);
+  assert.match(day, /aria-label="[^"]*, fullt"/);
+  await reset();
+  day = dayItem(await board());
+  assert.doesNotMatch(day, /\b(full|partial)\b/);
+  assert.match(day, /<small>6 ledige<\/small>/);
+});
+
+test("the first successful booking sets a device cookie that hides the booking hint", async () => {
+  await reset();
+  assert.match(await board(), /Ett trykk reserverer/);
+  assert.equal(flash(await book(480, "D4")), "booked");
+  const taken = await book(480);
+  assert.equal(flash(taken), "taken");
+  assert.equal(taken.headers.get("set-cookie"), null);
+  const response = await book(600);
+  assert.equal(flash(response), "booked");
+  const cookie = response.headers.get("set-cookie") ?? "";
+  assert.match(cookie, /^vk_booked=1;/);
+  assert.match(cookie, /Path=\/demo/);
+  assert.match(cookie, /Max-Age=34560000/);
+  assert.doesNotMatch(await board("vk_apt=A3; vk_booked=1"), /Ett trykk reserverer/);
+});
