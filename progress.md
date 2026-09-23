@@ -8,7 +8,7 @@
 - [x] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
 - [x] make it possible to see last 14 days as well (should default to this week). (2026-09-23: date strip uses Mon–Sun calendar weeks from today-14 to the horizon; past days are read-only and show who used each machine plus comments.)
 - [x] make "fullt" on day-level more present/visible
-- [x] tone the obnoxious focus ring a bit down: mute/change the color. 
+- [x] tone the obnoxious focus ring a bit down: mute/change the color.
 
 ## Features
 
