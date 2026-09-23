@@ -39,8 +39,6 @@ function showToast(toast: HTMLElement) {
     same.getAnimations().forEach((a) => {
       if (a instanceof CSSAnimation && a.animationName === "toast-out") a.currentTime = 0;
     });
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-      same.animate([{ scale: "1.03" }, { scale: "1" }], { duration: 250, easing: "ease-out" });
     live.textContent = text;
     return;
   }
