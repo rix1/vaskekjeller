@@ -6,7 +6,7 @@
   "observability": { "enabled": true },
   // Listen on all interfaces so the dev server is reachable over Tailscale/LAN
   "dev": { "ip": "0.0.0.0", "port": 8787 },
-  // Compiles client/*.ts (page script + service worker) into public/
+  // Compiles client/*.ts (page scripts + service worker) into public/
   "build": { "command": "tsc -p client && tsc -p client/tsconfig.sw.json" },
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": false },
   // Created with `wrangler d1 create --jurisdiction eu`: data stays in the EU.

@@ -82,7 +82,8 @@ adds the encrypted resident password column. Apply migrations before deploying t
 `npm run typecheck` checks server, client, scripts, and service-worker types.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, and schedule overlaps,
-plus the admin settings, machine, and password routes.
+plus the admin settings, machine, and password routes, and the settings table of contents in
+`client/admin.ts` against a simulated page.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
