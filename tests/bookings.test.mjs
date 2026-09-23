@@ -7,7 +7,9 @@ import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 
-let mf, db, temp, sqlite;
+let mf, db, temp, sqlite, vapidKeys;
+// Background work (push fan-out) the route handed to waitUntil; tests await it.
+const pending = [];
 // Exercise the real Hono handlers and SQL with an isolated SQLite database.
 // D1 batch transactions are mirrored here; browser tests cover the Workers runtime.
 function statement(sql) {
@@ -66,10 +68,66 @@ const reset = async () => {
   await db.batch([
     db.prepare("DELETE FROM bookings"),
     db.prepare("DELETE FROM waitlist"),
+    db.prepare("DELETE FROM push_subscriptions"),
+    db.prepare("DELETE FROM daily_stats"),
     db.prepare("UPDATE tenants SET max_active_bookings = 0, day_start_min = 480"),
     db.prepare("UPDATE machines SET active = 1"),
   ]);
+  await settle();
+  devices.clear();
+  pushed = [];
 };
+const settle = async () => {
+  while (pending.length) await pending.shift();
+};
+const b64url = (bytes) => Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64url");
+
+// A fake push service: each subscription is a real P-256 key pair, so payloads
+// sent by the worker can be decrypted (RFC 8291) and inspected.
+const devices = new Map();
+let pushed = [];
+async function subscribe(apartment, name = apartment) {
+  const keys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const device = {
+    keys,
+    publicKey: new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
+    auth: crypto.getRandomValues(new Uint8Array(16)),
+  };
+  const endpoint = `https://push.example.invalid/${name}`;
+  devices.set(endpoint, device);
+  await db
+    .prepare("INSERT INTO push_subscriptions (tenant_id, apartment, endpoint, p256dh, auth) VALUES (1, ?, ?, ?, ?)")
+    .bind(apartment, endpoint, b64url(device.publicKey), b64url(device.auth))
+    .run();
+}
+async function hkdf(salt, ikm, info, length) {
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, length * 8));
+}
+async function decrypt(device, body) {
+  const salt = body.slice(0, 16);
+  const asPublic = body.slice(21, 21 + body[20]);
+  const asKey = await crypto.subtle.importKey("raw", asPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: asKey }, device.keys.privateKey, 256));
+  const text = new TextEncoder();
+  const ikm = await hkdf(device.auth, secret, Buffer.concat([text.encode("WebPush: info\0"), device.publicKey, asPublic]), 32);
+  const cek = await hkdf(salt, ikm, text.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, text.encode("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["decrypt"]);
+  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, aes, body.slice(21 + body[20])));
+  return JSON.parse(new TextDecoder().decode(plain.slice(0, plain.lastIndexOf(2))));
+}
+globalThis.fetch = async (url, init) => {
+  const device = devices.get(String(url));
+  if (!device) throw new Error(`unexpected fetch ${url}`);
+  pushed.push({ endpoint: String(url), message: await decrypt(device, new Uint8Array(init.body)) });
+  return new Response(null, { status: 201 });
+};
+const wait = (apartment, machine, start) =>
+  db
+    .prepare("INSERT INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (1, ?, ?, ?, ?)")
+    .bind(machine, tomorrow, start, apartment)
+    .run();
 const flash = (response) => new URL(response.headers.get("location"), "http://localhost").searchParams.get("m");
 before(async () => {
   temp = await mkdtemp(join(tmpdir(), "vaskekjeller-tests-"));
@@ -99,17 +157,22 @@ before(async () => {
     },
   };
   const worker = (await import(pathToFileURL(output).href)).default;
+  const vapidPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
+  vapidKeys = {
+    publicKey: b64url(await crypto.subtle.exportKey("raw", vapidPair.publicKey)),
+    privateKey: (await crypto.subtle.exportKey("jwk", vapidPair.privateKey)).d,
+  };
   const bindings = {
     DB: db,
     SESSION_SECRET: "isolated-test-only",
-    VAPID_PUBLIC_KEY: "",
-    VAPID_PRIVATE_KEY: "",
-    VAPID_SUBJECT: "",
+    VAPID_PUBLIC_KEY: vapidKeys.publicKey,
+    VAPID_PRIVATE_KEY: vapidKeys.privateKey,
+    VAPID_SUBJECT: "mailto:test@example.invalid",
   };
   mf = {
     dispatchFetch: (url, init) =>
       worker.fetch(new Request(url, init), bindings, {
-        waitUntil: (promise) => promise.catch(() => {}),
+        waitUntil: (promise) => pending.push(promise.catch(() => {})),
       }),
   };
   const schema = await readFile("migrations/0001_init.sql", "utf8");
@@ -212,7 +275,12 @@ const localDate = (offset = 0) => {
   d.setUTCDate(d.getUTCDate() + offset);
   return d.toISOString().slice(0, 10);
 };
-const board = async (date) => (await mf.dispatchFetch(`http://localhost/demo${date ? `?date=${date}` : ""}`)).text();
+const board = async (date, apartment) =>
+  (
+    await mf.dispatchFetch(`http://localhost/demo${date ? `?date=${date}` : ""}`, {
+      headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
+    })
+  ).text();
 const insertBooking = (date, machine, apartment, note = null, cancelled = false) =>
   db
     .prepare(
@@ -326,4 +394,115 @@ test("first visit shows the inline welcome; a saved apartment gets the chip popo
   assert.doesNotMatch(saved, /Hei, nabo\./);
   assert.match(saved, /<details class="apartment-menu">/);
   assert.match(saved, /class="apartment-popover"[\s\S]*action="\/demo\/apartment\?date=/);
+});
+
+test("reservation card shows how many other households are waiting", async () => {
+  await reset();
+  await book(480, "A3", "1");
+  assert.doesNotMatch(await board(tomorrow, "A3"), /venter på denne tiden|note-hint/);
+
+  await wait("B2", 1, 480);
+  let html = await board(tomorrow, "A3");
+  assert.match(html, /<strong>1 venter på denne tiden<\/strong> – legg til en kommentar/);
+  assert.match(html, /1 venter – de får beskjed om kommentaren din\./);
+
+  await wait("C1", 1, 480);
+  await wait("D4", 1, 480);
+  await wait("A3", 1, 480); // the holder's own apartment never counts
+  await wait("E5", 1, 600); // a different slot does not count
+  html = await board(tomorrow, "A3");
+  assert.match(html, /<strong>3 venter på denne tiden<\/strong>/);
+  assert.match(html, /3 venter – de får beskjed/);
+  assert.doesNotMatch(await board(tomorrow, "B2"), /venter på denne tiden/, "waiters do not see the holder's count");
+});
+
+test("a paired reservation counts each waiting household once across both machines", async () => {
+  await reset();
+  await book(480);
+  await wait("B2", 1, 480);
+  await wait("B2", 2, 480);
+  await wait("C1", 2, 480);
+  let html = await board(tomorrow, "A3");
+  assert.match(html, /<strong>2 venter på denne tiden<\/strong>/);
+  await post("note", { booking_ids: (await active()).results.map((b) => b.id).join(","), note: "Ferdig kl. 9" });
+  html = await board(tomorrow, "A3");
+  assert.match(html, /2 venter på denne tiden<\/strong> – endre kommentaren/);
+});
+
+test("adding or changing a comment notifies each waiting household's devices once", async () => {
+  await reset();
+  await book(600);
+  const ids = (await active()).results.map((b) => b.id).join(",");
+  await wait("B2", 1, 600);
+  await wait("B2", 2, 600);
+  await wait("C1", 2, 600);
+  await wait("A3", 1, 600);
+  await wait("D4", 1, 480); // another slot
+  await subscribe("B2", "b2-phone");
+  await subscribe("B2", "b2-laptop");
+  await subscribe("C1");
+  await subscribe("A3");
+  await subscribe("D4");
+  await subscribe("E5"); // not waiting at all
+
+  assert.equal(flash(await post("note", { booking_ids: ids, note: "ferdig kl. 11" })), "note");
+  await settle();
+  assert.deepEqual(pushed.map((p) => p.endpoint.split("/").pop()).sort(), ["C1", "b2-laptop", "b2-phone"]);
+  const day = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(`${tomorrow}T00:00:00Z`),
+  );
+  const expected = `${day.charAt(0).toUpperCase()}${day.slice(1)} 10:00–12:00: «ferdig kl. 11»`;
+  for (const { message } of pushed) {
+    assert.equal(message.body, expected);
+    assert.equal(message.tag, `note-${tomorrow}-600-A3`);
+    assert.equal(message.url, `/demo?date=${tomorrow}`);
+  }
+  assert.equal(await db.prepare("SELECT notifications FROM daily_stats").first("notifications"), 3);
+
+  pushed = [];
+  await post("note", { booking_ids: ids, note: "ferdig kl. 10:30" });
+  await settle();
+  assert.equal(pushed.length, 3);
+  assert.ok(pushed.every((p) => p.message.tag === `note-${tomorrow}-600-A3`), "edits replace the earlier notification");
+  assert.ok(pushed.every((p) => p.message.renotify === true), "a replaced notification alerts again");
+});
+
+test("comments from different households on the same slot do not replace each other", async () => {
+  await reset();
+  await book(600, "A3", "1");
+  await book(600, "B2", "2");
+  await wait("C1", 1, 600);
+  await wait("C1", 2, 600);
+  await subscribe("C1");
+  const note = async (apartment, text) => {
+    const ids = (await active()).results.filter((b) => b.apartment === apartment).map((b) => b.id);
+    await post("note", { booking_ids: ids.join(","), note: text }, apartment);
+    await settle();
+  };
+
+  await note("A3", "ferdig kl. 11");
+  await note("B2", "ferdig kl. 11:30");
+  await note("A3", "ferdig kl. 10:30");
+  assert.deepEqual(
+    pushed.map((p) => p.message.tag),
+    [`note-${tomorrow}-600-A3`, `note-${tomorrow}-600-B2`, `note-${tomorrow}-600-A3`],
+  );
+});
+
+test("clearing or re-saving an unchanged comment sends nothing", async () => {
+  await reset();
+  await book(600, "A3", "1");
+  const ids = (await active()).results.map((b) => b.id).join(",");
+  await wait("B2", 1, 600);
+  await subscribe("B2");
+  await post("note", { booking_ids: ids, note: "ferdig kl. 11" });
+  await settle();
+  assert.equal(pushed.length, 1);
+
+  pushed = [];
+  await post("note", { booking_ids: ids, note: "  ferdig kl. 11 " });
+  await post("note", { booking_ids: ids, note: "" });
+  await settle();
+  assert.equal(pushed.length, 0);
+  assert.equal((await active()).results[0].note, null);
 });

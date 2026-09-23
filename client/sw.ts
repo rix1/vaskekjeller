@@ -1,36 +1,36 @@
-declare const self: ServiceWorkerGlobalScope;
+// Registered as a classic script (no { type: "module" }), so this file must stay a script:
+// no import/export, or the compiled sw.js fails to parse and never registers.
+const sw = self as unknown as ServiceWorkerGlobalScope;
 
-type Message = { title: string; body: string; url?: string; tag?: string };
+type Message = { title: string; body: string; url?: string; tag?: string; renotify?: boolean };
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+sw.addEventListener("install", () => sw.skipWaiting());
+sw.addEventListener("activate", (e) => e.waitUntil(sw.clients.claim()));
 
-self.addEventListener("push", (e) => {
+sw.addEventListener("push", (e) => {
   const msg: Message = e.data?.json() ?? { title: "Vaskekjeller", body: "" };
-  e.waitUntil(
-    self.registration.showNotification(msg.title, {
-      body: msg.body,
-      tag: msg.tag,
-      icon: "/icon.svg",
-      data: { url: msg.url ?? "/" },
-    }),
-  );
+  const options: NotificationOptions & { renotify?: boolean } = {
+    body: msg.body,
+    tag: msg.tag,
+    renotify: msg.renotify,
+    icon: "/icon.svg",
+    data: { url: msg.url ?? "/" },
+  };
+  e.waitUntil(sw.registration.showNotification(msg.title, options));
 });
 
-self.addEventListener("notificationclick", (e) => {
+sw.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const url = new URL(e.notification.data?.url ?? "/", self.location.origin).href;
+  const url = new URL(e.notification.data?.url ?? "/", sw.location.origin).href;
   e.waitUntil(
     (async () => {
-      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const all = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
       const existing = all.find((c) => new URL(c.url).pathname === new URL(url).pathname);
       if (existing) {
         await existing.navigate(url);
         return existing.focus();
       }
-      return self.clients.openWindow(url);
+      return sw.clients.openWindow(url);
     })(),
   );
 });
-
-export {};
