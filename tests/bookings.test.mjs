@@ -321,8 +321,10 @@ test("adding or changing a comment notifies each waiting household's devices onc
   assert.equal(flash(await post("note", { booking_ids: ids, note: "ferdig kl. 11" })), "note");
   await settle();
   assert.deepEqual(pushed.map((p) => p.endpoint.split("/").pop()).sort(), ["C1", "b2-laptop", "b2-phone"]);
-  const weekday = new Intl.DateTimeFormat("nb-NO", { weekday: "long", timeZone: "UTC" }).format(new Date(`${tomorrow}T00:00:00Z`));
-  const expected = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} 10:00–12:00: «ferdig kl. 11»`;
+  const day = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(`${tomorrow}T00:00:00Z`),
+  );
+  const expected = `${day.charAt(0).toUpperCase()}${day.slice(1)} 10:00–12:00: «ferdig kl. 11»`;
   for (const { message } of pushed) {
     assert.equal(message.body, expected);
     assert.equal(message.tag, `note-${tomorrow}-600`);
