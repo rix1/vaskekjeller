@@ -44,6 +44,7 @@
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
 - 2026-09-23: Status banners replaced by in-house toasts (booking page, login, admin); Angre booking toast 8 s, success 4 s, errors stay; CSS-only fade without JS.
+- 2026-09-23: Push toggle results (enabled, blocked, error) are toasts; the banner keeps the toggle, an on/off label and the iPhone hint.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
 - 2026-09-23: Apartment change moved into a popover on the header chip (`.apartment-menu`); popover body is sections so the calendar-subscription link can be added as another `<section>`.
 - 2026-09-23: Waitlist-aware comments: reservation cards show how many households wait, comment field hints they will be told, and a changed non-empty comment pushes to waiters as "<short date> <start>–<end>: «note»" (tag `note-<date>-<start>-<apartment>` so the same holder's edits replace each other; `renotify` so a replacement still alerts). The push banner, test push, and waitlist-joined message now mention comments too.
