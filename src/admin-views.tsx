@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import { KIND_LABEL, type Booking, type Machine, type Tenant } from "./db.ts";
 import { fmtDay, fmtMinute } from "./time.ts";
-import { FLASH, Layout } from "./views.tsx";
+import { Layout, Toaster } from "./views.tsx";
 
 export type Stats = {
   daily: { day: string; views: number; visitors: number; notifications: number }[];
@@ -52,7 +52,6 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
       <main>
         <h1>Admin · {tenant.name}</h1>
         <Nav tenant={tenant} active="overview" />
-        {flash && FLASH[flash] && <p class="flash">{FLASH[flash]}</p>}
 
         <section>
           <h2>Siste 30 dager</h2>
@@ -165,6 +164,7 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
           )}
         </section>
       </main>
+      <Toaster code={flash} dismissHref={`/${tenant.slug}/admin`} />
     </Layout>
   );
 };
@@ -176,8 +176,6 @@ export const AdminSettings: FC<{ tenant: Tenant; machines: Machine[]; flash?: st
       <main>
         <h1>Admin · {tenant.name}</h1>
         <Nav tenant={tenant} active="settings" />
-        {flash && FLASH[flash] && <p class="flash">{FLASH[flash]}</p>}
-        {error && <p class="flash err">{error}</p>}
 
         <section>
           <h2>Tider og regler</h2>
@@ -306,6 +304,7 @@ export const AdminSettings: FC<{ tenant: Tenant; machines: Machine[]; flash?: st
           </form>
         </section>
       </main>
+      <Toaster code={flash} error={error} dismissHref={`${base}/settings`} />
     </Layout>
   );
 };
