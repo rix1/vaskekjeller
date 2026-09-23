@@ -237,15 +237,24 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </span>
         </a>
         {p.apartment ? (
-          <a class="apartment-chip" href={`${url()}&bytt=1`}>
-            <Icon name="home" size={16} />
-            <span>
-              Leilighet <strong>{p.apartment}</strong>
-            </span>
-            <span class="muted" aria-hidden="true">
-              ⌄
-            </span>
-          </a>
+          <details class="apartment-menu" open={p.changeApt}>
+            <summary class="apartment-chip" aria-label={`Leilighet ${p.apartment}, endre leilighet`}>
+              <Icon name="home" size={16} />
+              <span>
+                Leilighet <strong>{p.apartment}</strong>
+              </span>
+              <span class="muted" aria-hidden="true">
+                ⌄
+              </span>
+            </summary>
+            <div class="apartment-popover">
+              <section>
+                <strong>Endre leilighet</strong>
+                <p>Velg leiligheten du vil reservere for.</p>
+                <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context={query()} />
+              </section>
+            </div>
+          </details>
         ) : (
           <span class="header-caption">Et felles rom. Litt enklere.</span>
         )}
@@ -290,16 +299,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <Icon name="arrow" size={16} />
           </a>
         )}
-        {(!p.apartment || p.changeApt) && (
+        {!p.apartment && (
           <section class="welcome" id="apartment-start">
             <div>
               <Icon name="home" />
-              <h2>{p.changeApt ? "Bytt leilighet" : "Hei, nabo."}</h2>
-              <p>
-                {p.changeApt ? "Velg leiligheten du vil reservere for." : "Velg leiligheten din én gang, så er du klar til å reservere."}
-              </p>
+              <h2>Hei, nabo.</h2>
+              <p>Velg leiligheten din én gang, så er du klar til å reservere.</p>
             </div>
-            <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context={query()} />
+            <ApartmentPicker tenant={p.tenant} apartments={p.apartments} context={query()} />
           </section>
         )}
         <div class="booking-layout">

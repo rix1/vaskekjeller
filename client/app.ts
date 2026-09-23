@@ -121,7 +121,7 @@ async function updateBoard(
 
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
-  for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open]")) {
+  for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open], .apartment-menu[open]")) {
     if (!details.contains(event.target)) details.open = false;
   }
   const link = event.target.closest<HTMLAnchorElement>("a[href]");
@@ -170,7 +170,9 @@ window.addEventListener("popstate", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !(event.target instanceof Element)) return;
-  const details = event.target.closest<HTMLDetailsElement>(".slot-details");
+  const details =
+    event.target.closest<HTMLDetailsElement>(".slot-details, .apartment-menu") ??
+    document.querySelector<HTMLDetailsElement>(".apartment-menu[open]");
   if (details) {
     details.open = false;
     details.querySelector("summary")?.focus();
