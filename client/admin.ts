@@ -278,16 +278,20 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")
 // ---------------------------------------------------------------------------
 
 const tocLinks = [...document.querySelectorAll<HTMLAnchorElement>(".toc a")];
+// The last section can be too short to reach the observed band; at the bottom of the page it wins.
+const atBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+const markToc = (hash: string) => {
+  for (const link of tocLinks) {
+    if (link.hash === hash) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  }
+};
 const tocObserver =
   tocLinks.length && "IntersectionObserver" in window
     ? new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            for (const link of tocLinks) {
-              if (link.hash === `#${entry.target.id}`) link.setAttribute("aria-current", "true");
-              else link.removeAttribute("aria-current");
-            }
+            if (entry.isIntersecting) markToc(atBottom() ? tocLinks.at(-1)!.hash : `#${entry.target.id}`);
           }
         },
         { rootMargin: "-20% 0px -70% 0px" },
@@ -297,12 +301,10 @@ for (const link of tocLinks) {
   const section = document.getElementById(link.hash.slice(1));
   if (section) tocObserver?.observe(section);
 }
-// The last section can be too short to reach the observed band; mark it at the bottom of the page.
 addEventListener(
   "scroll",
   () => {
-    if (!tocLinks.length || innerHeight + scrollY < document.documentElement.scrollHeight - 2) return;
-    for (const link of tocLinks) link.toggleAttribute("aria-current", link === tocLinks.at(-1));
+    if (tocLinks.length && atBottom()) markToc(tocLinks.at(-1)!.hash);
   },
   { passive: true },
 );
