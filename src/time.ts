@@ -64,6 +64,15 @@ export function weekdayIndex(date: string): number {
   return (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
 }
 
+/** Monday-to-Sunday weeks covering every day from `first` to `last`. */
+export function calendarWeeks(first: string, last: string): string[][] {
+  const weeks: string[][] = [];
+  for (let monday = addDays(first, -weekdayIndex(first)); monday <= last; monday = addDays(monday, 7)) {
+    weeks.push(Array.from({ length: 7 }, (_, i) => addDays(monday, i)));
+  }
+  return weeks;
+}
+
 export type Slot = { start: number; end: number };
 
 export function slotsFor(t: { day_start_min: number; day_end_min: number; slot_min: number }): Slot[] {

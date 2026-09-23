@@ -18,7 +18,7 @@ import {
   type Tenant,
 } from "./db.ts";
 import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
-import { addDays, fmtDay, fmtMinute, isValidDate, localNow, parseHHMM, slotIsOver, slotsFor } from "./time.ts";
+import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, parseHHMM, slotIsOver, slotsFor } from "./time.ts";
 import { BoardPage, PasswordPage } from "./views.tsx";
 
 type App = { Bindings: Env; Variables: { tenant: Tenant } };
@@ -98,24 +98,29 @@ t.post("/login", async (c) => {
 // Resident board
 // ---------------------------------------------------------------------------
 
+const LOOKBACK_DAYS = 14;
+
 t.get("/", async (c) => {
   const tenant = c.var.tenant;
   const now = localNow(tenant.timezone);
+  // Past days stay viewable (read-only) so neighbours can see who used which machine.
+  const first = addDays(now.date, -LOOKBACK_DAYS);
   const last = addDays(now.date, tenant.booking_horizon_days - 1);
   const [machines, bookings, waitlist] = await Promise.all([
     getMachines(c.env.DB, tenant.id),
-    getBookings(c.env.DB, tenant.id, now.date, last),
+    getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
   ]);
   c.executionCtx.waitUntil(recordVisit(c, now.date));
   const apartment = currentApartment(c);
   if (apartment) rememberApartment(c, apartment);
-  const days = Array.from({ length: tenant.booking_horizon_days }, (_, i) => addDays(now.date, i));
+  const days = Array.from({ length: LOOKBACK_DAYS + tenant.booking_horizon_days }, (_, i) => addDays(first, i));
   return c.html(
     <BoardPage
       tenant={tenant}
       machines={machines}
       days={days}
+      weeks={calendarWeeks(first, last)}
       slots={slotsFor(tenant)}
       bookings={bookings}
       waitlist={waitlist}
