@@ -293,7 +293,7 @@ async function setupPush() {
   const render = (on: boolean) => {
     banner.hidden = false;
     banner.classList.toggle("on", on);
-    text.textContent = on ? "Varsler er på." : "Varsler er av.";
+    text.textContent = on ? "Varsler er på." : "Få varsel når en tid du venter på blir ledig eller får en ny kommentar.";
     toggle.textContent = on ? "Skru av" : "Slå på varsler";
   };
 

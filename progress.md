@@ -42,7 +42,7 @@
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
 - 2026-09-23: Status banners replaced by in-house toasts (booking page, login, admin); Angre booking toast 8 s, success 4 s, errors stay; CSS-only fade without JS.
-- 2026-09-23: Push toggle results (enabled, blocked, error) are toasts; the banner keeps the toggle, an on/off label and the iPhone hint.
+- 2026-09-23: Push toggle results (enabled, blocked, error) are toasts; the banner keeps the toggle, "Varsler er på." or the off-state invitation, and the iPhone hint.
 - 2026-09-23: Angre toast now pauses on hover/focus (`.toast.long` specificity) and closes once its bookings leave "Dine tider" after an in-place update.
 - 2026-09-23: The 3-toast cap no longer closes error toasts; a repeated message restarts and pulses the toast already on screen.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
