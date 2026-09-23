@@ -44,12 +44,17 @@ function showToast(toast: HTMLElement) {
   if (toast.getAttribute("role") === "status") live.textContent = text;
 }
 
-function errorToast(message: string) {
+const TOAST_ICONS = {
+  success: '<path d="m5 12 4 4L19 6"/>',
+  error: '<path d="M12 7v6m0 4h.01" stroke-width="2.2"/>',
+};
+
+function clientToast(tone: "success" | "error", message: string) {
   const toast = document.createElement("div");
-  toast.className = "toast error network-error";
-  toast.setAttribute("role", "alert");
+  toast.className = tone === "error" ? "toast error" : "toast success auto";
+  toast.setAttribute("role", tone === "error" ? "alert" : "status");
   toast.innerHTML =
-    '<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6m0 4h.01" stroke-width="2.2"/></svg></span>' +
+    `<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TOAST_ICONS[tone]}</svg></span>` +
     '<div class="toast-text"><p class="toast-title"></p></div>' +
     '<button type="button" class="toast-close" aria-label="Lukk varsel"><span aria-hidden="true">×</span></button>';
   toast.querySelector(".toast-title")!.textContent = message;
@@ -153,13 +158,14 @@ async function updateBoard(
     main.querySelectorAll(".date-item, .machine-options a").forEach((el) => {
       el.classList.toggle("selected", el.hasAttribute("aria-current"));
     });
-    showToast(
-      errorToast(
-        options.form
-          ? "Vi kunne ikke bekrefte endringen. Oppdater siden for å se om den ble lagret."
-          : "Kunne ikke hente tidene. Sjekk forbindelsen og prøv igjen.",
-      ),
+    const toast = clientToast(
+      "error",
+      options.form
+        ? "Vi kunne ikke bekrefte endringen. Oppdater siden for å se om den ble lagret."
+        : "Kunne ikke hente tidene. Sjekk forbindelsen og prøv igjen.",
     );
+    toast.classList.add("network-error");
+    showToast(toast);
   } finally {
     if (pendingNavigation === controller) {
       document.querySelector(".resident-main")?.removeAttribute("aria-busy");
@@ -277,7 +283,7 @@ async function setupPush() {
   const render = (on: boolean) => {
     banner.hidden = false;
     banner.classList.toggle("on", on);
-    text.textContent = on ? "Varsler er på for denne enheten." : "Få varsel når en tid du venter på blir ledig eller får en ny kommentar.";
+    text.textContent = on ? "Varsler er på." : "Varsler er av.";
     toggle.textContent = on ? "Skru av" : "Slå på varsler";
   };
 
@@ -295,7 +301,7 @@ async function setupPush() {
         render(false);
       } else {
         if ((await Notification.requestPermission()) !== "granted") {
-          text.textContent = "Varsler er blokkert i nettleseren. Endre det i nettleserinnstillingene.";
+          showToast(clientToast("error", "Varsler er blokkert i nettleseren. Endre det i nettleserinnstillingene."));
           return;
         }
         sub = await reg.pushManager.subscribe({
@@ -305,10 +311,11 @@ async function setupPush() {
         await api("subscribe", sub.toJSON());
         await api("test", { endpoint: sub.endpoint });
         render(true);
+        showToast(clientToast("success", "Varsler er på for denne enheten."));
       }
     } catch (err) {
       console.error(err);
-      text.textContent = "Noe gikk galt med varsler. Prøv igjen senere.";
+      showToast(clientToast("error", "Noe gikk galt med varsler. Prøv igjen senere."));
     } finally {
       toggle.disabled = false;
     }
