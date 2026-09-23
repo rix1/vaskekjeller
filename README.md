@@ -116,9 +116,11 @@ adds the encrypted resident password column.
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
-toasts (Angre confirmation, errors), messages to booking holders (`tests/push-messages.test.mjs`), and the admin
-settings, machine, and password routes. It also compiles the service worker and runs it as a classic script, since
-`/sw.js` is registered without `{ type: "module" }`.
+pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
+toasts (Angre confirmation, errors), messages to booking holders (`tests/push-messages.test.mjs`), the admin
+settings, machine, and password routes, and the settings table of contents in `client/admin.ts` against a
+simulated page. It also compiles the service worker and runs it as a classic script, since `/sw.js` is registered
+without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
