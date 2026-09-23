@@ -1725,14 +1725,15 @@ button.cancel-link,
 .slot-details > summary.reserve-button:active {
   transform: scale(0.97);
 }
-.slot-details[open] > .slot-popover {
-  transform-origin: top right;
-  animation: popover-in 160ms var(--ease-out);
+@media (prefers-reduced-motion: no-preference) {
+  .slot-details[open] > .slot-popover {
+    animation: popover-in 160ms var(--ease-out);
+  }
 }
 @keyframes popover-in {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: translateY(-4px);
   }
 }
 .slot-confirm .slot-popover p {
