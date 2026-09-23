@@ -75,7 +75,10 @@ and hand over the admin password.
 
 The default selection reserves one washer and one dryer together in a single atomic write.
 Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
-A confirmation shows the date, time, and machines with an immediate **Angre** action.
+A confirmation toast shows the date, time, and machines with an **Angre** action for about 8 seconds
+(paused while hovered or focused). Other status messages are toasts too: success toasts close after about
+4 seconds, errors stay until closed. Without JavaScript the same toasts are server-rendered and the timed ones
+fade out with CSS.
 Machine-only reservations, partial availability, and waitlists remain available.
 In the paired view a partly taken slot shows who holds each machine and offers the free machine in one tap,
 behind a small in-place confirmation; the day strip reads "Delvis" when only single machines are left and
@@ -99,8 +102,9 @@ reservations after an administrator changes the schedule.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
-pushes, and the board's partly free rows, day-strip status, and first-booking hint cookie. It also compiles the
-service worker and runs it as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
+pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, and the server-rendered
+toasts (Angre confirmation, errors). It also compiles the service worker and runs it as a classic script, since
+`/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
