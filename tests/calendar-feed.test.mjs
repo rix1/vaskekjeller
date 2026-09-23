@@ -11,6 +11,11 @@ import { pbkdf2Sync, randomBytes } from "node:crypto";
 // Calendar subscription: the secret per-apartment .ics feed and its popover controls.
 // Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
 let mf, db, temp, sqlite;
+const ADMIN_PASSWORD = "admin-test-password";
+const pbkdf2Hash = (password) => {
+  const salt = randomBytes(16);
+  return `pbkdf2$1$${salt.toString("base64url")}$${pbkdf2Sync(password, salt, 1, 32, "sha256").toString("base64url")}`;
+};
 function statement(sql) {
   let bindings = [];
   return {
@@ -94,8 +99,9 @@ before(async () => {
   };
   sqlite.exec(await readFile("migrations/0001_init.sql", "utf8"));
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
+  sqlite.exec(await readFile("migrations/0003_resident_password_readable.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test','unused')").run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test',?)").bind(pbkdf2Hash(ADMIN_PASSWORD)).run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -113,20 +119,23 @@ const boardFor = (apartment) =>
   mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2`, {
     headers: { Cookie: [apartment && `vk_apt=${apartment}`, access].filter(Boolean).join("; ") },
   });
-/** Sets (or with no argument removes) the resident password the way the app stores it, and logs in. */
+/** Sets (or with no argument removes) the resident password through the admin routes; the admin device stays logged in. */
 const residentPassword = async (password) => {
-  const salt = randomBytes(16);
-  const hash = password && `pbkdf2$1$${salt.toString("base64url")}$${pbkdf2Sync(password, salt, 1, 32, "sha256").toString("base64url")}`;
-  await db.prepare("UPDATE tenants SET access_password_hash = ?").bind(hash ?? null).run();
-  access = "";
-  if (!password) return;
-  const login = await mf.dispatchFetch("http://localhost/demo/login", {
+  const login = await mf.dispatchFetch("http://localhost/demo/admin/login", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost" },
-    body: new URLSearchParams({ password }),
+    body: new URLSearchParams({ password: ADMIN_PASSWORD }),
     redirect: "manual",
   });
-  access = login.headers.get("set-cookie").split(";")[0];
+  const admin = login.headers.get("set-cookie").split(";")[0];
+  const response = await mf.dispatchFetch(`http://localhost/demo/admin/${password ? "access" : "access/off"}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost", Cookie: admin },
+    body: new URLSearchParams(password ? { access_password: password } : {}),
+    redirect: "manual",
+  });
+  assert.equal(response.status, 303);
+  access = password ? response.headers.get("set-cookie").split(";")[0] : "";
 };
 const feedUrl = async (apartment = "A3") => {
   const html = await (await boardFor(apartment)).text();

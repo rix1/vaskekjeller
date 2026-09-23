@@ -28,7 +28,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   so an existing subscription follows it. The feed needs no resident password, asks for a refresh every 15
   minutes, and covers 14 days back to the booking horizon. "Lag ny lenke" replaces the token; the old link
   returns 404. Setting, changing or removing the resident password retires every link the same way, and each
-  apartment gets a new one in the popover. Google Calendar refreshes subscriptions only every several hours, so only Apple is offered.
+  apartment gets a new one in the popover. Google Calendar refreshes subscriptions only every several hours,
+  so only Apple is offered.
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
   cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,
@@ -123,10 +124,10 @@ adds the encrypted resident password column.
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
-toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking holders (`tests/push-messages.test.mjs`), the admin
-settings, machine, and password routes, and the settings table of contents and inline machine updates in
-`client/admin.ts` against a simulated page. It also compiles the service worker and runs it as a classic
-script, since `/sw.js` is registered without `{ type: "module" }`.
+toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
+holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, and the settings
+table of contents and inline machine updates in `client/admin.ts` against a simulated page. It also compiles
+the service worker and runs it as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
