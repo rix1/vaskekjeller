@@ -464,6 +464,7 @@ test("adding or changing a comment notifies each waiting household's devices onc
   await settle();
   assert.equal(pushed.length, 3);
   assert.ok(pushed.every((p) => p.message.tag === `note-${tomorrow}-600`), "edits replace the earlier notification");
+  assert.ok(pushed.every((p) => p.message.renotify === true), "a replaced notification alerts again");
 });
 
 test("clearing or re-saving an unchanged comment sends nothing", async () => {

@@ -399,6 +399,7 @@ async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: s
     url: `/${tenant.slug}?date=${b.date}`,
     // Stable per slot, so a later edit replaces the earlier notification instead of stacking.
     tag: `note-${b.date}-${b.start_min}`,
+    renotify: true,
   });
 }
 

@@ -14,7 +14,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Waitlist**: on a booked slot, tap "Venteliste". When the booking is cancelled, everyone on that slot's
   waitlist gets a push notification. First to book wins.
   The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
-  everyone waiting (clearing it sends nothing, and edits replace the previous notification).
+  everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats.
