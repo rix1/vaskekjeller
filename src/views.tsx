@@ -13,7 +13,7 @@ export const FLASH: Record<string, string> = {
   over: "Den tiden er allerede passert.",
   "no-apt": "Velg leiligheten din først.",
   "bad-apt": "Ukjent leilighetsnummer.",
-  waiting: "Du står på ventelisten. Slå på varsler for å få beskjed når tiden blir ledig.",
+  waiting: "Du står på ventelisten. Slå på varsler for å få beskjed når tiden blir ledig eller får en ny kommentar.",
   unwaited: "Du er fjernet fra ventelisten.",
   note: "Kommentaren er lagret.",
   "wrong-password": "Feil passord.",
@@ -713,7 +713,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   </div>
                 ))}
                 <div id="push-banner" class="push-banner" hidden>
-                  <span id="push-text">Få beskjed når tiden blir ledig.</span>
+                  <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
                   <button type="button" id="push-toggle">
                     Slå på varsler
                   </button>
