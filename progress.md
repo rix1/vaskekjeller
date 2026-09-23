@@ -33,11 +33,13 @@
 ## Devops
 
 - [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill). (2026-09-23: repo is public at https://github.com/rix1/vaskekjeller; rix1.dev project list not yet updated.)
+- [] Connect the repo to Workers Builds in the Cloudflare dashboard and create the Lofotgata building (captain; checklist in docs/deploy.md).
 - [] Find suitable domain name candidates, e.g. vask.now.
 - [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; not yet deployed or migrated remotely.)
 
 ## Log
 
+- 2026-09-23: GitOps deploy via Workers Builds: push to main runs remote D1 migrations, then `wrangler deploy`. Worker `vaskekjeller` created as a placeholder by `wrangler secret bulk`, with SESSION_SECRET and VAPID keys set (only in Cloudflare). VAPID_SUBJECT set. Remote DB migrations not yet applied; the first build does it. Checklist: docs/deploy.md.
 - 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
