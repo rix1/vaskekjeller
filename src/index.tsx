@@ -391,7 +391,7 @@ t.post("/message", async (c) => {
       .first<number>("sent");
     return back(c, (sent ?? 0) >= MAX_MESSAGES ? "message-limit" : "message-full", `d-${b.date}`);
   }
-  // Wait for every machine in the holder's reservation, as /wait does, so the sender hears the reply.
+  // Wait for every machine in the holder's reservation (/wait adds one), so the sender hears the reply.
   if (!over) {
     await c.env.DB.prepare(
       `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
