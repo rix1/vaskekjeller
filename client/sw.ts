@@ -1,20 +1,20 @@
 declare const self: ServiceWorkerGlobalScope;
 
-type Message = { title: string; body: string; url?: string; tag?: string };
+type Message = { title: string; body: string; url?: string; tag?: string; renotify?: boolean };
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener("push", (e) => {
   const msg: Message = e.data?.json() ?? { title: "Vaskekjeller", body: "" };
-  e.waitUntil(
-    self.registration.showNotification(msg.title, {
-      body: msg.body,
-      tag: msg.tag,
-      icon: "/icon.svg",
-      data: { url: msg.url ?? "/" },
-    }),
-  );
+  const options: NotificationOptions & { renotify?: boolean } = {
+    body: msg.body,
+    tag: msg.tag,
+    renotify: msg.renotify,
+    icon: "/icon.svg",
+    data: { url: msg.url ?? "/" },
+  };
+  e.waitUntil(self.registration.showNotification(msg.title, options));
 });
 
 self.addEventListener("notificationclick", (e) => {
