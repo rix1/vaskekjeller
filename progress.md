@@ -46,6 +46,8 @@
   `prefers-reduced-motion: no-preference`. The "Reserver tørk/vask" confirm summary now keeps the shared white-on-green
   desktop hover, and the next-day message uses `dayStatus` for "partly free" (covered in the day-strip test).
   Rebased onto the calendar-week strip: past days get their "Passert" label from `dayStatus` as well.
+  Second review: past days no longer render the booking hint at all (so the rows keep their bottom padding),
+  and the `.machine-status` flex/gap now beats `.slot-status small`.
 - 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.

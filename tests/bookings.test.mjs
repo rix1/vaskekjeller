@@ -235,6 +235,7 @@ test("past days show who used each machine, read-only, without cancelled booking
   assert.doesNotMatch(html, /Z9/);
   assert.doesNotMatch(html, /action="\/demo\/(book|wait|unwait)/);
   assert.doesNotMatch(html, /reserve-button/);
+  assert.doesNotMatch(html, /Ett trykk reserverer/);
   assert.match(html, new RegExp(`data-date="${day}"[^>]*aria-label="[^"]*, passert"[^>]*>.*?<small>Passert</small>`));
 });
 

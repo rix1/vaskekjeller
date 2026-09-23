@@ -666,8 +666,8 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   );
                 })}
             </div>
-            {!p.hideHint && (
-              <div class="schedule-note" hidden={past}>
+            {!past && !p.hideHint && (
+              <div class="schedule-note">
                 <Icon name="check" size={16} />
                 <span>
                   {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Du kan
