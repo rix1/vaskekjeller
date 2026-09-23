@@ -7,7 +7,7 @@ import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 
-// Board polish: partly free rows, day-strip status, and the first-booking hint cookie.
+// Server-rendered toasts: the booking confirmation with Angre, and error toasts that stay until closed.
 // Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
 let mf, db, temp, sqlite;
 function statement(sql) {

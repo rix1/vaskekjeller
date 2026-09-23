@@ -19,6 +19,7 @@ document.body.append(live);
 const MAX_TOASTS = 3;
 const toastText = (toast: Element) =>
   [...toast.querySelectorAll(".toast-text > *")].map((el) => el.textContent?.trim()).join(" ");
+const announce = (text: string) => setTimeout(() => (live.textContent = text), 500);
 
 function trackToast(toast: HTMLElement) {
   toast.addEventListener("animationend", (event) => {
@@ -27,6 +28,11 @@ function trackToast(toast: HTMLElement) {
 }
 
 function dismissToast(toast: Element) {
+  if (toast.contains(document.activeElement)) {
+    const main = document.querySelector<HTMLElement>("main");
+    main?.setAttribute("tabindex", "-1");
+    main?.focus({ preventScroll: true });
+  }
   toast.classList.add("leaving");
 }
 
@@ -39,16 +45,17 @@ function showToast(toast: HTMLElement) {
     same.getAnimations().forEach((a) => {
       if (a instanceof CSSAnimation && a.animationName === "toast-out") a.currentTime = 0;
     });
-    live.textContent = text;
+    announce(text);
     return;
   }
+  // Every toast is announced once, through the polite live region.
+  toast.removeAttribute("role");
   trackToast(toast);
   stack.append(toast);
   // Errors explain why something didn't happen, so only the resident closes them.
   const closing = stack.querySelectorAll(".toast:not(.leaving):not(.error)");
   for (let i = 0; i < closing.length - MAX_TOASTS; i++) dismissToast(closing[i]!);
-  // Alerts announce themselves; status toasts go through the polite live region.
-  if (toast.getAttribute("role") === "status") live.textContent = text;
+  announce(text);
 }
 
 const TOAST_ICONS = {
@@ -59,7 +66,6 @@ const TOAST_ICONS = {
 function clientToast(tone: "success" | "error", message: string) {
   const toast = document.createElement("div");
   toast.className = tone === "error" ? "toast error" : "toast success auto";
-  toast.setAttribute("role", tone === "error" ? "alert" : "status");
   toast.innerHTML =
     `<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TOAST_ICONS[tone]}</svg></span>` +
     '<div class="toast-text"><p class="toast-title"></p></div>' +
@@ -70,11 +76,7 @@ function clientToast(tone: "success" | "error", message: string) {
 
 const pageToasts = [...document.querySelectorAll<HTMLElement>(".toast")];
 pageToasts.forEach(trackToast);
-const pageStatus = pageToasts.filter((toast) => toast.getAttribute("role") === "status").map(toastText).join(" ");
-if (pageStatus)
-  setTimeout(() => {
-    if (!live.textContent) live.textContent = pageStatus;
-  }, 500);
+if (pageToasts.length) announce(pageToasts.map(toastText).join(" "));
 document.addEventListener("visibilitychange", () => {
   document.querySelector(".toaster")?.classList.toggle("paused", document.hidden);
 });
@@ -149,7 +151,7 @@ async function updateBoard(
     const toasts = [...doc.querySelectorAll<HTMLElement>(".toaster .toast")];
     toasts.forEach(showToast);
     if (!toasts.length)
-      live.textContent = `${nextMain.querySelector(".day-heading h3")?.textContent}. ${nextMain.querySelector(".machine-options .selected")?.textContent}.`;
+      announce(`${nextMain.querySelector(".day-heading h3")?.textContent}. ${nextMain.querySelector(".machine-options .selected")?.textContent}.`);
     // Keep keyboard focus on the selected control after it has been replaced.
     if (options.focusHref) {
       const matching = [...nextMain.querySelectorAll<HTMLAnchorElement>("a")].find((a) => a.href === options.focusHref);
