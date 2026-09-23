@@ -38,6 +38,7 @@
 
 ## Log
 
+- 2026-09-23: Admin review fixes: inline machine changes are queued and sent in order (no aborted writes; the switch posts the state it shows); the schedule preview skips a slot length that isn't a positive integer instead of looping forever.
 - 2026-09-23: Admin review fixes: changing the admin password always requires a matching confirmation; a settings card error focuses the first marked field (JS) and the error message links to the failing card (no JS).
 - 2026-09-23: Admin redesign (see Admin). Admin styles and script live in `public/admin.css` and `client/admin.ts`, loaded only on admin pages. Pages render without a doctype (quirks mode); worth fixing in `Layout` separately.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
