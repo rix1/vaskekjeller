@@ -196,6 +196,17 @@ export const BoardPage: FC<BoardProps> = (p) => {
   const myWaits = p.waitlist.filter((w) => w.apartment === p.apartment && !slotIsOver(w.date, w.start_min + p.tenant.slot_min, p.now));
   const machineName = (id: number) => p.machines.find((m) => m.id === id)?.name ?? "Maskin";
   const groupLabel = (bookings: Booking[]) => bookings.map((b) => machineName(b.machine_id)).join(" + ");
+  /** Other households waiting for any machine in this reservation, counted once each. */
+  const waiters = (bookings: Booking[]) =>
+    new Set(
+      p.waitlist
+        .filter(
+          (w) =>
+            w.apartment !== p.apartment &&
+            bookings.some((b) => b.machine_id === w.machine_id && b.date === w.date && b.start_min === w.start_min),
+        )
+        .map((w) => w.apartment),
+    ).size;
   const weekIndex = Math.floor(p.days.indexOf(selected) / 7);
   const week = p.days.slice(weekIndex * 7, weekIndex * 7 + 7);
   const duration =
@@ -526,6 +537,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
               {[...groups.values()].map((bookings, index) => {
                 const b = bookings[0]!;
                 const ids = bookings.map((x) => x.id).join(",");
+                const waiting = waiters(bookings);
                 return (
                   <article class={`reservation-card ${index === 0 ? "next-reservation" : ""}`} id={`reservation-${b.id}`}>
                     {bookings.slice(1).map((x) => (
@@ -541,6 +553,15 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     </p>
                     <p class="reservation-machines">{groupLabel(bookings)}</p>
                     {b.note && <p class="reservation-note">“{b.note}”</p>}
+                    {waiting > 0 && (
+                      <p class="reservation-waiting">
+                        <span class="waiting-dot" aria-hidden="true" />
+                        <span>
+                          <strong>{waiting} venter på denne tiden</strong> –{" "}
+                          {b.note ? "endre kommentaren" : "legg til en kommentar"} for å gi dem beskjed.
+                        </span>
+                      </p>
+                    )}
                     <div class="reservation-actions">
                       <details>
                         <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
@@ -548,8 +569,19 @@ export const BoardPage: FC<BoardProps> = (p) => {
                           <Hidden fields={{ booking_ids: ids }} />
                           <label>
                             Kommentar til naboene
-                            <input name="note" maxlength={140} value={b.note ?? ""} placeholder="F.eks. ferdig litt før" />
+                            <input
+                              name="note"
+                              maxlength={140}
+                              value={b.note ?? ""}
+                              placeholder="F.eks. ferdig litt før"
+                              aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
+                            />
                           </label>
+                          {waiting > 0 && (
+                            <small class="note-hint" id={`note-hint-${b.id}`}>
+                              {waiting} venter – de får beskjed om kommentaren din.
+                            </small>
+                          )}
                           <button class="small-button">Lagre</button>
                         </form>
                       </details>
