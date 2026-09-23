@@ -129,6 +129,15 @@ document.addEventListener("click", (event) => {
   for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open], .apartment-menu[open]")) {
     if (!details.contains(event.target)) details.open = false;
   }
+  // "Nei" in a confirmation popover reloads the page without JS; here it just closes.
+  const close = event.target.closest<HTMLElement>(".slot-details [data-close]");
+  if (close) {
+    event.preventDefault();
+    const details = close.closest("details")!;
+    details.open = false;
+    details.querySelector("summary")?.focus();
+    return;
+  }
   const link = event.target.closest<HTMLAnchorElement>("a[href]");
   if (
     !link ||
