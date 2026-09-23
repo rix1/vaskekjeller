@@ -24,7 +24,9 @@ const ADMIN_FLASH: Record<string, string> = {
   "access-changed": "Beboerpassordet er endret. Beboere må logge inn på nytt.",
   "access-off": "Beboerpassord er slått av. Alle med lenken kan se bookingsiden.",
   "admin-password": "Adminpassordet er byttet.",
+  "machine-failed": "Endringen ble ikke lagret. Prøv igjen.",
 };
+const ADMIN_ERRORS = ["wrong-password", "machine-failed"];
 
 /** Slot lengths offered in the schedule picker, in minutes. */
 export const SLOT_LENGTHS = [30, 60, 90, 120, 180];
@@ -161,7 +163,7 @@ const AdminPage: FC<{
           </Toast>
         ) : (
           message && (
-            <Toast tone={p.flash === "wrong-password" ? "error" : "success"} dismissHref={here}>
+            <Toast tone={ADMIN_ERRORS.includes(p.flash ?? "") ? "error" : "success"} dismissHref={here}>
               <p class="toast-title">{message}</p>
             </Toast>
           )
@@ -685,7 +687,7 @@ export const AdminSettings: FC<
               ) : (
                 <div class="secret notice">
                   <p>
-                    Passordet ble satt før det kunne vises her. <strong>Sett et nytt passord for å kunne vise det.</strong>
+                    Passordet kan ikke vises her. <strong>Sett et nytt passord for å kunne vise det.</strong>
                   </p>
                   <a href="#beboerpassord" data-dialog="beboerpassord" class="text-button">
                     Sett nytt passord

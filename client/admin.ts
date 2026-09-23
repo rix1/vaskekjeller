@@ -127,54 +127,55 @@ function updateMachines(form: HTMLFormElement, submitter: HTMLElement | null) {
 }
 
 async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusKey: string | undefined) {
+  let res: Response;
   try {
-    const res = await fetch(form.action, { method: "POST", body, headers: { "X-Requested-With": "Vaskekjeller" } });
-    const html = await res.text();
-    if (--waiting) return;
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const next = doc.getElementById("maskiner");
-    if (!next) {
-      location.assign(res.url);
-      return;
-    }
-    const section = document.getElementById("maskiner")!;
-    // Keep whatever the admin is doing now: focus, and unsaved text in another row.
-    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const activeKey = section.contains(active) ? active?.dataset.focusKey : undefined;
-    section.replaceWith(next);
-    const restore = (key: string | undefined) => (key ? next.querySelector<HTMLElement>(`[data-focus-key="${key}"]`) : null);
-    let target = restore(activeKey) ?? restore(focusKey);
-    if (target instanceof HTMLButtonElement && target.disabled) {
-      // A machine moved to the top or bottom: its other arrow is the natural next stop.
-      target = restore(target.dataset.focusKey!.replace(/^(up|down)/, (d) => (d === "up" ? "down" : "up")));
-    }
-    if (
-      active instanceof HTMLInputElement &&
-      target instanceof HTMLInputElement &&
-      active.value !== active.defaultValue &&
-      active.form !== form
-    ) {
-      const field = target;
-      // Setting `value` resets the browser's change baseline, so leaving the field wouldn't
-      // fire `change` and autosave; save it on the way out instead.
-      field.value = active.value;
-      field.addEventListener(
-        "focusout",
-        () => {
-          if (field.value !== field.defaultValue) field.form?.requestSubmit();
-        },
-        { once: true },
-      );
-    }
-    target?.focus({ preventScroll: true });
-    // client/app.ts stacks and announces the toasts of the fetched page.
-    doc.querySelectorAll(".toaster .toast").forEach((toast) => document.dispatchEvent(new CustomEvent("vk:toast", { detail: toast })));
+    res = await fetch(form.action, { method: "POST", body, headers: { "X-Requested-With": "Vaskekjeller" } });
   } catch {
     live.textContent = "Kunne ikke lagre. Prøver på nytt uten hurtigoppdatering.";
     HTMLFormElement.prototype.submit.call(form);
     // The page is leaving; hold back the changes queued after this one.
     return new Promise<void>(() => {});
   }
+  const doc = new DOMParser().parseFromString(await res.text().catch(() => ""), "text/html");
+  const next = doc.getElementById("maskiner");
+  if (!next) {
+    location.assign(res.redirected ? res.url : `${location.pathname}?m=machine-failed#maskiner`);
+    return new Promise<void>(() => {});
+  }
+  if (--waiting) return;
+  const section = document.getElementById("maskiner")!;
+  // Keep whatever the admin is doing now: focus, and unsaved text in another row.
+  const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+  const elsewhere = active !== null && !section.contains(active);
+  const activeKey = elsewhere ? undefined : active?.dataset.focusKey;
+  section.replaceWith(next);
+  const restore = (key: string | undefined) => (key ? next.querySelector<HTMLElement>(`[data-focus-key="${key}"]`) : null);
+  let target = elsewhere ? null : (restore(activeKey) ?? restore(focusKey));
+  if (target instanceof HTMLButtonElement && target.disabled) {
+    // A machine moved to the top or bottom: its other arrow is the natural next stop.
+    target = restore(target.dataset.focusKey!.replace(/^(up|down)/, (d) => (d === "up" ? "down" : "up")));
+  }
+  if (
+    active instanceof HTMLInputElement &&
+    target instanceof HTMLInputElement &&
+    active.value !== active.defaultValue &&
+    active.form !== form
+  ) {
+    const field = target;
+    // Setting `value` resets the browser's change baseline, so leaving the field wouldn't
+    // fire `change` and autosave; save it on the way out instead.
+    field.value = active.value;
+    field.addEventListener(
+      "focusout",
+      () => {
+        if (field.value !== field.defaultValue) field.form?.requestSubmit();
+      },
+      { once: true },
+    );
+  }
+  target?.focus({ preventScroll: true });
+  // client/app.ts stacks and announces the toasts of the fetched page.
+  doc.querySelectorAll(".toaster .toast").forEach((toast) => document.dispatchEvent(new CustomEvent("vk:toast", { detail: toast })));
 }
 
 document.addEventListener("submit", (event) => {

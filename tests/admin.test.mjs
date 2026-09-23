@@ -253,6 +253,10 @@ test("machines switch off and on, and are renamed in place", async () => {
   const empty = await post("admin/machines/3", { name: "", kind: "dryer" }, admin);
   assert.equal(empty.status, 422);
   assert.match(await empty.text(), /id="machine-3-error"[^>]*>Gi maskinen et navn\./);
+
+  // client/admin.ts lands here when an inline update gets an error page back.
+  const failed = await (await get("admin/settings?m=machine-failed", admin)).text();
+  assert.match(failed, /class="toast error" role="alert">[\s\S]*?Endringen ble ikke lagret\. Prøv igjen\./);
 });
 
 test("adding a machine appends it; errors reopen the dialog", async () => {
@@ -316,10 +320,16 @@ test("an empty resident password is rejected instead of removing the password", 
 test("a resident password set before this change asks for a new one to be viewable", async () => {
   sqlite.prepare("UPDATE tenants SET access_password_hash = ?").run(await crypto.hashPassword("legacy"));
   const page = await (await get("admin/settings", admin)).text();
-  assert.match(page, /Sett et nytt passord for å kunne vise det\./);
+  assert.match(page, /Passordet kan ikke vises her\. <strong>Sett et nytt passord for å kunne vise det\./);
   assert.doesNotMatch(page, /secret-plain/);
   // Legacy residents keep working until the password is changed.
   assert.equal((await get("", cookieFrom(await post("login", { password: "legacy" }), "vk_access"))).status, 200);
+
+  // A stored password that no longer decrypts (SESSION_SECRET rotated) gets the same notice.
+  sqlite.prepare("UPDATE tenants SET access_password_enc = ?").run("v1.AAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA");
+  const unreadable = await (await get("admin/settings", admin)).text();
+  assert.match(unreadable, /Passordet kan ikke vises her\./);
+  assert.doesNotMatch(unreadable, /secret-plain/);
 });
 
 test("admin password keeps its rules: min 8 chars, hashed, other sessions logged out", async () => {
