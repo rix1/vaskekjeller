@@ -1,10 +1,10 @@
 # Vaskekjeller
 
-Booking for the shared laundry room: washers and dryers are booked separately per time slot, with an optional
-comment ("trenger bare 30 min"), a waitlist with web push notifications, and a small admin page.
+Booking for the shared laundry room: reserve a washer and dryer together in one tap, or select a single
+machine. Includes optional comments, a waitlist with web push notifications, and a small admin page.
 
-Runs on Cloudflare Workers + D1. Server-rendered with Hono JSX; works without JavaScript except for
-notifications and the comment dialog.
+Runs on Cloudflare Workers + D1. Server-rendered with Hono JSX and in-place navigation and form updates.
+Booking, cancellation, comments, and waitlists also work without JavaScript; push notifications require it.
 
 ## How it works
 
@@ -51,12 +51,20 @@ Don't rotate the VAPID keys after launch: existing push subscriptions stop worki
 To keep the app alive after you move out, add a second Cloudflare account member (or transfer the account),
 and hand over the admin password.
 
-## Reservation integrity
+## Resident booking experience
 
-The booking endpoint accepts a washer/dryer pair as one atomic reservation. The active-booking limit
-counts distinct time periods per apartment, so reserving both machines at the same time counts once.
-Migration `0002_booking_overlap.sql` also prevents overlaps after an administrator changes the schedule.
-Apply migrations before deploying this version.
+The default selection reserves one washer and one dryer together in a single atomic write.
+Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
+A confirmation shows the date, time, and machines with an immediate **Angre** action.
+Machine-only reservations, partial availability, and waitlists remain available.
+
+Date/machine navigation and resident forms update in place with JavaScript. URLs, browser back/forward,
+keyboard focus, and server-side validation are preserved. Without JavaScript, the same links and forms
+work as ordinary page requests. Notification setup appears after joining a waitlist.
+
+The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
+same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
+reservations after an administrator changes the schedule. Apply migrations before deploying this version.
 
 ## Verification
 

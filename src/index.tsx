@@ -124,6 +124,9 @@ t.get("/", async (c) => {
       now={now}
       flash={c.req.query("m")}
       changeApt={c.req.query("bytt") === "1"}
+      selectedDate={c.req.query("date")}
+      mode={c.req.query("mode")}
+      bookedIds={c.req.query("reservation")}
       vapidKey={c.env.VAPID_PUBLIC_KEY}
     />,
   );
@@ -371,7 +374,7 @@ async function notifyWaitlist(env: Env, tenant: Tenant, b: Booking) {
   const message = {
     title: `${machine} er ledig!`,
     body: `${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)} ble nettopp ledig. Først til mølla.`,
-    url: `/${tenant.slug}#d-${b.date}`,
+    url: `/${tenant.slug}?date=${b.date}&mode=${b.machine_id}`,
     tag: `slot-${b.machine_id}-${b.date}-${b.start_min}`,
   };
   const results = await Promise.all(subs.map((s) => sendPush(s, message, vapid(env)).catch(() => "error" as const)));

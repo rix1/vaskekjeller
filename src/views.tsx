@@ -1,9 +1,11 @@
 import type { Child, FC } from "hono/jsx";
+import { bookingOptions } from "./booking-options.ts";
 import { KIND_LABEL, slotKey, type Booking, type Machine, type Tenant, type WaitEntry } from "./db.ts";
-import { fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
+import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
-  booked: "Booket! 🧺",
+  booked: "Tiden er din. God vask!",
+  apartment: "Leiligheten er lagret på denne enheten.",
   cancelled: "Bookingen er avbestilt.",
   taken: "Beklager, noen var raskere – den tiden er allerede tatt.",
   limit: "Du har nådd maks antall aktive bookinger.",
@@ -18,12 +20,17 @@ export const FLASH: Record<string, string> = {
   saved: "Lagret.",
 };
 
-export const Layout: FC<{ title: string; children: Child; tenant?: Tenant; vapidKey?: string }> = (p) => (
+export const Layout: FC<{
+  title: string;
+  children: Child;
+  tenant?: Tenant;
+  vapidKey?: string;
+}> = (p) => (
   <html lang="nb">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-      <meta name="theme-color" content="#1f4f7a" />
+      <meta name="theme-color" content="#f6f5f0" />
       <title>{p.title}</title>
       <link rel="stylesheet" href="/style.css" />
       <link rel="manifest" href="/manifest.webmanifest" />
@@ -37,7 +44,11 @@ export const Layout: FC<{ title: string; children: Child; tenant?: Tenant; vapid
 );
 
 const Flash: FC<{ code?: string }> = ({ code }) =>
-  code && FLASH[code] ? <p class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password"].includes(code) ? "err" : ""}`}>{FLASH[code]}</p> : null;
+  code && FLASH[code] ? (
+    <p role="status" class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password"].includes(code) ? "err" : ""}`}>
+      {FLASH[code]}
+    </p>
+  ) : null;
 
 const Hidden: FC<{ fields: Record<string, string | number> }> = ({ fields }) => (
   <>
@@ -47,7 +58,12 @@ const Hidden: FC<{ fields: Record<string, string | number> }> = ({ fields }) => 
   </>
 );
 
-export const PasswordPage: FC<{ tenant: Tenant; action: string; heading: string; flash?: string }> = (p) => (
+export const PasswordPage: FC<{
+  tenant: Tenant;
+  action: string;
+  heading: string;
+  flash?: string;
+}> = (p) => (
   <Layout title={p.tenant.name} tenant={p.tenant}>
     <main class="narrow">
       <h1>{p.heading}</h1>
@@ -63,10 +79,15 @@ export const PasswordPage: FC<{ tenant: Tenant; action: string; heading: string;
   </Layout>
 );
 
-export const ApartmentPicker: FC<{ tenant: Tenant; apartments: string[]; current?: string }> = (p) => (
-  <form method="post" action={`/${p.tenant.slug}/apartment`} class="apt-picker">
+export const ApartmentPicker: FC<{
+  tenant: Tenant;
+  apartments: string[];
+  current?: string;
+  context?: string;
+}> = (p) => (
+  <form method="post" action={`/${p.tenant.slug}/apartment${p.context ?? ""}`} class="apt-picker">
     <label>
-      Hvilken leilighet bor du i?
+      Leiligheten din
       {p.apartments.length ? (
         <select name="apartment" required>
           <option value="">Velg…</option>
@@ -77,11 +98,57 @@ export const ApartmentPicker: FC<{ tenant: Tenant; apartments: string[]; current
           ))}
         </select>
       ) : (
-        <input name="apartment" required placeholder="f.eks. H0203" value={p.current ?? ""} autocomplete="off" />
+        <input name="apartment" required placeholder="F.eks. A3" value={p.current ?? ""} autocomplete="off" />
       )}
     </label>
-    <button>Lagre</button>
+    <button>
+      {p.current ? "Lagre" : "Fortsett"}
+      <span aria-hidden="true"> ↗</span>
+    </button>
   </form>
+);
+
+const Icon: FC<{
+  name?: "washer" | "arrow" | "clock" | "check" | "home" | "calendar";
+  size?: number;
+}> = ({ name = "washer", size = 20 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    {name === "washer" ? (
+      <>
+        <rect x="4" y="2" width="16" height="20" rx="3" />
+        <circle cx="12" cy="14" r="5" />
+        <path d="M8 5h.01M11 5h.01M15 5h2M8 14c3-3 5 3 8 0" />
+      </>
+    ) : name === "arrow" ? (
+      <path d="M5 12h14m-5-5 5 5-5 5" />
+    ) : name === "clock" ? (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ) : name === "check" ? (
+      <path d="m5 12 4 4L19 6" />
+    ) : name === "home" ? (
+      <>
+        <path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8" />
+      </>
+    ) : (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="3" />
+        <path d="M7 3v4m10-4v4M3 11h18m-14 4h2m4 0h2" />
+      </>
+    )}
+  </svg>
 );
 
 type BoardProps = {
@@ -97,162 +164,464 @@ type BoardProps = {
   flash?: string;
   changeApt: boolean;
   vapidKey: string;
+  selectedDate?: string;
+  mode?: string;
+  bookedIds?: string;
 };
 
 export const BoardPage: FC<BoardProps> = (p) => {
-  const bySlot = new Map(p.bookings.map((b) => [slotKey(b.machine_id, b.date, b.start_min), b]));
-  const waitCount = new Map<string, number>();
-  const myWaits = new Set<string>();
-  for (const w of p.waitlist) {
-    const k = slotKey(w.machine_id, w.date, w.start_min);
-    waitCount.set(k, (waitCount.get(k) ?? 0) + 1);
-    if (w.apartment === p.apartment) myWaits.add(k);
-  }
-  const machineName = new Map(p.machines.map((m) => [m.id, m.name]));
-  const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
-  const myWaitEntries = p.waitlist.filter((w) => w.apartment === p.apartment);
   const base = `/${p.tenant.slug}`;
+  const options = bookingOptions(p.machines);
+  const option = options.find((o) => o.key === p.mode) ?? options[0];
+  const selected = p.days.includes(p.selectedDate ?? "") ? p.selectedDate! : p.days[0]!;
+  const mode = option?.key ?? "";
+  const query = (date = selected, key = mode) => `?date=${date}&mode=${key}`;
+  const url = (date = selected, key = mode) => `${base}${query(date, key)}`;
+  const action = (path: string) => `${base}/${path}${query()}`;
+  const dayLabel = (date: string) =>
+    date === p.now.date ? "I dag" : date === addDays(p.now.date, 1) ? "I morgen" : fmtDay(date, "short").split(" ")[0]!.replace(".", "");
+  const conflicts = (date: string, slot: Slot) =>
+    p.bookings.filter(
+      (b) => option?.machines.some((m) => m.id === b.machine_id) && b.date === date && b.start_min < slot.end && b.end_min > slot.start,
+    );
+  const available = (date: string) =>
+    !option ? 0 : p.slots.filter((s) => !slotIsOver(date, s.end, p.now) && !conflicts(date, s).length).length;
+  const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
+  const justBooked = p.flash === "booked" ? mine.filter((b) => (p.bookedIds ?? "").split(",").includes(String(b.id))) : [];
+  const groups = new Map<string, Booking[]>();
+  for (const b of mine) {
+    const key = `${b.date}|${b.start_min}|${b.end_min}`;
+    groups.set(key, [...(groups.get(key) ?? []), b]);
+  }
+  const myWaits = p.waitlist.filter((w) => w.apartment === p.apartment && !slotIsOver(w.date, w.start_min + p.tenant.slot_min, p.now));
+  const machineName = (id: number) => p.machines.find((m) => m.id === id)?.name ?? "Maskin";
+  const groupLabel = (bookings: Booking[]) => bookings.map((b) => machineName(b.machine_id)).join(" + ");
+  const weekIndex = Math.floor(p.days.indexOf(selected) / 7);
+  const week = p.days.slice(weekIndex * 7, weekIndex * 7 + 7);
+  const duration =
+    p.tenant.slot_min % 60 === 0 ? `${p.tenant.slot_min / 60} ${p.tenant.slot_min === 60 ? "time" : "timer"}` : `${p.tenant.slot_min} min`;
+  const month = new Intl.DateTimeFormat("nb-NO", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${selected}T12:00:00Z`));
 
   return (
-    <Layout title={`Vaskekjeller – ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
-      <header class="top">
-        <h1>{p.tenant.name}</h1>
-        {p.apartment && !p.changeApt && (
-          <p class="whoami">
-            Leilighet <strong>{p.apartment}</strong> · <a href={`${base}?bytt=1`}>bytt</a>
-          </p>
+    <Layout title={`Vaskekjeller · ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
+      <header class="top resident-top">
+        <a class="brand" href={base} aria-label="Vaskekjeller, hjem">
+          <span class="brand-icon">
+            <Icon size={25} />
+          </span>
+          <span>
+            Vaskekjeller<small>{p.tenant.name}</small>
+          </span>
+        </a>
+        {p.apartment ? (
+          <a class="apartment-chip" href={`${url()}&bytt=1`}>
+            <Icon name="home" size={16} />
+            <span>
+              Leilighet <strong>{p.apartment}</strong>
+            </span>
+            <span class="muted" aria-hidden="true">
+              ⌄
+            </span>
+          </a>
+        ) : (
+          <span class="header-caption">Et felles rom. Litt enklere.</span>
         )}
       </header>
-      <main>
-        <Flash code={p.flash} />
-        {(!p.apartment || p.changeApt) && <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} />}
-
-        {p.apartment && (
-          <div id="push-banner" class="push-banner" hidden>
-            <span id="push-text">Få varsel når en tid du venter på blir ledig.</span>
-            <button type="button" id="push-toggle">
-              Slå på varsler
-            </button>
+      <main class="resident-main">
+        <div class="page-intro">
+          <div>
+            <p class="eyebrow">PLASS TIL HVERDAGEN</p>
+            <h1>Når vil du vaske?</h1>
+            <p class="intro-copy">Velg en dag. Finn en tid. Så er den din.</p>
           </div>
-        )}
-
-        {p.apartment && (mine.length > 0 || myWaitEntries.length > 0) && (
-          <section class="mine">
-            <h2>Dine tider</h2>
-            <ul>
-              {mine.map((b) => (
-                <li>
-                  <a href={`#d-${b.date}`}>
-                    {fmtDay(b.date, "short")} {fmtMinute(b.start_min)}–{fmtMinute(b.end_min)}
-                  </a>{" "}
-                  · {machineName.get(b.machine_id) ?? "?"}
-                  {b.note && <em> – {b.note}</em>}
-                </li>
-              ))}
-              {myWaitEntries.map((w) => (
-                <li class="muted">
-                  Venteliste: {fmtDay(w.date, "short")} {fmtMinute(w.start_min)} · {machineName.get(w.machine_id) ?? "?"}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {p.machines.length === 0 && <p>Ingen maskiner er satt opp ennå.</p>}
-
-        {p.days.map((date) => (
-          <section class="day" id={`d-${date}`}>
-            <h2>{fmtDay(date)}</h2>
-            <div class="table-wrap">
-              <table class="board">
-                <thead>
-                  <tr>
-                    <th class="time">Tid</th>
-                    {p.machines.map((m) => (
-                      <th>
-                        {m.name}
-                        <small>{KIND_LABEL[m.kind]}</small>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {p.slots.map((s) => {
-                    const over = slotIsOver(date, s.end, p.now);
-                    return (
-                      <tr class={over ? "over" : ""}>
-                        <td class="time">
-                          {fmtMinute(s.start)}
-                          <br />
-                          {fmtMinute(s.end)}
-                        </td>
-                        {p.machines.map((m) => {
-                          const k = slotKey(m.id, date, s.start);
-                          const b = bySlot.get(k);
-                          const slotFields = { machine_id: m.id, date, start: s.start };
-                          const label = `${m.name}, ${fmtDay(date, "short")} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
-                          if (!b) {
-                            if (over || !p.apartment) return <td class="cell free">{over ? "" : "Ledig"}</td>;
-                            return (
-                              <td class="cell free">
-                                <form method="post" action={`${base}/book`} data-book={label}>
-                                  <Hidden fields={slotFields} />
-                                  <button class="slot-btn">Ledig</button>
-                                </form>
-                              </td>
-                            );
-                          }
-                          const isMine = b.apartment === p.apartment;
-                          const waiting = waitCount.get(k) ?? 0;
-                          return (
-                            <td class={`cell taken ${isMine ? "mine" : ""}`}>
-                              <span class="apt">{isMine ? "Deg" : b.apartment}</span>
-                              {b.note && <span class="note">{b.note}</span>}
-                              {!over && isMine && (
-                                <form method="post" action={`${base}/cancel`} data-confirm={`Avbestille ${label}?`}>
-                                  <Hidden fields={{ booking_id: b.id }} />
-                                  <button class="link">Avbestill</button>
-                                </form>
-                              )}
-                              {!over && !isMine && p.apartment && (
-                                <form method="post" action={`${base}/${myWaits.has(k) ? "unwait" : "wait"}`} data-wait>
-                                  <Hidden fields={slotFields} />
-                                  <button class="link">{myWaits.has(k) ? "Forlat venteliste" : "Venteliste"}</button>
-                                </form>
-                              )}
-                              {!over && waiting > 0 && <span class="waiting">{waiting} venter</span>}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <div class="opening">
+            <span class="status-dot" />
+            <span>
+              Åpent {fmtMinute(p.tenant.day_start_min)}–{fmtMinute(p.tenant.day_end_min)}
+              <small>Felles vaskerom</small>
+            </span>
+          </div>
+        </div>
+        {justBooked.length > 0 ? (
+          <div class="flash booking-success" role="status">
+            <Icon name="check" />
+            <div>
+              <strong>Tiden er din!</strong>
+              <span>
+                {fmtDay(justBooked[0]!.date, "short")} · {fmtMinute(justBooked[0]!.start_min)}–{fmtMinute(justBooked[0]!.end_min)} ·{" "}
+                {groupLabel(justBooked)}
+              </span>
             </div>
+            <form method="post" action={action("cancel")}>
+              <Hidden fields={{ booking_ids: justBooked.map((b) => b.id).join(",") }} />
+              <button class="link">Angre</button>
+            </form>
+          </div>
+        ) : (
+          <Flash code={p.flash} />
+        )}
+        {groups.size > 0 && (
+          <a class="mobile-mine-link" href="#mine">
+            <Icon name="calendar" size={17} />
+            Dine tider <span>{groups.size}</span>
+            <Icon name="arrow" size={16} />
+          </a>
+        )}
+        {(!p.apartment || p.changeApt) && (
+          <section class="welcome" id="apartment-start">
+            <div>
+              <Icon name="home" />
+              <h2>{p.changeApt ? "Bytt leilighet" : "Hei, nabo."}</h2>
+              <p>
+                {p.changeApt ? "Velg leiligheten du vil reservere for." : "Velg leiligheten din én gang, så er du klar til å reservere."}
+              </p>
+            </div>
+            <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context={query()} />
           </section>
-        ))}
+        )}
+        <div class="booking-layout">
+          <section class="schedule" aria-label="Reserver vasketid">
+            <div class="schedule-toolbar">
+              <h2>Finn en ledig tid</h2>
+              <span class="duration">
+                <Icon name="clock" size={15} />
+                {duration} per tid
+              </span>
+            </div>
+            <nav class="machine-options" aria-label="Velg maskiner">
+              {options.map((o) => (
+                <a href={url(selected, o.key)} aria-current={o.key === mode ? "true" : undefined} class={o.key === mode ? "selected" : ""}>
+                  {o.machines.length > 1 && <Icon size={17} />}
+                  {o.label}
+                </a>
+              ))}
+            </nav>
+            <div class="calendar-toolbar">
+              <span class="month">{month}</span>
+              <div class="calendar-actions">
+                <a href={url(p.now.date)} class="today-link">
+                  I dag
+                </a>
+                <a
+                  class={`icon-button ${weekIndex === 0 ? "disabled" : ""}`}
+                  aria-label="Forrige uke"
+                  aria-disabled={weekIndex === 0 ? "true" : undefined}
+                  href={weekIndex > 0 ? url(p.days[(weekIndex - 1) * 7]!) : undefined}
+                >
+                  ‹
+                </a>
+                <a
+                  class={`icon-button ${(weekIndex + 1) * 7 >= p.days.length ? "disabled" : ""}`}
+                  aria-label="Neste uke"
+                  aria-disabled={(weekIndex + 1) * 7 >= p.days.length ? "true" : undefined}
+                  href={(weekIndex + 1) * 7 < p.days.length ? url(p.days[(weekIndex + 1) * 7]!) : undefined}
+                >
+                  ›
+                </a>
+              </div>
+            </div>
+            <nav class="date-strip" aria-label="Velg dag">
+              {week.map((date) => (
+                <a
+                  href={url(date)}
+                  class={`date-item ${date === selected ? "selected" : ""}`}
+                  aria-current={date === selected ? "date" : undefined}
+                  aria-label={`${dayLabel(date)}, ${fmtDay(date)}, ${available(date)} ledige tider`}
+                >
+                  <span>{dayLabel(date)}</span>
+                  <strong>{Number(date.slice(-2))}</strong>
+                  <small>{available(date) > 0 ? `${available(date)} ledige` : "Fullt"}</small>
+                </a>
+              ))}
+            </nav>
+            <div class="day-heading">
+              <h3>
+                {dayLabel(selected) === "I dag" || dayLabel(selected) === "I morgen" ? `${dayLabel(selected)}, ` : ""}
+                {fmtDay(selected).toLowerCase()}
+              </h3>
+              <span>
+                <span class="legend-dot" /> Ledig
+              </span>
+            </div>
+            <div class="slots" id={`d-${selected}`}>
+              {!option && (
+                <div class="empty-state">
+                  <Icon />
+                  <h3>Vaskerommet gjøres klart</h3>
+                  <p>Ingen maskiner er lagt til ennå.</p>
+                </div>
+              )}
+              {option &&
+                p.slots.map((s) => {
+                  const over = slotIsOver(selected, s.end, p.now);
+                  const ongoing = selected === p.now.date && s.start < p.now.minute && !over;
+                  const occupied = conflicts(selected, s);
+                  const own = occupied.filter((b) => b.apartment === p.apartment);
+                  const other = occupied.filter((b) => b.apartment !== p.apartment);
+                  const free = !occupied.length && !over;
+                  const ownAll = own.length > 0 && !other.length && option.machines.every((m) => own.some((b) => b.machine_id === m.id));
+                  const label = `${option.label}, ${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
+                  return (
+                    <article class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : "occupied"}`}>
+                      <div class="slot-time">
+                        <strong>
+                          {fmtMinute(s.start)}
+                          <span class="time-dash">–</span>
+                          {fmtMinute(s.end)}
+                        </strong>
+                        <span>{ongoing ? `Pågår · til ${fmtMinute(s.end)}` : duration}</span>
+                      </div>
+                      <div class="slot-status">
+                        <strong>
+                          {over ? (
+                            "Passert"
+                          ) : ownAll ? (
+                            <>
+                              <Icon name="check" size={16} /> Din tid
+                            </>
+                          ) : free ? (
+                            <>
+                              <span class="status-dot" />
+                              {option.machines.length > 1 ? "Begge ledige" : "Ledig"}
+                            </>
+                          ) : (
+                            "Reservert"
+                          )}
+                        </strong>
+                        <small>
+                          {over
+                            ? ""
+                            : free
+                              ? option.machines.map((m) => KIND_LABEL[m.kind]).join(" + ")
+                              : [...new Set(occupied.map((b) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`)))].join(
+                                  " · ",
+                                )}
+                        </small>
+                      </div>
+                      <div class="slot-action">
+                        {free &&
+                          (p.apartment ? (
+                            <form method="post" action={action("book")} data-reserve>
+                              <Hidden
+                                fields={{
+                                  mode,
+                                  date: selected,
+                                  start: s.start,
+                                }}
+                              />
+                              <button class="reserve-button" aria-label={`Reserver ${label}`}>
+                                Reserver
+                                <Icon name="arrow" size={16} />
+                              </button>
+                            </form>
+                          ) : (
+                            <a class="button secondary" href="#apartment-start">
+                              Velg leilighet
+                            </a>
+                          ))}
+                        {!over && ownAll && (
+                          <a class="manage-link" href={`#reservation-${own[0]!.id}`}>
+                            Se din tid <span aria-hidden="true">↗</span>
+                          </a>
+                        )}
+                        {!over && occupied.length > 0 && !ownAll && (
+                          <details class="slot-details">
+                            <summary>
+                              Se detaljer <span aria-hidden="true">⌄</span>
+                            </summary>
+                            <div class="slot-popover">
+                              <strong>
+                                {fmtMinute(s.start)}–{fmtMinute(s.end)}
+                              </strong>
+                              {option.machines.map((m) => {
+                                const bookings = occupied.filter((b) => b.machine_id === m.id);
+                                const waiting = myWaits.some(
+                                  (w) => slotKey(w.machine_id, w.date, w.start_min) === slotKey(m.id, selected, s.start),
+                                );
+                                return (
+                                  <div>
+                                    <span>{m.name}</span>
+                                    {bookings.length ? (
+                                      bookings.map((b) => (
+                                        <small>
+                                          Leil. {b.apartment}
+                                          {b.note ? ` · ${b.note}` : ""}
+                                        </small>
+                                      ))
+                                    ) : (
+                                      <small>Ledig</small>
+                                    )}
+                                    {p.apartment &&
+                                      (bookings.length ? (
+                                        bookings.every((b) => b.apartment === p.apartment) ? (
+                                          <a href={`#reservation-${bookings[0]!.id}`}>Din reservasjon ↗</a>
+                                        ) : (
+                                          <form method="post" action={action(waiting ? "unwait" : "wait")}>
+                                            <Hidden
+                                              fields={{
+                                                machine_id: m.id,
+                                                date: selected,
+                                                start: s.start,
+                                              }}
+                                            />
+                                            <button class="link">{waiting ? "Forlat venteliste" : "Sett meg på venteliste"}</button>
+                                          </form>
+                                        )
+                                      ) : (
+                                        <a href={url(selected, String(m.id))}>Reserver bare denne ↗</a>
+                                      ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </details>
+                        )}
+                        {over && <span class="muted">—</span>}
+                      </div>
+                    </article>
+                  );
+                })}
+            </div>
+            <div class="schedule-note">
+              <Icon name="check" size={16} />
+              <span>
+                {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Du kan avbestille
+                under Dine tider.
+              </span>
+            </div>
+            {option && available(selected) === 0 && (
+              <p class="next-day">
+                Ingen ledige tider igjen denne dagen.{" "}
+                {p.days.find((d) => d > selected && available(d) > 0) ? (
+                  <a href={url(p.days.find((d) => d > selected && available(d) > 0)!)}>Se neste ledige dag →</a>
+                ) : (
+                  "Prøv en annen maskin eller sett deg på venteliste."
+                )}
+              </p>
+            )}
+          </section>
+          <aside class="sidebar">
+            <section class="my-bookings" id="mine">
+              <div class="aside-heading">
+                <h2>Dine tider</h2>
+                <span class="count">{groups.size}</span>
+              </div>
+              {!groups.size && (
+                <div class="empty-bookings">
+                  <span class="empty-icon">
+                    <Icon name="calendar" size={27} />
+                  </span>
+                  <h3>En ren start</h3>
+                  <p>
+                    Du har ingen reservasjoner ennå.
+                    <br />
+                    Finn en tid som passer deg.
+                  </p>
+                </div>
+              )}
+              {[...groups.values()].map((bookings, index) => {
+                const b = bookings[0]!;
+                const ids = bookings.map((x) => x.id).join(",");
+                return (
+                  <article class={`reservation-card ${index === 0 ? "next-reservation" : ""}`} id={`reservation-${b.id}`}>
+                    {bookings.slice(1).map((x) => (
+                      <span id={`reservation-${x.id}`} />
+                    ))}
+                    <div class="reservation-kicker">
+                      <span>{index === 0 ? "DIN NESTE VASK" : "RESERVERT"}</span>
+                      <Icon name="check" size={17} />
+                    </div>
+                    <h3>{dayLabel(b.date) === "I dag" || dayLabel(b.date) === "I morgen" ? dayLabel(b.date) : fmtDay(b.date, "short")}</h3>
+                    <p class="reservation-time">
+                      {fmtMinute(b.start_min)}–{fmtMinute(b.end_min)}
+                    </p>
+                    <p class="reservation-machines">{groupLabel(bookings)}</p>
+                    {b.note && <p class="reservation-note">“{b.note}”</p>}
+                    <div class="reservation-actions">
+                      <details>
+                        <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
+                        <form method="post" action={`${base}/note${query(b.date)}`} class="note-form">
+                          <Hidden fields={{ booking_ids: ids }} />
+                          <label>
+                            Kommentar til naboene
+                            <input name="note" maxlength={140} value={b.note ?? ""} placeholder="F.eks. ferdig litt før" />
+                          </label>
+                          <button class="small-button">Lagre</button>
+                        </form>
+                      </details>
+                      <form
+                        method="post"
+                        action={`${base}/cancel${query(b.date)}`}
+                        data-confirm={`Avbestille ${groupLabel(bookings)}, ${fmtDay(b.date)} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}?`}
+                      >
+                        <Hidden fields={{ booking_ids: ids }} />
+                        <button class="link cancel-link">Avbestill</button>
+                      </form>
+                    </div>
+                  </article>
+                );
+              })}
+              {p.tenant.max_active_bookings > 0 && (
+                <p class="booking-limit">
+                  {groups.size} av {p.tenant.max_active_bookings} aktive tider brukt
+                </p>
+              )}
+            </section>
+            {myWaits.length > 0 && (
+              <section class="waitlist-section">
+                <h2>På venteliste</h2>
+                {myWaits.map((w) => (
+                  <div class="wait-entry">
+                    <strong>
+                      {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
+                    </strong>
+                    <small>{machineName(w.machine_id)}</small>
+                    <form method="post" action={`${base}/unwait${query(w.date)}`}>
+                      <Hidden
+                        fields={{
+                          machine_id: w.machine_id,
+                          date: w.date,
+                          start: w.start_min,
+                        }}
+                      />
+                      <button class="link">Forlat venteliste</button>
+                    </form>
+                  </div>
+                ))}
+                <div id="push-banner" class="push-banner" hidden>
+                  <span id="push-text">Få beskjed når tiden blir ledig.</span>
+                  <button type="button" id="push-toggle">
+                    Slå på varsler
+                  </button>
+                </div>
+                <p class="muted">Ventelisten reserverer ikke automatisk. Først til mølla når tiden blir ledig.</p>
+              </section>
+            )}
+            <section class="good-neighbor">
+              <span class="neighbor-symbol" aria-hidden="true">
+                ✳
+              </span>
+              <h3>Litt omtanke. God flyt.</h3>
+              <p>Ferdig før tiden? Legg til en kommentar. Endrede planer? Frigi tiden til en nabo.</p>
+              <div class="room-hours">
+                <Icon name="clock" size={16} />
+                <span>
+                  {fmtMinute(p.tenant.day_start_min)}–{fmtMinute(p.tenant.day_end_min)} hver dag
+                </span>
+              </div>
+            </section>
+          </aside>
+        </div>
       </main>
-
-      <dialog id="book-dialog">
-        <form method="dialog" class="stack">
-          <h3 id="book-title">Book</h3>
-          <label>
-            Kommentar (valgfritt)
-            <input name="note" maxlength={140} placeholder="f.eks. trenger bare 30 min" autocomplete="off" />
-          </label>
-          <menu>
-            <button value="cancel" type="submit" class="secondary">
-              Avbryt
-            </button>
-            <button value="ok" type="submit">
-              Book
-            </button>
-          </menu>
-        </form>
-      </dialog>
-      <footer class="foot">
-        <a href={`${base}/admin`}>Admin</a>
+      <footer class="foot resident-foot">
+        <span>Felles vaskerom, færre løse tråder.</span>
+        <a href={`${base}/admin`}>
+          Administrasjon <span aria-hidden="true">↗</span>
+        </a>
       </footer>
     </Layout>
   );
