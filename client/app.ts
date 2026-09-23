@@ -129,9 +129,10 @@ async function updateBoard(
       if (dayBounds.left < stripBounds.left) dateStrip.scrollLeft -= stripBounds.left - dayBounds.left;
     }
     document.querySelectorAll(".toast.network-error").forEach(dismissToast);
-    // The Angre toast has done its job once its form has been handled.
-    const sourceToast = options.form?.closest(".toast");
-    if (sourceToast) dismissToast(sourceToast);
+    // Angre only applies while all of its bookings are still listed under "Dine tider".
+    document.querySelectorAll<HTMLInputElement>('.toast-action [name="booking_ids"]').forEach((input) => {
+      if (input.value.split(",").some((id) => !nextMain.querySelector(`#reservation-${id}`))) dismissToast(input.closest(".toast")!);
+    });
     const toasts = [...doc.querySelectorAll<HTMLElement>(".toaster .toast")];
     toasts.forEach(showToast);
     if (!toasts.length)
