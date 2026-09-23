@@ -36,23 +36,37 @@ npm run typecheck
 
 ## Deploy
 
-```sh
-npx wrangler login
-npx wrangler deploy
-npm run db:migrate:remote
-node scripts/gen-vapid.ts                  # then:
-npx wrangler secret put VAPID_PUBLIC_KEY
-npx wrangler secret put VAPID_PRIVATE_KEY
-npx wrangler secret put SESSION_SECRET     # any long random string
-node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote
-```
+Deploys are GitOps via [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/), Cloudflare's
+own Git integration: every push to `main` builds and deploys to production. That includes quick fixes pushed
+straight to `main`, which skip CI; everything else goes through a PR, where CI runs typecheck and tests.
 
-The production D1 database `vaskekjeller` is already created with EU jurisdiction
+Each build installs dependencies, then runs `npm run deploy` (defined in `package.json`), which applies pending
+D1 migrations to the remote database and then runs `wrangler deploy`. Migrations run first, and the deploy only
+happens if they succeed, so the app never runs against an outdated database. A failed migration leaves the
+previous version live. `wrangler deploy` runs the `build` hook in `wrangler.jsonc`, which compiles `client/*.ts`
+into `public/`. Write migrations so the currently deployed version keeps working until the new one is live.
+`CI=true` makes the migration step skip wrangler's confirmation prompt, so `npm run deploy` behaves the same from
+your machine (after `npx wrangler login`) as in Workers Builds; use it when Workers Builds is unavailable.
+
+Previews are off because they would share the live database: preview builds for branches and PRs are disabled in
+the dashboard, and per-version preview URLs by `"preview_urls": false` in `wrangler.jsonc`.
+
+One-time dashboard setup (connecting the repo, build token permissions, creating the first building) is in
+[docs/deploy.md](docs/deploy.md).
+
+### Configuration
+
+- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact) and
+  `DEFAULT_TENANT` (where `/` redirects; empty means no redirect).
+- Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`.
+  They are already set. Don't rotate the VAPID keys: existing push subscriptions stop working. To set one
+  again, use `npx wrangler secret put NAME`, which prompts for the value without echoing it.
+- New building: `node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote` (prompts for the admin
+  password).
+
+The production D1 database `vaskekjeller` is created with EU jurisdiction
 (`wrangler d1 create vaskekjeller --jurisdiction eu`) and pinned by `database_id` in `wrangler.jsonc`, so deploy
 does not auto-provision one. A database's jurisdiction can't be changed later; to recreate it, keep `--jurisdiction eu`.
-
-Set `DEFAULT_TENANT` and `VAPID_SUBJECT` (a `mailto:` address push services can contact) in `wrangler.jsonc`.
-Don't rotate the VAPID keys after launch: existing push subscriptions stop working.
 
 To keep the app alive after you move out, add a second Cloudflare account member (or transfer the account),
 and hand over the admin password.
@@ -77,7 +91,7 @@ work as ordinary page requests. Notification setup appears after joining a waitl
 
 The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
-reservations after an administrator changes the schedule. Apply migrations before deploying this version.
+reservations after an administrator changes the schedule.
 
 ## Verification
 
