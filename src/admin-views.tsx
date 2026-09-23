@@ -336,11 +336,13 @@ export type SettingsState = {
   values?: Record<string, string>;
   /** Dialog to reopen, e.g. after a validation error inside it. */
   dialog?: string;
+  /** Anchor of the card whose form failed validation. */
+  card?: string;
 };
 
 export const AdminSettings: FC<
   { tenant: Tenant; machines: Machine[]; residentPassword: string | null; flash?: string } & SettingsState
-> = ({ tenant, machines, residentPassword, flash, errors = {}, values = {}, dialog }) => {
+> = ({ tenant, machines, residentPassword, flash, errors = {}, values = {}, dialog, card }) => {
   const base = `/${tenant.slug}/admin`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
   const slot = Number(v("slot_min", String(tenant.slot_min)));
@@ -360,7 +362,8 @@ export const AdminSettings: FC<
     <AdminPage tenant={tenant} title="Innstillinger" active="settings" flash={flash}>
       {Object.keys(errors).length > 0 && (
         <p role="alert" class="flash err">
-          Noe må rettes før det kan lagres. Se feltet som er markert.
+          Noe må rettes før det kan lagres.{" "}
+          {card ? <a href={`#${card}`}>Gå til feltet som er markert.</a> : "Se feltet som er markert."}
         </p>
       )}
       <div class="settings-layout">
@@ -418,7 +421,14 @@ export const AdminSettings: FC<
                 <div class="segmented">
                   {slotChoices.map((m) => (
                     <label>
-                      <input type="radio" name="slot_min" value={m} checked={m === slot} required />
+                      <input
+                        type="radio"
+                        name="slot_min"
+                        value={m}
+                        checked={m === slot}
+                        required
+                        aria-invalid={errors.slot_min ? "true" : undefined}
+                      />
                       <span>{slotLengthLabel(m)}</span>
                     </label>
                   ))}

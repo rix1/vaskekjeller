@@ -152,12 +152,15 @@ test("schedule rejects lengths outside the picker and shows the error next to th
   assert.equal(response.status, 422);
   const page = await response.text();
   assert.match(page, /id="slot_min-error"[^>]*>Velg en av lengdene\./);
+  assert.match(page, /name="slot_min"[^>]*aria-invalid="true"/);
   assert.equal(tenant().slot_min, 120);
 
   const reversed = await post("admin/settings", schedule({ day_start: "20:00", day_end: "08:00" }), admin);
   assert.equal(reversed.status, 422);
   const reversedPage = await reversed.text();
   assert.match(reversedPage, /name="day_end"[^>]*aria-invalid="true"/);
+  // Without JavaScript the error message links to the card that failed.
+  assert.match(reversedPage, /role="alert"[^>]*>[^<]*<a href="#tider">/);
   // The submitted values are kept so the admin can correct them.
   assert.match(reversedPage, /name="day_start"[^>]*value="20:00"/);
   assert.equal(tenant().day_start_min, 480);
@@ -325,6 +328,11 @@ test("admin password keeps its rules: min 8 chars, hashed, other sessions logged
   assert.match(await mismatch.text(), /Passordene er ikke like\./);
   assert.ok(await crypto.verifyPassword(ADMIN_PASSWORD, tenant().admin_password_hash));
 
+  const unconfirmed = await post("admin/admin-password", { admin_password: "new password" }, admin);
+  assert.equal(unconfirmed.status, 422);
+  assert.match(await unconfirmed.text(), /Passordene er ikke like\./);
+  assert.ok(await crypto.verifyPassword(ADMIN_PASSWORD, tenant().admin_password_hash));
+
   const changed = await post("admin/admin-password", { admin_password: "new password", admin_password_confirm: "new password" }, admin);
   assert.equal(changed.status, 303);
   assert.equal(location(changed).searchParams.get("m"), "admin-password");
@@ -343,6 +351,7 @@ test("a machine error keeps the other settings fields intact", async () => {
   assert.equal(response.status, 422);
   const page = await response.text();
   assert.match(page, /<input name="name" required="" maxlength="80" value="Test"/);
+  assert.match(page, /role="alert"[^>]*>[^<]*<a href="#maskin-3">/);
   const added = await post("admin/machines", { name: "x".repeat(61), kind: "dryer" }, admin);
   const addedPage = await added.text();
   assert.match(addedPage, /<input name="name" required="" maxlength="80" value="Test"/);

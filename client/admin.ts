@@ -62,6 +62,13 @@ if (targeted instanceof HTMLDialogElement) {
   openDialog(targeted);
 }
 
+// A card that failed validation: bring its first marked field into view.
+const invalid = document.querySelector<HTMLElement>(".admin-stack [aria-invalid='true']");
+if (invalid) {
+  invalid.scrollIntoView({ block: "center" });
+  invalid.focus({ preventScroll: true });
+}
+
 // Links styled as switches open a dialog; give them the Space key a switch implies.
 document.addEventListener("keydown", (event) => {
   if (event.key !== " " || !(event.target instanceof HTMLAnchorElement) || event.target.getAttribute("role") !== "switch") return;
