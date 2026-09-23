@@ -687,6 +687,179 @@ button.text-button {
   margin: 0;
 }
 
+/* Activity log: a scrollable box, newest first, with the day pinned while its entries scroll by */
+.audit-scroll {
+  max-height: 440px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.audit-day {
+  margin: 0;
+}
+.audit-day + .audit-day {
+  border-top: 1px solid var(--line);
+}
+.audit-day-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 14px 6px;
+  background: color-mix(in srgb, #fafbf8 92%, transparent);
+  backdrop-filter: blur(6px);
+  color: #606d58;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+}
+.audit-entry {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 9px 14px;
+}
+.audit-entry + .audit-entry {
+  border-top: 1px solid #f0f1ec;
+}
+.audit-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eef2ea;
+  color: var(--green);
+}
+.audit-access-password .audit-icon,
+.audit-admin-password .audit-icon {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.audit-building .audit-icon {
+  background: #fbeceb;
+  color: #8f3a2e;
+}
+.audit-text {
+  min-width: 0;
+}
+.audit-detail {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.audit-meta {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Danger zone: last in the access card, set apart in a quiet red */
+.danger-zone {
+  margin: 8px -26px -24px;
+  padding: 2px 26px;
+  border-top: 1px solid #f1dcd7;
+  border-radius: 0 0 16px 16px;
+  background: #fdf8f6;
+}
+.danger-zone .setting-icon {
+  background: #fbeceb;
+  color: #8f3a2e;
+}
+.admin-main .button.danger-outline,
+.sheet .button.danger-outline {
+  background: #fff;
+  color: #8f3a2e;
+  border: 1px solid #ecc9c2;
+}
+button.danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.danger:disabled:active {
+  transform: none;
+}
+.sheet-form > .sheet-copy {
+  margin: 0;
+}
+.sheet-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.sheet-list li + li {
+  margin-top: 6px;
+}
+.sheet-list strong,
+.sheet-copy strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.field > label.confirm-label {
+  display: block;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.confirm-name {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #f1f2ee;
+  font-weight: 600;
+  user-select: all;
+}
+
+/* A closed building's admin page */
+.closed-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 16px;
+  border-color: #f1dcd7;
+}
+.closed-icon {
+  grid-row: span 3;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fbeceb;
+  color: #8f3a2e;
+}
+.closed-card h2 {
+  margin: 2px 0 6px;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  text-wrap: balance;
+}
+.closed-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 60ch;
+}
+.closed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 /* Sheet: centered modal on desktop, bottom drawer on phones */
 dialog.sheet {
   width: min(92vw, 440px);
@@ -820,6 +993,10 @@ dialog.sheet:focus-visible {
   .admin-main .button.secondary:hover {
     background: #f4f6f1;
   }
+  .admin-main .button.danger-outline:hover {
+    background: #fdf3f1;
+    border-color: #e2b3aa;
+  }
 }
 
 @media (max-width: 950px) {
@@ -923,6 +1100,21 @@ dialog.sheet:focus-visible {
   }
   .setting-icon {
     display: none;
+  }
+  .danger-zone {
+    margin: 8px -18px -20px;
+    padding: 2px 18px;
+    border-radius: 0 0 14px 14px;
+  }
+  .audit-scroll {
+    max-height: 60dvh;
+  }
+  .closed-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .closed-icon {
+    grid-row: auto;
+    margin-bottom: 12px;
   }
   .secret {
     margin-left: 0;

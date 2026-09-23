@@ -318,3 +318,18 @@ addEventListener("hashchange", () => jumpTo(location.hash));
 jumpTo(location.hash);
 markInView();
 addEventListener("scroll", markInView, { passive: true });
+
+// ---------------------------------------------------------------------------
+// Closing and deleting: the button waits for the building's name
+// ---------------------------------------------------------------------------
+
+// Mirrors sameName in src/audit.ts; the server checks the name again.
+const normName = (s: string) => s.trim().replace(/\s+/g, " ").toLocaleLowerCase("nb");
+const syncConfirm = (input: HTMLInputElement) => {
+  const button = input.form?.querySelector<HTMLButtonElement>("button:not([type='button'])");
+  if (button) button.disabled = !normName(input.value) || normName(input.value) !== normName(input.dataset.confirmName ?? "");
+};
+for (const input of document.querySelectorAll<HTMLInputElement>("input[data-confirm-name]")) {
+  syncConfirm(input);
+  input.addEventListener("input", () => syncConfirm(input));
+}

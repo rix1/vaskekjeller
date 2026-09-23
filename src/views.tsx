@@ -127,6 +127,28 @@ export const PasswordPage: FC<{
   </Layout>
 );
 
+/** What residents see (with status 410) after an admin has closed the building. */
+export const ClosedPage: FC<{ tenant: Tenant }> = ({ tenant }) => (
+  <Layout title={`Stengt · ${tenant.name}`}>
+    <main class="narrow closed-page">
+      <p class="muted">{tenant.name}</p>
+      <h1>Denne vaskekjelleren er stengt</h1>
+      <p class="muted">Bookingsiden er ikke lenger i bruk. Spør styret eller den som administrerer vaskekjelleren hvis du lurer på noe.</p>
+    </main>
+  </Layout>
+);
+
+/** Shown once, right after an admin deleted the building for good. */
+export const DeletedPage: FC<{ name: string }> = ({ name }) => (
+  <Layout title="Slettet">
+    <main class="narrow closed-page">
+      <p class="muted">{name}</p>
+      <h1>Vaskekjelleren er slettet</h1>
+      <p class="muted">Alle bookinger, maskiner, innstillinger og all statistikk er slettet permanent. Du er logget ut.</p>
+    </main>
+  </Layout>
+);
+
 export const ApartmentPicker: FC<{
   tenant: Tenant;
   apartments: string[];

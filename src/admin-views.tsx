@@ -1,6 +1,7 @@
 import type { Child, FC } from "hono/jsx";
 import { KIND_LABEL, normalizeApartment, type Booking, type Machine, type Tenant } from "./db.ts";
-import { fmtDay, fmtMinute, slotsFor } from "./time.ts";
+import { fromSqlTime, type AuditAction, type AuditEntry } from "./audit.ts";
+import { addDays, fmtDay, fmtMinute, localNow, slotsFor } from "./time.ts";
 import { FLASH, Icon, Layout, Toast, Toaster } from "./views.tsx";
 
 export type Stats = {
@@ -25,6 +26,8 @@ const ADMIN_FLASH: Record<string, string> = {
   "access-off": "Beboerpassord er slått av. Alle med lenken kan se bookingsiden.",
   "admin-password": "Adminpassordet er byttet.",
   "machine-failed": "Endringen ble ikke lagret. Prøv igjen.",
+  closed: "Vaskekjelleren er stengt. Bookingsiden er offline.",
+  reopened: "Vaskekjelleren er åpen igjen.",
 };
 const ADMIN_ERRORS = ["wrong-password", "machine-failed"];
 
@@ -58,7 +61,7 @@ export function apartmentSummary(text: string) {
 
 const apartmentCount = (n: number) => (n === 0 ? "Ingen liste – alle numre er tillatt" : `${n} ${n === 1 ? "leilighet" : "leiligheter"}`);
 
-type IconName = "up" | "down" | "plus" | "copy" | "key" | "shield" | "close" | "external";
+type IconName = "up" | "down" | "plus" | "copy" | "key" | "shield" | "close" | "external" | "sliders" | "trash" | "door";
 
 const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) => (
   <svg
@@ -92,6 +95,15 @@ const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) =
       <path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z" />
     ) : name === "close" ? (
       <path d="M6 6l12 12M18 6 6 18" />
+    ) : name === "sliders" ? (
+      <path d="M4 7h10m4 0h2M4 17h4m4 0h8M16 5v4M10 15v4" />
+    ) : name === "trash" ? (
+      <path d="M4 7h16M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+    ) : name === "door" ? (
+      <>
+        <path d="M4 21h16M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17" />
+        <path d="M14 12h.01" stroke-width="2.4" />
+      </>
     ) : (
       <path d="M8 16 16 8m-7 0h7v7" />
     )}
@@ -101,7 +113,8 @@ const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) =
 const AdminPage: FC<{
   tenant: Tenant;
   title: string;
-  active: "overview" | "settings";
+  /** "closed": the building is closed and only the reopen/delete panel is available, so no tabs. */
+  active: "overview" | "settings" | "closed";
   flash?: string;
   /** Error toast shown instead of the flash message, e.g. after a failed validation. */
   alert?: Child;
@@ -145,14 +158,16 @@ const AdminPage: FC<{
             <p class="eyebrow">ADMINISTRASJON</p>
             <h1>{p.title}</h1>
           </div>
-          <nav class="admin-tabs" aria-label="Administrasjon">
-            <a href={`${base}/admin`} aria-current={p.active === "overview" ? "page" : undefined}>
-              Oversikt
-            </a>
-            <a href={`${base}/admin/settings`} aria-current={p.active === "settings" ? "page" : undefined}>
-              Innstillinger
-            </a>
-          </nav>
+          {p.active !== "closed" && (
+            <nav class="admin-tabs" aria-label="Administrasjon">
+              <a href={`${base}/admin`} aria-current={p.active === "overview" ? "page" : undefined}>
+                Oversikt
+              </a>
+              <a href={`${base}/admin/settings`} aria-current={p.active === "settings" ? "page" : undefined}>
+                Innstillinger
+              </a>
+            </nav>
+          )}
         </div>
         {p.children}
       </main>
@@ -348,8 +363,98 @@ export const SECTIONS = [
   ["tider", "Tider og regler"],
   ["leiligheter", "Leiligheter"],
   ["maskiner", "Maskiner"],
+  ["aktivitet", "Aktivitet"],
   ["tilgang", "Tilgang"],
 ] as const;
+
+/** Activity entries shown before "Vis alle". */
+export const AUDIT_PAGE = 100;
+
+const AUDIT_ICON: Record<AuditAction, Child> = {
+  settings: <AdminIcon name="sliders" size={16} />,
+  machine: <Icon name="washer" size={16} />,
+  "access-password": <AdminIcon name="key" size={16} />,
+  "admin-password": <AdminIcon name="shield" size={16} />,
+  booking: <Icon name="calendar" size={16} />,
+  building: <AdminIcon name="door" size={16} />,
+};
+
+/** The admin activity log, newest first, grouped by day in a scrollable box. */
+const AuditLog: FC<{ tenant: Tenant; entries: AuditEntry[]; moreHref?: string }> = ({ tenant, entries, moreHref }) => {
+  const today = localNow(tenant.timezone).date;
+  const days: { date: string; entries: (AuditEntry & { time: string })[] }[] = [];
+  for (const e of entries) {
+    const at = localNow(tenant.timezone, fromSqlTime(e.created_at));
+    const entry = { ...e, time: fmtMinute(at.minute) };
+    if (days.at(-1)?.date === at.date) days.at(-1)!.entries.push(entry);
+    else days.push({ date: at.date, entries: [entry] });
+  }
+  const dayLabel = (d: string) => (d === today ? "I dag" : d === addDays(today, -1) ? "I går" : fmtDay(d));
+  return (
+    <section class="card" id="aktivitet" aria-labelledby="aktivitet-title">
+      <div class="card-head">
+        <h2 id="aktivitet-title">Aktivitet</h2>
+        <p>Endringer gjort her de siste 12 månedene, nyeste først. Bare omtrentlig enhet lagres, aldri IP-adresse.</p>
+      </div>
+      {days.length === 0 ? (
+        <p class="empty-note">Ingen endringer ennå.</p>
+      ) : (
+        <div class="audit-scroll" tabindex={0} role="region" aria-label="Aktivitet, nyeste først">
+          {days.map((day) => (
+            <section class="audit-day" aria-label={dayLabel(day.date)}>
+              <h3 class="audit-day-label" aria-hidden="true">
+                {dayLabel(day.date)}
+              </h3>
+              <ol class="audit-list">
+                {day.entries.map((e) => (
+                  <li class={`audit-entry audit-${e.action}`}>
+                    <span class="audit-icon">{AUDIT_ICON[e.action] ?? AUDIT_ICON.settings}</span>
+                    <div class="audit-text">
+                      <p class="audit-detail">{e.detail}</p>
+                      <p class="audit-meta">
+                        <time datetime={fromSqlTime(e.created_at).toISOString()}>{e.time}</time>
+                        <span aria-hidden="true"> · </span>
+                        <span class="sr-only">, </span>
+                        {e.device}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
+        </div>
+      )}
+      {moreHref && (
+        <div class="card-foot">
+          <p class="hint">Viser de {AUDIT_PAGE} nyeste endringene.</p>
+          <a href={moreHref} class="button secondary small">
+            Vis alle
+          </a>
+        </div>
+      )}
+    </section>
+  );
+};
+
+/** The building's name, typed again to confirm closing or deleting. */
+const ConfirmName: FC<{ id: string; tenant: Tenant; error?: string }> = ({ id, tenant, error }) => (
+  <div class="field">
+    <label for={id} class="confirm-label">
+      Skriv <strong class="confirm-name">{tenant.name}</strong> for å bekrefte
+    </label>
+    <input
+      name="confirm_name"
+      required
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck={false}
+      data-confirm-name={tenant.name}
+      {...described(id, error)}
+    />
+    <FieldError id={id} error={error} />
+  </div>
+);
 
 export type SettingsState = {
   /** Validation messages keyed by field name. */
@@ -363,8 +468,16 @@ export type SettingsState = {
 };
 
 export const AdminSettings: FC<
-  { tenant: Tenant; machines: Machine[]; residentPassword: string | null; flash?: string } & SettingsState
-> = ({ tenant, machines, residentPassword, flash, errors = {}, values = {}, dialog, card }) => {
+  {
+    tenant: Tenant;
+    machines: Machine[];
+    residentPassword: string | null;
+    log: AuditEntry[];
+    /** Whether older activity entries exist than the ones shown. */
+    moreLog: boolean;
+    flash?: string;
+  } & SettingsState
+> = ({ tenant, machines, residentPassword, log, moreLog, flash, errors = {}, values = {}, dialog, card }) => {
   const base = `/${tenant.slug}/admin`;
   const back = (section: string) => `${base}/settings#${section}`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
@@ -629,6 +742,8 @@ export const AdminSettings: FC<
             </div>
           </section>
 
+          <AuditLog tenant={tenant} entries={log} moreHref={moreLog ? `${base}/settings?aktivitet=alle#aktivitet` : undefined} />
+
           <section class="card" id="tilgang" aria-labelledby="tilgang-title">
             <div class="card-head">
               <h2 id="tilgang-title">Tilgang</h2>
@@ -706,8 +821,21 @@ export const AdminSettings: FC<
                 Bytt
               </a>
             </div>
+            <div class="danger-zone">
+              <div class="setting-row">
+                <span class="setting-icon">
+                  <AdminIcon name="trash" />
+                </span>
+                <div class="setting-text">
+                  <h3 id="steng-label">Steng og slett vaskekjelleren</h3>
+                  <p>Bookingsiden går offline med en gang. Alle data slettes permanent etter 7 dager, og til da kan du gjenåpne.</p>
+                </div>
+                <a href="#steng" data-dialog="steng" class="button danger-outline small" aria-haspopup="dialog">
+                  Steng og slett
+                </a>
+              </div>
+            </div>
           </section>
-          {/* Later sections (audit log, danger zone) go here and in SECTIONS. */}
         </div>
       </div>
 
@@ -797,6 +925,27 @@ export const AdminSettings: FC<
         </Sheet>
       )}
 
+      <Sheet id="steng" title="Steng og slett vaskekjelleren?" closeTo={back("tilgang")} open={dialog === "steng"}>
+        <form method="post" action={`${base}/close`} class="sheet-form">
+          <ul class="sheet-list">
+            <li>
+              Bookingsiden går offline <strong>med en gang</strong> og viser «Denne vaskekjelleren er stengt».
+            </li>
+            <li>
+              Alle bookinger, maskiner, innstillinger og all statistikk slettes <strong>permanent etter 7 dager</strong>.
+            </li>
+            <li>Frem til da kan du gjenåpne her på adminsiden, eller slette alt med en gang.</li>
+          </ul>
+          <ConfirmName id="confirm_close" tenant={tenant} error={errors.confirm_close} />
+          <div class="sheet-actions">
+            <a href={back("tilgang")} class="button ghost" data-dialog-close>
+              Avbryt
+            </a>
+            <button class="danger">Steng og slett</button>
+          </div>
+        </form>
+      </Sheet>
+
       <Sheet id="adminpassord" title="Bytt adminpassord" closeTo={back("tilgang")} open={dialog === "adminpassord"}>
         <form method="post" action={`${base}/admin-password`} class="sheet-form">
           <input type="text" name="username" autocomplete="username" value={`${tenant.slug}-admin`} hidden />
@@ -832,6 +981,67 @@ export const AdminSettings: FC<
               Avbryt
             </a>
             <button>Bytt passord</button>
+          </div>
+        </form>
+      </Sheet>
+    </AdminPage>
+  );
+};
+
+/** The admin page of a closed building: reopen, or delete everything now. */
+export const AdminClosed: FC<{
+  tenant: Tenant;
+  /** Tenant-local date the daily cron deletes the building. */
+  purgeOn: string;
+  log: AuditEntry[];
+  flash?: string;
+  /** Validation error from "Slett permanent nå". */
+  error?: string;
+  dialog?: boolean;
+}> = ({ tenant, purgeOn, log, flash, error, dialog }) => {
+  const base = `/${tenant.slug}/admin`;
+  const date = fmtDay(purgeOn).replace(/^./, (ch) => ch.toLowerCase());
+  return (
+    <AdminPage
+      tenant={tenant}
+      title="Stengt"
+      active="closed"
+      flash={flash}
+      alert={error && <p class="toast-title">Navnet stemmer ikke. Ingenting er slettet.</p>}
+    >
+      <div class="admin-stack closed-stack">
+        <section class="card closed-card" aria-labelledby="stengt-title">
+          <span class="closed-icon" aria-hidden="true">
+            <AdminIcon name="door" size={22} />
+          </span>
+          <h2 id="stengt-title">Stengt – slettes permanent {date}</h2>
+          <p>
+            Bookingsiden viser «Denne vaskekjelleren er stengt». Natt til {date} slettes alle bookinger, maskiner, innstillinger og all
+            statistikk for godt. Gjenåpne?
+          </p>
+          <div class="closed-actions">
+            <a href="#slett-na" data-dialog="slett-na" class="button danger-outline" aria-haspopup="dialog">
+              Slett permanent nå
+            </a>
+            <form method="post" action={`${base}/reopen`}>
+              <button>Gjenåpne</button>
+            </form>
+          </div>
+        </section>
+        <AuditLog tenant={tenant} entries={log} />
+      </div>
+
+      <Sheet id="slett-na" title="Slette alt permanent nå?" closeTo={base} open={dialog}>
+        <form method="post" action={`${base}/delete`} class="sheet-form">
+          <p class="sheet-copy">
+            Alt om <strong>{tenant.name}</strong> slettes med en gang, også aktivitetsloggen. Det kan ikke angres.
+          </p>
+          <ConfirmName id="confirm_delete" tenant={tenant} error={error} />
+          <div class="sheet-actions">
+            <a href={base} class="button ghost" data-dialog-close>
+              Avbryt
+            </a>
+            <button class="danger">Slett permanent</button>
           </div>
         </form>
       </Sheet>
