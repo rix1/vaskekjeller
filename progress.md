@@ -43,5 +43,6 @@
   "Delvis" vs a stronger "Fullt", separate rounded tinted rows with equal side padding, muted green focus ring,
   and the booking hint hidden after a device's first booking (`vk_booked` cookie).
   Review follow-up: popover entrance (all `.slot-details` popovers) is a subtle 160ms fade plus 4px drop, only under
-  `prefers-reduced-motion: no-preference`.
+  `prefers-reduced-motion: no-preference`. The "Reserver tørk/vask" confirm summary now keeps the shared white-on-green
+  desktop hover, and the next-day message uses `dayStatus` for "partly free" (covered in the day-strip test).
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.

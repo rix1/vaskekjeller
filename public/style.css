@@ -1651,7 +1651,7 @@ button.cancel-link,
 .time-slot.partial .slot-details:not(.slot-confirm) > summary {
   min-height: 32px;
 }
-.slot-details > summary.reserve-button {
+summary.reserve-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1661,7 +1661,7 @@ button.cancel-link,
   white-space: nowrap;
   transition: transform 140ms var(--ease-out);
 }
-.slot-details > summary.reserve-button:active {
+summary.reserve-button:active {
   transform: scale(0.97);
 }
 @media (prefers-reduced-motion: no-preference) {
