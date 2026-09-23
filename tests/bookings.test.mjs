@@ -337,17 +337,23 @@ test("a partly free pair shows who holds each machine and books the free one aft
 test("day strip says Delvis when every slot is partly taken and Fullt only when fully booked", async () => {
   await reset();
   await bookAllSlots([1]);
-  let day = dayItem(await tomorrowBoard());
+  let html = await tomorrowBoard();
+  let day = dayItem(html);
   assert.match(day, /class="date-item[^"]*\bpartial\b/);
   assert.match(day, /<small>Delvis<\/small>/);
   assert.match(day, /aria-label="[^"]*delvis ledig, 6 tider med én maskin ledig"/);
-  day = dayItem(await tomorrowBoard("vk_apt=A3", "1"));
+  assert.match(html, /Ingen tider med alle maskinene ledige denne dagen\./);
+  html = await tomorrowBoard("vk_apt=A3", "1");
+  day = dayItem(html);
   assert.match(day, /class="date-item[^"]*\bfull\b/);
   assert.match(day, /<small>Fullt<\/small>/);
+  assert.match(html, /Ingen ledige tider igjen denne dagen\./);
   await bookAllSlots([2]);
-  day = dayItem(await tomorrowBoard());
+  html = await tomorrowBoard();
+  day = dayItem(html);
   assert.match(day, /class="date-item[^"]*\bfull\b/);
   assert.match(day, /aria-label="[^"]*, fullt"/);
+  assert.match(html, /Ingen ledige tider igjen denne dagen\./);
   await reset();
   day = dayItem(await tomorrowBoard());
   assert.doesNotMatch(day, /\b(full|partial)\b/);

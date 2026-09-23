@@ -43,7 +43,8 @@
   "Delvis" vs a stronger "Fullt", separate rounded tinted rows with equal side padding, muted green focus ring,
   and the booking hint hidden after a device's first booking (`vk_booked` cookie).
   Review follow-up: popover entrance (all `.slot-details` popovers) is a subtle 160ms fade plus 4px drop, only under
-  `prefers-reduced-motion: no-preference`.
+  `prefers-reduced-motion: no-preference`. The "Reserver tørk/vask" confirm summary now keeps the shared white-on-green
+  desktop hover, and the next-day message uses `dayStatus` for "partly free" (covered in the day-strip test).
 - 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.
