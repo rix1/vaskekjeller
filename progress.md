@@ -33,9 +33,12 @@
 ## Devops
 
 - [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill). (2026-09-23: repo is public at https://github.com/rix1/vaskekjeller; rix1.dev project list not yet updated.)
+- [] Connect the repo to Workers Builds in the Cloudflare dashboard and create the Lofotgata building (captain; checklist in docs/deploy.md).
 - [] Find suitable domain name candidates, e.g. vask.now.
 - [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; not yet deployed or migrated remotely.)
 
 ## Log
+
+- 2026-09-23: GitOps deploy via Workers Builds: push to main runs remote D1 migrations, then `wrangler deploy`. Worker `vaskekjeller` created as a placeholder by `wrangler secret bulk`, with SESSION_SECRET and VAPID keys set (only in Cloudflare). VAPID_SUBJECT set. Remote DB migrations not yet applied; the first build does it. Checklist: docs/deploy.md.
 
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
