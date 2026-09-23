@@ -39,6 +39,6 @@
 
 ## Log
 
-- 2026-09-23: GitOps deploy via Workers Builds: push to main runs remote D1 migrations, then `wrangler deploy`. Worker `vaskekjeller` created as a placeholder by `wrangler secret bulk`, with SESSION_SECRET and VAPID keys set (only in Cloudflare). VAPID_SUBJECT set. Remote DB migrations not yet applied; the first build does it. Checklist: docs/deploy.md. Dashboard: build command empty, deploy command `npm run deploy` (migrate-then-deploy lives only in package.json); `preview_urls: false` in wrangler.jsonc.
+- 2026-09-23: GitOps deploy via Workers Builds: push to main runs remote D1 migrations, then `wrangler deploy`. Worker `vaskekjeller` created as a placeholder by `wrangler secret bulk`, with SESSION_SECRET and VAPID keys set (only in Cloudflare). VAPID_SUBJECT set. Remote DB migrations not yet applied; the first build does it. Checklist: docs/deploy.md. Dashboard: build command empty, deploy command `npm run deploy` (migrate-then-deploy lives only in package.json); `preview_urls: false` in wrangler.jsonc. Regenerated worker-configuration.d.ts for the new VAPID_SUBJECT.
 
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
