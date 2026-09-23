@@ -203,3 +203,38 @@ test("invalid dates, modes, tenant machines, and past slots are rejected", async
   assert.equal(flash(await post("book", { date: "2026-09-31", start: 480, mode: "pair-1-2" })), "invalid");
   assert.equal((await active()).results.length, 0);
 });
+
+const board = (query = "", apartment) =>
+  mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2${query}`, {
+    headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
+  });
+
+test("saving an apartment validates it, sets the cookie and keeps the view", async () => {
+  await db.prepare("UPDATE tenants SET apartments = 'A3\nB2'").run();
+  try {
+    const bad = await post("apartment", { apartment: "Z9" });
+    assert.notEqual(flash(bad), "apartment");
+    assert.doesNotMatch(bad.headers.get("set-cookie") ?? "", /vk_apt=Z9/);
+    const ok = await post("apartment", { apartment: "b2" });
+    assert.equal(flash(ok), "apartment");
+    assert.match(ok.headers.get("set-cookie"), /vk_apt=B2/);
+    assert.match(ok.headers.get("location"), new RegExp(`date=${tomorrow}.*mode=pair-1-2`));
+  } finally {
+    await db.prepare("UPDATE tenants SET apartments = NULL").run();
+  }
+});
+
+test("first visit shows the inline welcome; a saved apartment gets the chip popover", async () => {
+  const first = await (await board()).text();
+  assert.match(first, /Hei, nabo\./);
+  assert.doesNotMatch(first, /apartment-menu/);
+
+  const saved = await (await board("", "A3")).text();
+  assert.doesNotMatch(saved, /Hei, nabo\./);
+  assert.match(saved, /<details class="apartment-menu">/);
+  assert.match(saved, /class="apartment-popover"[\s\S]*action="\/demo\/apartment\?date=/);
+
+  const fallback = await (await board("&bytt=1", "A3")).text();
+  assert.match(fallback, /<details class="apartment-menu" open/);
+  assert.doesNotMatch(fallback, /Hei, nabo\./);
+});
