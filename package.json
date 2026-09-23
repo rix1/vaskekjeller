@@ -1,6 +1,7 @@
 {
   "name": "vaskekjeller",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "wrangler d1 migrations apply vaskekjeller --local && wrangler dev",
