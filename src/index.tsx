@@ -4,6 +4,7 @@ import { csrf } from "hono/csrf";
 import { AdminOverview, AdminSettings, apartmentSummary, SECTIONS, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
+import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken } from "./calendar.ts";
 import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import {
   apartmentList,
@@ -47,7 +48,9 @@ t.use(async (c, next) => {
   if (!tenant) return c.notFound();
   c.set("tenant", tenant);
   const sub = c.req.path.slice(tenant.slug.length + 1);
-  const open = sub.startsWith("/admin") || sub === "/login";
+  // Calendar feeds are keyed by their secret token, so calendar apps need no password.
+  const feed = (c.req.method === "GET" || c.req.method === "HEAD") && /^\/cal\/[^/]+$/.test(sub);
+  const open = sub.startsWith("/admin") || sub === "/login" || feed;
   if (!open && tenant.access_password_hash && !(await auth.has(c, tenant, "access"))) {
     if (c.req.method === "GET") return c.redirect(`/${tenant.slug}/login`);
     return c.text("Unauthorized", 401);
@@ -118,13 +121,14 @@ t.get("/", async (c) => {
   // Past days stay viewable (read-only) so neighbours can see who used which machine.
   const first = addDays(now.date, -LOOKBACK_DAYS);
   const last = addDays(now.date, tenant.booking_horizon_days - 1);
-  const [machines, bookings, waitlist] = await Promise.all([
+  const apartment = currentApartment(c);
+  const [machines, bookings, waitlist, feed] = await Promise.all([
     getMachines(c.env.DB, tenant.id, true),
     getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
+    apartment ? ensureFeed(c.env.DB, tenant.id, apartment) : undefined,
   ]);
   c.executionCtx.waitUntil(recordVisit(c, now.date));
-  const apartment = currentApartment(c);
   if (apartment) rememberApartment(c, apartment);
   // "Send melding" needs to know which holders from today on have notifications on (today includes
   // slots that just ended, for the late forgot-clothes message).
@@ -158,6 +162,12 @@ t.get("/", async (c) => {
       bookedIds={c.req.query("reservation")}
       hideHint={getCookie(c, bookedCookie) === "1"}
       vapidKey={c.env.VAPID_PUBLIC_KEY}
+      calendar={
+        feed && {
+          url: `${new URL(c.req.url).origin}${base(c)}/cal/${feed.token}.ics`,
+          includeOthers: !!feed.include_others,
+        }
+      }
     />,
   );
 });
@@ -167,6 +177,51 @@ t.post("/apartment", async (c) => {
   if (!apt) return back(c, "bad-apt");
   rememberApartment(c, apt);
   return back(c, "apartment");
+});
+
+// ---------------------------------------------------------------------------
+// Calendar subscription
+// ---------------------------------------------------------------------------
+
+t.get("/cal/:file", async (c) => {
+  const token = /^([\w-]{20,})\.ics$/.exec(c.req.param("file"))?.[1];
+  const feed = token ? await feedByToken(c.env.DB, c.var.tenant.id, token) : null;
+  if (!feed) return c.text("Ukjent kalenderlenke", 404);
+  const ics = await buildFeed(c.env.DB, c.var.tenant, feed, new URL(c.req.url).origin);
+  const etag = await feedEtag(ics);
+  const headers = { ETag: etag, "Cache-Control": "private, max-age=900" };
+  if (c.req.header("if-none-match")?.includes(etag)) return c.body(null, 304, headers);
+  return c.body(ics, 200, {
+    ...headers,
+    "Content-Type": "text/calendar; charset=utf-8",
+    "Content-Disposition": 'inline; filename="vaskekjeller.ics"',
+  });
+});
+
+// The setting lives on the link, so an existing subscription picks it up on its next refresh.
+t.post("/calendar/others", async (c) => {
+  const apt = currentApartment(c);
+  if (!apt) return back(c, "no-apt");
+  const on = (await form(c)).include_others === "1";
+  await c.env.DB.prepare(
+    `INSERT INTO calendar_feeds (tenant_id, apartment, token, include_others) VALUES (?, ?, ?, ?)
+     ON CONFLICT (tenant_id, apartment) DO UPDATE SET include_others = excluded.include_others`,
+  )
+    .bind(c.var.tenant.id, apt, newFeedToken(), on ? 1 : 0)
+    .run();
+  return back(c, on ? "cal-others-on" : "cal-others-off");
+});
+
+t.post("/calendar/new-link", async (c) => {
+  const apt = currentApartment(c);
+  if (!apt) return back(c, "no-apt");
+  await c.env.DB.prepare(
+    `INSERT INTO calendar_feeds (tenant_id, apartment, token) VALUES (?, ?, ?)
+     ON CONFLICT (tenant_id, apartment) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
+  )
+    .bind(c.var.tenant.id, apt, newFeedToken())
+    .run();
+  return back(c, "cal-new-link");
 });
 
 /** Validates a (machine, date, start) triple from a form against the tenant's current schedule. */

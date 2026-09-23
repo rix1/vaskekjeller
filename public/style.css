@@ -522,6 +522,117 @@ header.resident-top {
 .apartment-chip strong {
   font-weight: 650;
 }
+/* Calendar subscription, the second section of the apartment popover. */
+.calendar-feed {
+  display: grid;
+  gap: 10px;
+}
+.calendar-feed > p {
+  margin: -6px 0 2px;
+}
+.calendar-feed form {
+  margin: 0;
+}
+button.calendar-switch {
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  background: #fafbf7;
+  color: var(--ink);
+  border: 1px solid #dedfd7;
+}
+.calendar-switch small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.35;
+}
+.switch-track {
+  position: relative;
+  width: 36px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #d5d9cf;
+  transition: background-color 160ms ease;
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #263e2a33;
+  transition: transform 160ms var(--ease-out);
+}
+.calendar-switch[aria-checked="true"] .switch-track {
+  background: var(--green);
+}
+.calendar-switch[aria-checked="true"] .switch-track::after {
+  transform: translateX(14px);
+}
+a.calendar-subscribe {
+  width: 100%;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+}
+.calendar-link {
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.calendar-link > span {
+  display: flex;
+  gap: 6px;
+}
+.calendar-link input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0.4rem 0.55rem;
+  font-size: 12px;
+  color: var(--ink);
+  background: #fafbf7;
+  text-overflow: ellipsis;
+}
+/* Copying needs the Clipboard API; without JS the field stays selectable. */
+button.copy-button {
+  display: none;
+  padding: 0 12px;
+  background: var(--green-soft);
+  color: var(--green);
+}
+.js button.copy-button {
+  display: inline-flex;
+}
+.apartment-popover .calendar-note {
+  margin: -4px 0 0;
+  font-size: 11px;
+}
+.calendar-rotate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+.calendar-rotate button.link {
+  min-height: 32px;
+  font-size: 12px;
+}
 .header-caption {
   font-size: 13px;
   color: var(--muted);

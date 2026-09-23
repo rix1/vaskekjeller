@@ -36,6 +36,9 @@ export const FLASH: Record<string, string> = {
   "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
   "wrong-password": "Feil passord.",
   saved: "Lagret.",
+  "cal-others-on": "Kalenderen viser nå også andres bookinger.",
+  "cal-others-off": "Kalenderen viser nå bare dine bookinger.",
+  "cal-new-link": "Ny kalenderlenke er laget. Den gamle virker ikke lenger.",
 };
 
 export const Layout: FC<{
@@ -151,6 +154,52 @@ export const ApartmentPicker: FC<{
       <span aria-hidden="true"> ↗</span>
     </button>
   </form>
+);
+
+/** Secret feed link for Apple Calendar, shown in the apartment popover. */
+const CalendarSubscription: FC<{
+  tenant: Tenant;
+  url: string;
+  includeOthers: boolean;
+  context: string;
+}> = (p) => (
+  <section class="calendar-feed" aria-labelledby="calendar-feed-title">
+    <strong id="calendar-feed-title">Tidene i kalenderen</strong>
+    <p>Abonner, så dukker tidene dine opp i Apple Kalender og holder seg oppdatert. Lenken er personlig.</p>
+    <form method="post" action={`/${p.tenant.slug}/calendar/others${p.context}`}>
+      <Hidden fields={{ include_others: p.includeOthers ? "0" : "1" }} />
+      <button class="calendar-switch" role="switch" aria-checked={p.includeOthers ? "true" : "false"}>
+        <span>
+          Inkluder andres bookinger
+          <small>Viser når rommet er opptatt, uten å blokkere kalenderen din.</small>
+        </span>
+        <span class="switch-track" aria-hidden="true" />
+      </button>
+    </form>
+    <a class="button calendar-subscribe" href={p.url.replace(/^https?:/, "webcal:")}>
+      <Icon name="calendar" size={17} />
+      Abonner i Apple Kalender
+    </a>
+    <label class="calendar-link">
+      Eller kopier lenken
+      <span>
+        <input id="calendar-url" readonly value={p.url} spellcheck={false} />
+        <button type="button" class="small-button copy-button" data-copy="#calendar-url">
+          Kopier
+        </button>
+      </span>
+    </label>
+    <p class="calendar-note">Andre kalenderapper kan også bruke lenken, men kan ligge flere timer etter.</p>
+    <form
+      method="post"
+      action={`/${p.tenant.slug}/calendar/new-link${p.context}`}
+      class="calendar-rotate"
+      data-confirm="Lage ny lenke? Den gamle slutter å virke, og kalendere som bruker den må abonnere på nytt."
+    >
+      <span>Har lenken kommet på avveie?</span>
+      <button class="link">Lag ny lenke</button>
+    </form>
+  </section>
 );
 
 export const Icon: FC<{
@@ -286,6 +335,8 @@ type BoardProps = {
   mode?: string;
   bookedIds?: string;
   hideHint?: boolean;
+  /** The apartment's calendar feed; absent until an apartment is chosen. */
+  calendar?: { url: string; includeOthers: boolean };
 };
 
 export const BoardPage: FC<BoardProps> = (p) => {
@@ -381,7 +432,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </span>
         </a>
         {p.apartment ? (
-          <details class="apartment-menu">
+          <details class="apartment-menu" open={p.flash?.startsWith("cal-")}>
             <summary class="apartment-chip" aria-label={`Leilighet ${p.apartment}, endre leilighet`}>
               <Icon name="home" size={16} />
               <span>
@@ -397,6 +448,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 <p>Velg leiligheten du vil reservere for.</p>
                 <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context={query()} />
               </section>
+              {p.calendar && <CalendarSubscription tenant={p.tenant} {...p.calendar} context={query()} />}
             </div>
           </details>
         ) : (
