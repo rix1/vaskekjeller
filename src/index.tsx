@@ -549,8 +549,9 @@ async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 4
 
 admin.get("/settings", (c) => renderSettings(c));
 
+const settingsSection = (section: string) => (settingsSections.has(section) ? section : "generelt");
 const settingsBack = (c: Ctx, flash: string | undefined, section: string) =>
-  c.redirect(`${adminBase(c)}/settings${flash ? `?m=${flash}` : ""}#${settingsSections.has(section) ? section : "generelt"}`, 303);
+  c.redirect(`${adminBase(c)}/settings${flash ? `?m=${flash}` : ""}#${settingsSection(section)}`, 303);
 
 const accessContext = (t: Tenant) => `tenant:${t.id}:access-password`;
 
@@ -596,7 +597,7 @@ admin.post("/settings", async (c) => {
     if (unique.some((a) => a.length > 20)) errors.apartments = "Et leilighetsnummer kan ha maks 20 tegn.";
     else updates.apartments = unique.join("\n") || null;
   }
-  if (Object.keys(errors).length) return renderSettings(c, { errors, values: f }, 422);
+  if (Object.keys(errors).length) return renderSettings(c, { errors, values: f, card: settingsSection(f.section ?? "") }, 422);
   const columns = Object.keys(updates);
   if (columns.length)
     await c.env.DB.prepare(`UPDATE tenants SET ${columns.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`)
@@ -639,6 +640,7 @@ admin.post("/machines/:id", async (c) => {
       {
         errors: { [`machine-${id}`]: name ? "Navnet kan ha maks 60 tegn." : "Gi maskinen et navn." },
         values: { machine_id: String(id), machine_name: f.name ?? "" },
+        card: `maskin-${id}`,
       },
       422,
     );
@@ -704,7 +706,7 @@ admin.post("/admin-password", async (c) => {
   const pw = f.admin_password ?? "";
   const errors: Record<string, string> = {};
   if (pw.length < 8) errors.admin_password = "Adminpassordet må ha minst 8 tegn.";
-  else if ("admin_password_confirm" in f && f.admin_password_confirm !== pw) errors.admin_password_confirm = "Passordene er ikke like.";
+  else if (f.admin_password_confirm !== pw) errors.admin_password_confirm = "Passordene er ikke like.";
   if (Object.keys(errors).length) return renderSettings(c, { errors, dialog: "adminpassord" }, 422);
   const hash = await hashPassword(pw);
   await c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ?").bind(hash, c.var.tenant.id).run();
