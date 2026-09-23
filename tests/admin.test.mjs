@@ -357,6 +357,25 @@ test("admin password keeps its rules: min 8 chars, hashed, other sessions logged
   assert.ok(await login("new password"));
 });
 
+test("a dialog reopened after an error closes without JavaScript", async () => {
+  const cases = [
+    ["machines", { name: " ", kind: "washer" }, "legg-til-maskin", "maskiner"],
+    ["access", { access_password: " " }, "beboerpassord", "tilgang"],
+    ["admin-password", { admin_password: "new password", admin_password_confirm: "other" }, "adminpassord", "tilgang"],
+  ];
+  for (const [path, body, dialog, section] of cases) {
+    const response = await post(`admin/${path}`, body, admin);
+    assert.equal(response.status, 422, path);
+    const sheet = (await response.text()).match(new RegExp(`<dialog id="${dialog}"[^>]* open=""[\\s\\S]*?</dialog>`))?.[0];
+    assert.ok(sheet, `${dialog} is open`);
+    const closers = [...sheet.matchAll(/<a href="([^"]*)"[^>]*data-dialog-close/g)].map((m) => m[1]);
+    assert.deepEqual(closers, [`/demo/admin/settings#${section}`, `/demo/admin/settings#${section}`], dialog);
+    const closed = await get(closers[0].slice("/demo/".length).split("#")[0], admin);
+    assert.equal(closed.status, 200);
+    assert.doesNotMatch(await closed.text(), /<dialog[^>]* open=""/);
+  }
+});
+
 test("a machine error keeps the other settings fields intact", async () => {
   const response = await post("admin/machines/3", { name: "", kind: "washer" }, admin);
   assert.equal(response.status, 422);

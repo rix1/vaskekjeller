@@ -154,7 +154,15 @@ async function sendMachines(form: HTMLFormElement, body: URLSearchParams, focusK
       active.value !== active.defaultValue &&
       active.form !== form
     ) {
-      target.value = active.value;
+      const field = target;
+      field.value = active.value;
+      field.addEventListener(
+        "focusout",
+        () => {
+          if (field.value !== field.defaultValue) field.form?.requestSubmit();
+        },
+        { once: true },
+      );
     }
     target?.focus({ preventScroll: true });
     const machineId = form.id.replace("machine-", "");

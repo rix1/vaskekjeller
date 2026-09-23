@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
-import { AdminOverview, AdminSettings, apartmentSummary, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
+import { AdminOverview, AdminSettings, apartmentSummary, SECTIONS, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
 import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
@@ -686,7 +686,7 @@ admin.post("/bookings/:id/cancel", async (c) => {
   return c.redirect(`${adminBase(c)}?m=cancelled`, 303);
 });
 
-const settingsSections = new Set(["generelt", "tider", "leiligheter", "maskiner", "tilgang"]);
+const settingsSections = new Set<string>(SECTIONS.map(([id]) => id));
 
 async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 422 = 200) {
   const tenant = c.var.tenant;

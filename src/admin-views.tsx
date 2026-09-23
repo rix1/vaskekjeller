@@ -299,7 +299,7 @@ const Sheet: FC<{ id: string; title: string; closeTo: string; open?: boolean; ch
       <div class="sheet-handle" aria-hidden="true" />
       <div class="sheet-head">
         <h2 id={`${p.id}-title`}>{p.title}</h2>
-        <a href={`#${p.closeTo}`} class="sheet-close" data-dialog-close aria-label="Lukk">
+        <a href={p.closeTo} class="sheet-close" data-dialog-close aria-label="Lukk">
           <AdminIcon name="close" />
         </a>
       </div>
@@ -322,7 +322,7 @@ const described = (id: string, error?: string, hint = false) => ({
   "aria-describedby": [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(" ") || undefined,
 });
 
-const SECTIONS = [
+export const SECTIONS = [
   ["generelt", "Generelt"],
   ["tider", "Tider og regler"],
   ["leiligheter", "Leiligheter"],
@@ -345,6 +345,7 @@ export const AdminSettings: FC<
   { tenant: Tenant; machines: Machine[]; residentPassword: string | null; flash?: string } & SettingsState
 > = ({ tenant, machines, residentPassword, flash, errors = {}, values = {}, dialog, card }) => {
   const base = `/${tenant.slug}/admin`;
+  const back = (section: string) => `${base}/settings#${section}`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
   const slot = Number(v("slot_min", String(tenant.slot_min)));
   const slotChoices = SLOT_LENGTHS.includes(tenant.slot_min) ? SLOT_LENGTHS : [...SLOT_LENGTHS, tenant.slot_min].sort((a, b) => a - b);
@@ -682,7 +683,7 @@ export const AdminSettings: FC<
         </div>
       </div>
 
-      <Sheet id="legg-til-maskin" title="Legg til maskin" closeTo="maskiner" open={dialog === "legg-til-maskin"}>
+      <Sheet id="legg-til-maskin" title="Legg til maskin" closeTo={back("maskiner")} open={dialog === "legg-til-maskin"}>
         <form method="post" action={`${base}/machines`} class="sheet-form">
           <div class="field">
             <label for="new-machine-name">Navn</label>
@@ -713,7 +714,7 @@ export const AdminSettings: FC<
             </div>
           </fieldset>
           <div class="sheet-actions">
-            <a href="#maskiner" class="button ghost" data-dialog-close>
+            <a href={back("maskiner")} class="button ghost" data-dialog-close>
               Avbryt
             </a>
             <button>Legg til</button>
@@ -724,7 +725,7 @@ export const AdminSettings: FC<
       <Sheet
         id="beboerpassord"
         title={passwordOn ? "Endre beboerpassord" : "Slå på beboerpassord"}
-        closeTo="tilgang"
+        closeTo={back("tilgang")}
         open={dialog === "beboerpassord"}
       >
         <form method="post" action={`${base}/access`} class="sheet-form">
@@ -748,7 +749,7 @@ export const AdminSettings: FC<
             <FieldError id="access_password" error={errors.access_password} />
           </div>
           <div class="sheet-actions">
-            <a href="#tilgang" class="button ghost" data-dialog-close>
+            <a href={back("tilgang")} class="button ghost" data-dialog-close>
               Avbryt
             </a>
             <button>{passwordOn ? "Lagre passord" : "Slå på"}</button>
@@ -757,10 +758,10 @@ export const AdminSettings: FC<
       </Sheet>
 
       {passwordOn && (
-        <Sheet id="slaa-av-beboerpassord" title="Slå av beboerpassord?" closeTo="tilgang">
+        <Sheet id="slaa-av-beboerpassord" title="Slå av beboerpassord?" closeTo={back("tilgang")}>
           <p class="sheet-copy">Alle med lenken kan da se bookingsiden og reservere tider.</p>
           <form method="post" action={`${base}/access/off`} class="sheet-actions">
-            <a href="#tilgang" class="button ghost" data-dialog-close>
+            <a href={back("tilgang")} class="button ghost" data-dialog-close>
               Avbryt
             </a>
             <button class="danger">Slå av</button>
@@ -768,7 +769,7 @@ export const AdminSettings: FC<
         </Sheet>
       )}
 
-      <Sheet id="adminpassord" title="Bytt adminpassord" closeTo="tilgang" open={dialog === "adminpassord"}>
+      <Sheet id="adminpassord" title="Bytt adminpassord" closeTo={back("tilgang")} open={dialog === "adminpassord"}>
         <form method="post" action={`${base}/admin-password`} class="sheet-form">
           <input type="text" name="username" autocomplete="username" value={`${tenant.slug}-admin`} hidden />
           <div class="field">
@@ -799,7 +800,7 @@ export const AdminSettings: FC<
             <FieldError id="admin_password_confirm" error={errors.admin_password_confirm} />
           </div>
           <div class="sheet-actions">
-            <a href="#tilgang" class="button ghost" data-dialog-close>
+            <a href={back("tilgang")} class="button ghost" data-dialog-close>
               Avbryt
             </a>
             <button>Bytt passord</button>
