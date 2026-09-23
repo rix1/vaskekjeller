@@ -10,6 +10,8 @@ export type Tenant = {
   max_active_bookings: number;
   apartments: string | null;
   access_password_hash: string | null;
+  /** Encrypted copy of the resident password so admins can read it back; see crypto.ts encryptText. */
+  access_password_enc: string | null;
   admin_password_hash: string;
 };
 

@@ -23,7 +23,13 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   the text.
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
-  bookings per apartment, machines, access passwords, upcoming bookings, and stats.
+  bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
+  cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,
+  a bottom drawer on phones) that falls back to an in-page `#anchor` target without JavaScript.
+- **Passwords**: the resident password is a shared door code. It is verified against a PBKDF2 hash (which
+  resident cookies are bound to) and also stored AES-GCM encrypted with a key derived from `SESSION_SECRET`,
+  so admins can view and copy it. Rotating `SESSION_SECRET` makes it unreadable until an admin sets a new one.
+  The admin password is only ever hashed.
 - **Stats** are privacy friendly: only daily totals are stored. Unique visitors are counted with a salted hash that
   rotates every day and is deleted by a daily cron.
 - **Multi-tenant**: every table has `tenant_id`; each building lives under `/<slug>`. `DEFAULT_TENANT` makes `/`
@@ -100,7 +106,8 @@ work as ordinary page requests. Notification setup appears after joining a waitl
 
 The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
-reservations after an administrator changes the schedule.
+reservations after an administrator changes the schedule. Migration `0003_resident_password_readable.sql`
+adds the encrypted resident password column.
 
 ## Verification
 
@@ -109,9 +116,9 @@ reservations after an administrator changes the schedule.
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
-toasts (Angre confirmation, errors), and messages to booking holders (`tests/push-messages.test.mjs`). It also
-compiles the service worker and runs it as a classic script, since `/sw.js` is registered without
-`{ type: "module" }`.
+toasts (Angre confirmation, errors), messages to booking holders (`tests/push-messages.test.mjs`), and the admin
+settings, machine, and password routes. It also compiles the service worker and runs it as a classic script, since
+`/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
