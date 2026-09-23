@@ -32,6 +32,10 @@
 
 ## Devops
 
-- [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill).
+- [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill). (2026-09-23: repo is public at https://github.com/rix1/vaskekjeller; rix1.dev project list not yet updated.)
 - [] Find suitable domain name candidates, e.g. vask.now.
 - [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; not yet deployed or migrated remotely.)
+
+## Log
+
+- 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
