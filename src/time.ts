@@ -25,7 +25,9 @@ export function addDays(date: string, days: number): string {
 }
 
 export function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 
 export function fmtMinute(min: number): string {
@@ -39,8 +41,18 @@ export function parseHHMM(s: string): number | null {
   return v >= 0 && v <= 24 * 60 ? v : null;
 }
 
-const weekdayFmt = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-const shortFmt = new Intl.DateTimeFormat("nb-NO", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const weekdayFmt = new Intl.DateTimeFormat("nb-NO", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+});
+const shortFmt = new Intl.DateTimeFormat("nb-NO", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
 
 export function fmtDay(date: string, style: "long" | "short" = "long"): string {
   const s = (style === "long" ? weekdayFmt : shortFmt).format(new Date(`${date}T00:00:00Z`));

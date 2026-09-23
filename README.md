@@ -50,3 +50,16 @@ Don't rotate the VAPID keys after launch: existing push subscriptions stop worki
 
 To keep the app alive after you move out, add a second Cloudflare account member (or transfer the account),
 and hand over the admin password.
+
+## Reservation integrity
+
+The booking endpoint accepts a washer/dryer pair as one atomic reservation. The active-booking limit
+counts distinct time periods per apartment, so reserving both machines at the same time counts once.
+Migration `0002_booking_overlap.sql` also prevents overlaps after an administrator changes the schedule.
+Apply migrations before deploying this version.
+
+## Verification
+
+`npm run typecheck` checks server, client, scripts, and service-worker types.
+`npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
+reservations, atomic conflicts, household limits, ownership, comments, cancellation, and schedule overlaps.

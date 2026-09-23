@@ -3,6 +3,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { AdminOverview, AdminSettings, type Stats } from "./admin-views.tsx";
 import * as auth from "./auth.ts";
+import { bookingOptions } from "./booking-options.ts";
 import { hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import {
   apartmentList,
@@ -49,7 +50,14 @@ t.use(async (c, next) => {
 });
 
 const base = (c: Ctx) => `/${c.var.tenant.slug}`;
-const back = (c: Ctx, flash: string, anchor = "") => c.redirect(`${base(c)}?m=${flash}${anchor ? `#${anchor}` : ""}`, 303);
+const back = (c: Ctx, flash: string, anchor = "", extra: Record<string, string> = {}) => {
+  const params = new URLSearchParams({ ...extra, m: flash });
+  const date = c.req.query("date") || anchor.replace(/^d-/, "");
+  if (isValidDate(date)) params.set("date", date);
+  const mode = c.req.query("mode");
+  if (mode && /^[\w-]+$/.test(mode)) params.set("mode", mode);
+  return c.redirect(`${base(c)}?${params}`, 303);
+};
 const aptCookie = "vk_apt";
 
 function currentApartment(c: Ctx): string | undefined {
@@ -74,7 +82,9 @@ async function form(c: Ctx): Promise<Record<string, string>> {
   return Object.fromEntries(Object.entries(body).map(([k, v]) => [k, typeof v === "string" ? v : ""]));
 }
 
-t.get("/login", (c) => c.html(<PasswordPage tenant={c.var.tenant} action={`${base(c)}/login`} heading={c.var.tenant.name} flash={c.req.query("m")} />));
+t.get("/login", (c) =>
+  c.html(<PasswordPage tenant={c.var.tenant} action={`${base(c)}/login`} heading={c.var.tenant.name} flash={c.req.query("m")} />),
+);
 
 t.post("/login", async (c) => {
   const { password } = await form(c);
@@ -124,7 +134,7 @@ t.post("/apartment", async (c) => {
   const allowed = apartmentList(c.var.tenant);
   if (!apt || apt.length > 20 || (allowed.length && !allowed.includes(apt))) return back(c, "bad-apt");
   rememberApartment(c, apt);
-  return c.redirect(base(c), 303);
+  return back(c, "apartment");
 });
 
 /** Validates a (machine, date, start) triple from a form against the tenant's current schedule. */
@@ -150,52 +160,117 @@ t.post("/book", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
   const f = await form(c);
-  const s = await parseSlot(c, f);
+  const machines = await getMachines(c.env.DB, tenant.id);
+  const option = bookingOptions(machines).find((o) => o.key === (f.mode || f.machine_id));
+  if (!option) return back(c, "invalid");
+  const s = await parseSlot(c, {
+    ...f,
+    machine_id: String(option.machines[0]!.id),
+  });
   if (!s) return back(c, "invalid");
   if (s.over) return back(c, "over", `d-${s.date}`);
-
-  if (tenant.max_active_bookings > 0) {
-    const active = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM bookings
-       WHERE tenant_id = ? AND apartment = ? AND cancelled_at IS NULL
-         AND (date > ? OR (date = ? AND end_min > ?))`,
-    )
-      .bind(tenant.id, apt, s.now.date, s.now.date, s.now.minute)
-      .first<number>("n");
-    if ((active ?? 0) >= tenant.max_active_bookings) return back(c, "limit", `d-${s.date}`);
-  }
-
   const note = (f.note ?? "").trim().slice(0, 140) || null;
   try {
-    await c.env.DB.batch([
+    // A single INSERT reserves the entire selection. The limit check is part of
+    // the same write, so simultaneous requests cannot exceed the household cap.
+    // One time period counts once, even when both machines are reserved.
+    const result = await c.env.DB.batch([
       c.env.DB.prepare(
-        "INSERT INTO bookings (tenant_id, machine_id, date, start_min, end_min, apartment, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ).bind(tenant.id, s.machine.id, s.date, s.slot.start, s.slot.end, apt, note),
-      c.env.DB.prepare("DELETE FROM waitlist WHERE machine_id = ? AND date = ? AND start_min = ? AND apartment = ?").bind(
-        s.machine.id,
+        `
+        INSERT INTO bookings (tenant_id, machine_id, date, start_min, end_min, apartment, note)
+        SELECT ?, value, ?, ?, ?, ?, ? FROM json_each(?)
+        WHERE (? = 0 OR
+          (SELECT COUNT(*) FROM (SELECT DISTINCT date, start_min, end_min FROM bookings
+            WHERE tenant_id = ? AND apartment = ? AND cancelled_at IS NULL
+            AND (date > ? OR (date = ? AND end_min > ?)))) < ? OR
+          EXISTS (SELECT 1 FROM bookings WHERE tenant_id = ? AND apartment = ?
+            AND date = ? AND start_min = ? AND end_min = ? AND cancelled_at IS NULL))
+        RETURNING id
+      `,
+      ).bind(
+        tenant.id,
         s.date,
         s.slot.start,
+        s.slot.end,
         apt,
+        note,
+        JSON.stringify(option.machines.map((m) => m.id)),
+        tenant.max_active_bookings,
+        tenant.id,
+        apt,
+        s.now.date,
+        s.now.date,
+        s.now.minute,
+        tenant.max_active_bookings,
+        tenant.id,
+        apt,
+        s.date,
+        s.slot.start,
+        s.slot.end,
       ),
+      c.env.DB.prepare(
+        `DELETE FROM waitlist WHERE tenant_id = ? AND apartment = ?
+        AND date = ? AND start_min = ? AND machine_id IN (SELECT value FROM json_each(?))
+        AND EXISTS (SELECT 1 FROM bookings b WHERE b.machine_id = waitlist.machine_id
+          AND b.date = waitlist.date AND b.start_min = waitlist.start_min
+          AND b.apartment = waitlist.apartment AND b.cancelled_at IS NULL)
+      `,
+      ).bind(tenant.id, apt, s.date, s.slot.start, JSON.stringify(option.machines.map((m) => m.id))),
     ]);
+    if (!result[0]!.results.length) return back(c, "limit", `d-${s.date}`);
+    return back(c, "booked", `d-${s.date}`, {
+      reservation: result[0]!.results.map((row) => String((row as { id: number }).id)).join(","),
+    });
   } catch (e) {
-    if (String(e).includes("UNIQUE")) return back(c, "taken", `d-${s.date}`);
+    if (/UNIQUE|booking_overlap/.test(String(e))) return back(c, "taken", `d-${s.date}`);
     throw e;
   }
-  return back(c, "booked", `d-${s.date}`);
 });
 
-t.post("/cancel", async (c) => {
+async function ownedBookings(c: Ctx, f: Record<string, string>) {
   const apt = currentApartment(c);
-  if (!apt) return back(c, "no-apt");
-  const id = Number((await form(c)).booking_id);
-  const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ? AND cancelled_at IS NULL")
-    .bind(id, c.var.tenant.id)
-    .first<Booking>();
-  if (!b || b.apartment !== apt) return back(c, "invalid");
-  if (slotIsOver(b.date, b.end_min, localNow(c.var.tenant.timezone))) return back(c, "over", `d-${b.date}`);
-  await cancelBooking(c, b, "resident");
-  return back(c, "cancelled", `d-${b.date}`);
+  if (!apt) return [];
+  const ids = (f.booking_ids || f.booking_id || "").split(",").map(Number);
+  if (!ids.length || ids.length > 100 || ids.some((id) => !Number.isInteger(id) || id <= 0)) return [];
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM bookings WHERE tenant_id = ?
+    AND apartment = ? AND cancelled_at IS NULL AND id IN (SELECT value FROM json_each(?))`,
+  )
+    .bind(c.var.tenant.id, apt, JSON.stringify(ids))
+    .all<Booking>();
+  return results.length === new Set(ids).size ? results : [];
+}
+
+t.post("/cancel", async (c) => {
+  const bookings = await ownedBookings(c, await form(c));
+  if (!bookings.length) return back(c, "invalid");
+  const now = localNow(c.var.tenant.timezone);
+  if (bookings.some((b) => slotIsOver(b.date, b.end_min, now))) return back(c, "over");
+  const result = await c.env.DB.batch(
+    bookings.map((b) =>
+      c.env.DB.prepare(
+        "UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = 'resident' WHERE id = ? AND cancelled_at IS NULL",
+      ).bind(b.id),
+    ),
+  );
+  for (const [i, b] of bookings.entries()) {
+    if (result[i]!.meta.changes) c.executionCtx.waitUntil(notifyWaitlist(c.env, c.var.tenant, b));
+  }
+  return back(c, "cancelled", `d-${bookings[0]!.date}`);
+});
+
+t.post("/note", async (c) => {
+  const f = await form(c);
+  const bookings = await ownedBookings(c, f);
+  if (!bookings.length) return back(c, "invalid");
+  const now = localNow(c.var.tenant.timezone);
+  if (bookings.some((b) => slotIsOver(b.date, b.end_min, now))) return back(c, "over");
+  await c.env.DB.batch(
+    bookings.map((b) =>
+      c.env.DB.prepare("UPDATE bookings SET note = ? WHERE id = ?").bind((f.note || "").trim().slice(0, 140) || null, b.id),
+    ),
+  );
+  return back(c, "note", `d-${bookings[0]!.date}`);
 });
 
 t.post("/wait", async (c) => {
@@ -223,12 +298,19 @@ t.post("/unwait", async (c) => {
 // Web push
 // ---------------------------------------------------------------------------
 
-const vapid = (env: Env): VapidKeys => ({ publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT });
+const vapid = (env: Env): VapidKeys => ({
+  publicKey: env.VAPID_PUBLIC_KEY,
+  privateKey: env.VAPID_PRIVATE_KEY,
+  subject: env.VAPID_SUBJECT,
+});
 
 t.post("/push/subscribe", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return c.json({ error: "no-apt" }, 400);
-  const sub = await c.req.json<{ endpoint?: string; keys?: { p256dh?: string; auth?: string } }>();
+  const sub = await c.req.json<{
+    endpoint?: string;
+    keys?: { p256dh?: string; auth?: string };
+  }>();
   if (!sub.endpoint?.startsWith("https://") || !sub.keys?.p256dh || !sub.keys.auth) return c.json({ error: "invalid" }, 400);
   await c.env.DB.prepare(
     `INSERT INTO push_subscriptions (tenant_id, apartment, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)
@@ -242,7 +324,9 @@ t.post("/push/subscribe", async (c) => {
 
 t.post("/push/unsubscribe", async (c) => {
   const { endpoint } = await c.req.json<{ endpoint?: string }>();
-  await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND tenant_id = ?").bind(endpoint ?? "", c.var.tenant.id).run();
+  await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND tenant_id = ?")
+    .bind(endpoint ?? "", c.var.tenant.id)
+    .run();
   return c.json({ ok: true });
 });
 
@@ -252,12 +336,22 @@ t.post("/push/test", async (c) => {
     .bind(endpoint ?? "", c.var.tenant.id)
     .first<PushSubscriptionRow>();
   if (!sub) return c.json({ error: "not-found" }, 404);
-  const result = await sendPush(sub, { title: "Varsler er på ✅", body: "Du får beskjed når en tid du venter på blir ledig.", url: base(c) }, vapid(c.env));
+  const result = await sendPush(
+    sub,
+    {
+      title: "Varsler er på ✅",
+      body: "Du får beskjed når en tid du venter på blir ledig.",
+      url: base(c),
+    },
+    vapid(c.env),
+  );
   return c.json({ result });
 });
 
 async function cancelBooking(c: Ctx, b: Booking, by: "resident" | "admin") {
-  const res = await c.env.DB.prepare("UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = ? WHERE id = ? AND cancelled_at IS NULL")
+  const res = await c.env.DB.prepare(
+    "UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = ? WHERE id = ? AND cancelled_at IS NULL",
+  )
     .bind(by, b.id)
     .run();
   if (res.meta.changes) c.executionCtx.waitUntil(notifyWaitlist(c.env, c.var.tenant, b));
@@ -325,12 +419,20 @@ const admin = new Hono<App>();
 const adminBase = (c: Ctx) => `${base(c)}/admin`;
 
 admin.get("/login", (c) =>
-  c.html(<PasswordPage tenant={c.var.tenant} action={`${adminBase(c)}/login`} heading={`Admin · ${c.var.tenant.name}`} flash={c.req.query("m")} />),
+  c.html(
+    <PasswordPage
+      tenant={c.var.tenant}
+      action={`${adminBase(c)}/login`}
+      heading={`Admin · ${c.var.tenant.name}`}
+      flash={c.req.query("m")}
+    />,
+  ),
 );
 
 admin.post("/login", async (c) => {
   const { password } = await form(c);
-  if (!(await verifyPassword(password ?? "", c.var.tenant.admin_password_hash))) return c.redirect(`${adminBase(c)}/login?m=wrong-password`, 303);
+  if (!(await verifyPassword(password ?? "", c.var.tenant.admin_password_hash)))
+    return c.redirect(`${adminBase(c)}/login?m=wrong-password`, 303);
   await auth.grant(c, c.var.tenant, "admin");
   return c.redirect(adminBase(c), 303);
 });
@@ -354,7 +456,10 @@ admin.get("/", async (c) => {
   const from90 = addDays(now.date, -89);
 
   const [daily, counts, heat, push, waiting, machines, upcoming] = await Promise.all([
-    db.prepare("SELECT day, views, visitors, notifications FROM daily_stats WHERE tenant_id = ? AND day >= ? ORDER BY day").bind(tenant.id, from30).all<Stats["daily"][number]>(),
+    db
+      .prepare("SELECT day, views, visitors, notifications FROM daily_stats WHERE tenant_id = ? AND day >= ? ORDER BY day")
+      .bind(tenant.id, from30)
+      .all<Stats["daily"][number]>(),
     db
       .prepare(
         `SELECT
@@ -365,7 +470,12 @@ admin.get("/", async (c) => {
          FROM bookings WHERE tenant_id = ? AND date BETWEEN ? AND ?`,
       )
       .bind(now.date, tenant.id, from30, now.date)
-      .first<{ booked: number | null; cancelled: number | null; apartments: number; past_booked: number | null }>(),
+      .first<{
+        booked: number | null;
+        cancelled: number | null;
+        apartments: number;
+        past_booked: number | null;
+      }>(),
     db
       .prepare(
         `SELECT (CAST(strftime('%w', date) AS INTEGER) + 6) % 7 AS weekday, start_min, COUNT(*) AS n
@@ -439,12 +549,7 @@ admin.post("/settings", async (c) => {
   if (!Number.isInteger(slot) || slot < 15 || slot > end - start) return settingsBack(c, "Ugyldig lengde per tid.");
   if (!Number.isInteger(horizon) || horizon < 1 || horizon > 90) return settingsBack(c, "Antall dager må være mellom 1 og 90.");
   if (!Number.isInteger(maxActive) || maxActive < 0) return settingsBack(c, "Ugyldig maks antall bookinger.");
-  const apartments =
-    (f.apartments ?? "")
-      .split(/[\n,]/)
-      .map(normalizeApartment)
-      .filter(Boolean)
-      .join("\n") || null;
+  const apartments = (f.apartments ?? "").split(/[\n,]/).map(normalizeApartment).filter(Boolean).join("\n") || null;
   await c.env.DB.prepare(
     `UPDATE tenants SET name = ?, day_start_min = ?, day_end_min = ?, slot_min = ?, booking_horizon_days = ?,
        max_active_bookings = ?, apartments = ? WHERE id = ?`,
