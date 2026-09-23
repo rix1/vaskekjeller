@@ -102,8 +102,9 @@ reservations after an administrator changes the schedule.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
-pushes, and the board's partly free rows, day-strip status, and first-booking hint cookie. It also compiles the
-service worker and runs it as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
+pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, and the server-rendered
+toasts (Angre confirmation, errors). It also compiles the service worker and runs it as a classic script, since
+`/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
 ## License
