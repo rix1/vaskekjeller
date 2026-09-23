@@ -203,3 +203,43 @@ test("invalid dates, modes, tenant machines, and past slots are rejected", async
   assert.equal(flash(await post("book", { date: "2026-09-31", start: 480, mode: "pair-1-2" })), "invalid");
   assert.equal((await active()).results.length, 0);
 });
+
+const page = async (location, apartment = "A3") =>
+  (await mf.dispatchFetch(new URL(location, "http://localhost"), { headers: { Cookie: `vk_apt=${apartment}` } })).text();
+const toasts = (html) => [...html.matchAll(/<div class="(toast [^"]*)" role="(\w+)">([\s\S]*?)<a class="toast-close"/g)];
+
+test("booking redirects to a confirmation toast with a working Angre form", async () => {
+  await reset();
+  const response = await book(480);
+  const [toast, ...rest] = toasts(await page(response.headers.get("location")));
+  assert.equal(rest.length, 0);
+  assert.equal(toast[1], "toast success auto long");
+  assert.equal(toast[2], "status");
+  assert.match(toast[3], /Tiden er din!/);
+  assert.match(toast[3], /08:00–10:00 · Vaskemaskin \+ Tørketrommel/);
+  const ids = (await active()).results.map((b) => b.id).join(",");
+  assert.match(toast[3], new RegExp(`<form method="post" action="/demo/cancel\\?date=${tomorrow}&amp;mode=pair-1-2"`));
+  assert.match(toast[3], new RegExp(`name="booking_ids" value="${ids}"`));
+  assert.match(toast[3], />Angre</);
+  const undo = await post("cancel", { booking_ids: ids });
+  assert.equal(flash(undo), "cancelled");
+  const [cancelled] = toasts(await page(undo.headers.get("location")));
+  assert.equal(cancelled[1], "toast success auto");
+  assert.equal(cancelled[2], "status");
+  assert.match(cancelled[3], /Bookingen er avbestilt\./);
+});
+
+test("errors render as toasts that stay until closed", async () => {
+  await reset();
+  await book(480, "D4");
+  const taken = await book(480);
+  assert.equal(flash(taken), "taken");
+  const [toast] = toasts(await page(taken.headers.get("location")));
+  assert.equal(toast[1], "toast error");
+  assert.equal(toast[2], "alert");
+  assert.match(toast[3], /noen var raskere/);
+  assert.equal(toasts(await page(`/demo?date=${tomorrow}`)).length, 0);
+  const [password] = toasts(await page("/demo/admin/login?m=wrong-password"));
+  assert.equal(password[1], "toast error");
+  assert.match(password[3], /Feil passord\./);
+});

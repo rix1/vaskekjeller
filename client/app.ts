@@ -13,6 +13,54 @@ live.setAttribute("aria-live", "polite");
 live.setAttribute("aria-atomic", "true");
 document.body.append(live);
 
+// Toasts arrive server-rendered with CSS timers (4 s, 8 s for the booking with Angre; errors stay).
+// Here they stack, pause while the tab is hidden, and close without a page load.
+const MAX_TOASTS = 3;
+const toastText = (toast: Element) =>
+  [...toast.querySelectorAll(".toast-text > *")].map((el) => el.textContent?.trim()).join(" ");
+
+function trackToast(toast: HTMLElement) {
+  toast.addEventListener("animationend", (event) => {
+    if (event.animationName === "toast-out") toast.remove();
+  });
+}
+
+function dismissToast(toast: Element) {
+  toast.classList.add("leaving");
+}
+
+function showToast(toast: HTMLElement) {
+  const stack = document.querySelector(".toaster");
+  if (!stack) return;
+  const text = toastText(toast);
+  stack.querySelectorAll(".toast").forEach((old) => {
+    if (toastText(old) === text) old.remove();
+  });
+  trackToast(toast);
+  stack.append(toast);
+  const visible = stack.querySelectorAll(".toast:not(.leaving)");
+  for (let i = 0; i < visible.length - MAX_TOASTS; i++) dismissToast(visible[i]!);
+  // Alerts announce themselves; status toasts go through the polite live region.
+  if (toast.getAttribute("role") === "status") live.textContent = text;
+}
+
+function errorToast(message: string) {
+  const toast = document.createElement("div");
+  toast.className = "toast error network-error";
+  toast.setAttribute("role", "alert");
+  toast.innerHTML =
+    '<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6m0 4h.01" stroke-width="2.2"/></svg></span>' +
+    '<div class="toast-text"><p class="toast-title"></p></div>' +
+    '<button type="button" class="toast-close" aria-label="Lukk varsel"><span aria-hidden="true">×</span></button>';
+  toast.querySelector(".toast-title")!.textContent = message;
+  return toast;
+}
+
+document.querySelectorAll<HTMLElement>(".toast").forEach(trackToast);
+document.addEventListener("visibilitychange", () => {
+  document.querySelector(".toaster")?.classList.toggle("paused", document.hidden);
+});
+
 function cleanUrl(raw: string) {
   const url = new URL(raw, location.href);
   url.searchParams.delete("m");
@@ -75,36 +123,38 @@ async function updateBoard(
       if (dayBounds.right > stripBounds.right) dateStrip.scrollLeft += dayBounds.right - stripBounds.right;
       if (dayBounds.left < stripBounds.left) dateStrip.scrollLeft -= stripBounds.left - dayBounds.left;
     }
-    const message = nextMain.querySelector<HTMLElement>(".flash");
-    live.textContent =
-      message?.textContent ??
-      `${nextMain.querySelector(".day-heading h3")?.textContent}. ${nextMain.querySelector(".machine-options .selected")?.textContent}.`;
+    document.querySelectorAll(".toast.network-error").forEach(dismissToast);
+    // The Angre toast has done its job once its form has been handled.
+    const sourceToast = options.form?.closest(".toast");
+    if (sourceToast) dismissToast(sourceToast);
+    const toasts = [...doc.querySelectorAll<HTMLElement>(".toaster .toast")];
+    toasts.forEach(showToast);
+    if (!toasts.length)
+      live.textContent = `${nextMain.querySelector(".day-heading h3")?.textContent}. ${nextMain.querySelector(".machine-options .selected")?.textContent}.`;
     // Keep keyboard focus on the selected control after it has been replaced.
     if (options.focusHref) {
       const matching = [...nextMain.querySelectorAll<HTMLAnchorElement>("a")].find((a) => a.href === options.focusHref);
       const focusTarget = matching ?? nextMain.querySelector<HTMLElement>(".apt-picker input, .apt-picker select");
       focusTarget?.focus({ preventScroll: true });
     } else if (options.form) {
-      const focus = message ?? nextMain.querySelector<HTMLElement>(".day-heading h3");
+      // Toasts never take focus; return it to the day that was just updated.
+      const focus = nextMain.querySelector<HTMLElement>(".day-heading h3");
       focus?.setAttribute("tabindex", "-1");
       focus?.focus({ preventScroll: true });
-      message?.scrollIntoView({ block: "nearest" });
     }
     void setupPush().catch(() => {});
   } catch (error) {
     if (controller.signal.aborted) return;
-    main.querySelector(".network-error")?.remove();
     main.querySelectorAll(".date-item, .machine-options a").forEach((el) => {
       el.classList.toggle("selected", el.hasAttribute("aria-current"));
     });
-    const errorBox = document.createElement("p");
-    errorBox.className = "flash err network-error";
-    errorBox.setAttribute("role", "alert");
-    errorBox.textContent = options.form
-      ? "Vi kunne ikke bekrefte endringen. Oppdater siden for å se om den ble lagret."
-      : "Kunne ikke hente tidene. Sjekk forbindelsen og prøv igjen.";
-    main.prepend(errorBox);
-    errorBox.scrollIntoView({ block: "nearest" });
+    showToast(
+      errorToast(
+        options.form
+          ? "Vi kunne ikke bekrefte endringen. Oppdater siden for å se om den ble lagret."
+          : "Kunne ikke hente tidene. Sjekk forbindelsen og prøv igjen.",
+      ),
+    );
   } finally {
     if (pendingNavigation === controller) {
       document.querySelector(".resident-main")?.removeAttribute("aria-busy");
@@ -123,6 +173,12 @@ document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
   for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open]")) {
     if (!details.contains(event.target)) details.open = false;
+  }
+  const close = event.target.closest(".toast-close");
+  if (close) {
+    event.preventDefault();
+    dismissToast(close.closest(".toast")!);
+    return;
   }
   const link = event.target.closest<HTMLAnchorElement>("a[href]");
   if (

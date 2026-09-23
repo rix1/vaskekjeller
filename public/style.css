@@ -131,17 +131,6 @@ label {
   flex: 1 1 180px;
 }
 
-.flash {
-  padding: 0.7rem 1rem;
-  border-radius: 8px;
-  background: var(--free);
-  color: var(--free-fg);
-}
-.flash.err {
-  background: var(--err-bg);
-  color: var(--err);
-}
-
 .apt-picker,
 .push-banner,
 .mine {
@@ -1120,15 +1109,6 @@ button.small-button {
 .apt-picker button {
   white-space: nowrap;
 }
-.resident-main .flash {
-  font-size: 13px;
-  padding: 14px 18px;
-  border: 1px solid #d7e6d3;
-  margin: 0 0 20px;
-}
-.resident-main .flash.err {
-  border-color: #efc9c5;
-}
 footer.resident-foot {
   display: flex;
   justify-content: space-between;
@@ -1444,25 +1424,6 @@ header.resident-top {
 .mobile-mine-link {
   display: none;
 }
-.booking-success {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.booking-success > div {
-  flex: 1;
-}
-.booking-success strong,
-.booking-success span {
-  display: block;
-}
-.booking-success span {
-  font-size: 12px;
-  margin-top: 3px;
-}
-.booking-success .link {
-  min-width: 44px;
-}
 @media (max-width: 740px) {
   header.resident-top {
     height: 80px;
@@ -1494,9 +1455,6 @@ header.resident-top {
   }
   .mobile-mine-link > span {
     flex: 1;
-  }
-  .booking-success {
-    align-items: flex-start;
   }
 }
 .sr-only {
@@ -1581,5 +1539,142 @@ button.cancel-link,
   .date-item > span,
   .date-item small {
     font-size: 10px;
+  }
+}
+
+/* Toasts: bottom-center on phones, bottom-right on desktop. Server-rendered and faded out by CSS alone;
+   client/app.ts adds stacking, dismissal and in-place updates. Success toasts leave on their own,
+   errors stay until closed. */
+.toaster {
+  position: fixed;
+  z-index: 20;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 8px 12px 14px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid #e1e5da;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px #263e2a1f,
+    0 1px 3px #263e2a14;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: toast-in 400ms var(--ease-out) both;
+}
+.toast.auto {
+  animation:
+    toast-in 400ms var(--ease-out) both,
+    toast-out 300ms ease 4s forwards;
+}
+.toast.auto.long {
+  animation:
+    toast-in 400ms var(--ease-out) both,
+    toast-out 300ms ease 8s forwards;
+}
+/* Reading, hovering or tabbing to a toast keeps it on screen. */
+.toast:hover,
+.toast:focus-within,
+.toaster.paused .toast {
+  animation-play-state: paused;
+}
+.toaster .toast.leaving {
+  animation: toast-out 200ms ease forwards;
+}
+.toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: -1px;
+  border-radius: 50%;
+  background: var(--green-soft);
+  color: var(--green);
+}
+.toast.error .toast-icon {
+  background: var(--err-bg);
+  color: var(--err);
+}
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+.toast-text p {
+  margin: 0;
+}
+.toast-title {
+  font-weight: 600;
+}
+.toast-detail {
+  margin-top: 2px !important;
+  color: var(--muted);
+  font-size: 12px;
+}
+.toast-action {
+  margin: -4px 0;
+}
+.toast .toast-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.toast-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px 0;
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 0;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  text-decoration: none;
+}
+.toast-close:hover {
+  background: #f1f2ec;
+  color: var(--ink);
+}
+@media (min-width: 741px) {
+  .toaster {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    width: 380px;
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    visibility: hidden;
   }
 }

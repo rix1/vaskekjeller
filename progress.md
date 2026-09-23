@@ -3,7 +3,7 @@
 - [] add icons to "kun vask" and "kun tørk" as well.
 - [] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.)
 - [] make the "endre leilighet" appear in a popup, similar to the "se detailjer"
-- [] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
+- [x] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
 - [] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment.
 - [] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
 - [] make it possible to see last 14 days as well (should default to this week).
@@ -38,4 +38,5 @@
 
 ## Log
 
+- 2026-09-23: Status banners replaced by in-house toasts (booking page, login, admin); Angre booking toast 8 s, success 4 s, errors stay; CSS-only fade without JS.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.
