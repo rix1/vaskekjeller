@@ -1,14 +1,14 @@
 ## UX
 
-- [] add icons to "kun vask" and "kun tørk" as well.
-- [] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.)
+- [x] add icons to "kun vask" and "kun tørk" as well.
+- [x] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.)
 - [] make the "endre leilighet" appear in a popup, similar to the "se detailjer"
 - [] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page.
 - [] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment.
-- [] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
+- [x] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click?
 - [x] make it possible to see last 14 days as well (should default to this week). (2026-09-23: date strip uses Mon–Sun calendar weeks from today-14 to the horizon; past days are read-only and show who used each machine plus comments.)
-- [] make "fullt" on day-level more present/visible
-- [] tone the obnoxious focus ring a bit down: mute/change the color. 
+- [x] make "fullt" on day-level more present/visible
+- [x] tone the obnoxious focus ring a bit down: mute/change the color. 
 
 ## Features
 
@@ -17,8 +17,8 @@
 
 ## UI
 
-- [] The row background colors is off: for inactive/passert Subsequent bookings look weird together (no space but also border radius separating them).
-- [] there's no margin-x on the booking rows, so when a backgorund color is present (e.g. for inacive) the left and right most text looks crammed into the sides.
+- [x] The row background colors is off: for inactive/passert Subsequent bookings look weird together (no space but also border radius separating them).
+- [x] there's no margin-x on the booking rows, so when a backgorund color is present (e.g. for inacive) the left and right most text looks crammed into the sides.
 
 ## Admin
 
@@ -38,6 +38,10 @@
 
 ## Log
 
+- 2026-09-23: Board polish (branch `fm/vk-board-polish`): machine icons per kind (new dryer glyph), paired rows show
+  Ledig / Delvis ledig / Reservert with per-machine holders and a one-tap confirm for the free machine, day strip
+  "Delvis" vs a stronger "Fullt", separate rounded tinted rows with equal side padding, muted green focus ring,
+  and the booking hint hidden after a device's first booking (`vk_booked` cookie).
 - 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).
 - 2026-09-23: Calendar-week date strip with a 14-day read-only look-back (`LOOKBACK_DAYS` in src/index.tsx, `calendarWeeks` in src/time.ts). Write routes still reject past slots.

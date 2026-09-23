@@ -419,8 +419,12 @@ button[aria-disabled="true"] {
   cursor: wait;
 }
 :focus-visible {
-  outline: 3px solid #aa6341;
-  outline-offset: 4px;
+  outline: 2px solid color-mix(in srgb, var(--green) 70%, transparent);
+  outline-offset: 2px;
+}
+/* Headings and messages the page focuses for screen readers need no ring. */
+[tabindex="-1"]:focus {
+  outline: none;
 }
 [hidden] {
   display: none !important;
@@ -1642,5 +1646,160 @@ button.cancel-link,
   .date-item > span,
   .date-item small {
     font-size: 10px;
+  }
+}
+/* Board rows: equal side padding everywhere; tinted rows are separate rounded rows. */
+.slots {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -10px;
+}
+.schedule > .slots:last-child {
+  padding-bottom: 14px;
+}
+.time-slot,
+.time-slot.reserved {
+  margin: 0;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 0;
+}
+.time-slot:is(.elapsed, .reserved, .partial),
+.time-slot:has(+ :is(.elapsed, .reserved, .partial)) {
+  border-bottom-color: transparent;
+}
+.time-slot:is(.elapsed, .reserved, .partial) {
+  margin: 2px 0;
+  border-radius: 10px;
+}
+.time-slot.elapsed {
+  background: #f8f9f5;
+}
+.time-slot.partial {
+  background: #faf6ec;
+}
+.time-slot.partial .slot-status strong {
+  color: #7d5a1c;
+}
+.status-dot.half {
+  background: linear-gradient(90deg, #b07a26 50%, transparent 50%);
+  box-shadow: inset 0 0 0 1px #b07a26;
+}
+.machine-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.machine-status > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.machine-status > .free {
+  color: var(--green);
+  font-weight: 600;
+}
+.machine-icons {
+  display: inline-flex;
+  gap: 1px;
+}
+.time-slot.partial .slot-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.time-slot.partial .slot-details:not(.slot-confirm) > summary {
+  min-height: 32px;
+}
+.slot-details > summary.reserve-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #345940;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform 140ms var(--ease-out);
+}
+.slot-details > summary.reserve-button:active {
+  transform: scale(0.97);
+}
+.slot-details[open] > .slot-popover {
+  transform-origin: top right;
+  animation: popover-in 160ms var(--ease-out);
+}
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.slot-confirm .slot-popover p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.slot-confirm .slot-popover p small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.slot-popover > .confirm-actions {
+  flex-direction: row;
+  gap: 8px;
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 14px;
+}
+.confirm-actions > * {
+  flex: 1;
+  margin: 0;
+}
+.confirm-actions button,
+.confirm-actions .button {
+  width: 100%;
+  min-height: 40px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.confirm-actions .button.secondary {
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #dfe3d9;
+}
+/* Day strip: "Delvis" when only one machine is free; a truly full day stands out. */
+.date-item.partial small {
+  color: #7d5a1c;
+  font-weight: 600;
+}
+.date-item.full:not(.selected) {
+  background: #fbf1ec;
+  border-color: #eed6ca;
+}
+.date-item.full small {
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #a4532f;
+  color: #fff;
+  font-weight: 650;
+}
+.date-item.selected.partial small {
+  color: #f3e2bd;
+}
+@media (max-width: 740px) {
+  .slots {
+    margin: 0 -8px;
+  }
+  .time-slot,
+  .time-slot.reserved {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .date-item.full small {
+    padding: 0 5px;
   }
 }

@@ -1,6 +1,6 @@
 import type { Child, FC } from "hono/jsx";
 import { bookingOptions } from "./booking-options.ts";
-import { KIND_LABEL, slotKey, type Booking, type Machine, type Tenant, type WaitEntry } from "./db.ts";
+import { KIND_LABEL, slotKey, type Booking, type Machine, type MachineKind, type Tenant, type WaitEntry } from "./db.ts";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
@@ -109,7 +109,7 @@ export const ApartmentPicker: FC<{
 );
 
 const Icon: FC<{
-  name?: "washer" | "arrow" | "clock" | "check" | "home" | "calendar";
+  name?: MachineKind | "arrow" | "clock" | "check" | "home" | "calendar";
   size?: number;
 }> = ({ name = "washer", size = 20 }) => (
   <svg
@@ -128,6 +128,12 @@ const Icon: FC<{
         <rect x="4" y="2" width="16" height="20" rx="3" />
         <circle cx="12" cy="14" r="5" />
         <path d="M8 5h.01M11 5h.01M15 5h2M8 14c3-3 5 3 8 0" />
+      </>
+    ) : name === "dryer" ? (
+      <>
+        <rect x="4" y="2" width="16" height="20" rx="3" />
+        <circle cx="12" cy="14" r="5" />
+        <path d="M8 5h.01M15 5h2M10.5 11.5c-1 1 1 2 0 3s1 2 0 3M13.5 11.5c-1 1 1 2 0 3s1 2 0 3" />
       </>
     ) : name === "arrow" ? (
       <path d="M5 12h14m-5-5 5 5-5 5" />
@@ -151,6 +157,18 @@ const Icon: FC<{
   </svg>
 );
 
+/** Short and definite machine names for per-machine status in the paired view. */
+const KIND_SHORT: Record<MachineKind, string> = { washer: "Vask", dryer: "Tørk" };
+const KIND_DEFINITE: Record<MachineKind, string> = { washer: "vaskemaskinen", dryer: "tørketrommelen" };
+
+const MachineIcons: FC<{ machines: Machine[]; size?: number }> = ({ machines, size = 17 }) => (
+  <span class="machine-icons">
+    {machines.map((m) => (
+      <Icon name={m.kind} size={size} />
+    ))}
+  </span>
+);
+
 type BoardProps = {
   tenant: Tenant;
   /** Includes inactive machines, so past days still show who used them. */
@@ -171,6 +189,7 @@ type BoardProps = {
   selectedDate?: string;
   mode?: string;
   bookedIds?: string;
+  hideHint?: boolean;
 };
 
 export const BoardPage: FC<BoardProps> = (p) => {
@@ -201,6 +220,23 @@ export const BoardPage: FC<BoardProps> = (p) => {
     );
   const available = (date: string) =>
     !option ? 0 : p.slots.filter((s) => !slotIsOver(date, s.end, p.now) && !conflicts(date, s).length).length;
+  // A slot is partly free when some, but not all, machines of the selected option are taken.
+  const partlyFree = (date: string, slot: Slot) => {
+    const taken = conflicts(date, slot);
+    return taken.length > 0 && !!option?.machines.some((m) => !taken.some((b) => b.machine_id === m.id));
+  };
+  const dayStatus = (date: string) => {
+    if (date < p.now.date) return { text: "Passert", label: "passert", state: "past" };
+    const open = p.slots.filter((s) => !slotIsOver(date, s.end, p.now));
+    const free = available(date);
+    const partial = open.filter((s) => partlyFree(date, s)).length;
+    if (!option) return { text: "", label: "ingen maskiner", state: "" };
+    if (free > 0) return { text: `${free} ledige`, label: `${free} ledige tider`, state: "" };
+    if (partial > 0)
+      return { text: "Delvis", label: `delvis ledig, ${partial} ${partial === 1 ? "tid" : "tider"} med én maskin ledig`, state: "partial" };
+    if (!open.length) return { text: "Passert", label: "ingen flere tider", state: "" };
+    return { text: "Fullt", label: "fullt", state: "full" };
+  };
   const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
   const justBooked = p.flash === "booked" ? mine.filter((b) => (p.bookedIds ?? "").split(",").includes(String(b.id))) : [];
   const groups = new Map<string, Booking[]>();
@@ -314,7 +350,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <nav class="machine-options" aria-label="Velg maskiner">
               {options.map((o) => (
                 <a href={url(selected, o.key)} aria-current={o.key === mode ? "true" : undefined} class={o.key === mode ? "selected" : ""}>
-                  {o.machines.length > 1 && <Icon size={17} />}
+                  <MachineIcons machines={o.machines} />
                   {o.label}
                 </a>
               ))}
@@ -344,18 +380,19 @@ export const BoardPage: FC<BoardProps> = (p) => {
               </div>
             </div>
             <nav class="date-strip" aria-label="Velg dag">
-              {week.map((date) =>
-                p.days.includes(date) ? (
+              {week.map((date) => {
+                const status = dayStatus(date);
+                return p.days.includes(date) ? (
                   <a
                     href={url(date)}
                     data-date={date}
-                    class={`date-item ${date === selected ? "selected" : ""} ${date < p.now.date ? "past" : ""}`}
+                    class={`date-item ${date === selected ? "selected" : ""} ${status.state}`}
                     aria-current={date === selected ? "date" : undefined}
-                    aria-label={`${dayLabel(date)}, ${fmtDay(date)}, ${date < p.now.date ? "passert" : `${available(date)} ledige tider`}`}
+                    aria-label={`${dayLabel(date)}, ${fmtDay(date)}, ${status.label}`}
                   >
                     <span>{dayLabel(date)}</span>
                     <strong>{Number(date.slice(-2))}</strong>
-                    <small>{date < p.now.date ? "Passert" : available(date) > 0 ? `${available(date)} ledige` : "Fullt"}</small>
+                    <small>{status.text}</small>
                   </a>
                 ) : (
                   <span
@@ -368,8 +405,8 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     <strong>{Number(date.slice(-2))}</strong>
                     <small aria-hidden="true">–</small>
                   </span>
-                ),
-              )}
+                );
+              })}
             </nav>
             <div class="day-heading">
               <h3>
@@ -446,9 +483,16 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const other = occupied.filter((b) => b.apartment !== p.apartment);
                   const free = !occupied.length && !over;
                   const ownAll = own.length > 0 && !other.length && option.machines.every((m) => own.some((b) => b.machine_id === m.id));
-                  const label = `${option.label}, ${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
+                  const paired = option.machines.length > 1;
+                  const partial = !over && partlyFree(selected, s);
+                  const freeMachines = option.machines.filter((m) => !occupied.some((b) => b.machine_id === m.id));
+                  const holder = (b: Booking) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`);
+                  const time = `${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
+                  const label = `${option.label}, ${time}`;
                   return (
-                    <article class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : "occupied"}`}>
+                    <article
+                      class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : partial ? "partial" : "occupied"}`}
+                    >
                       <div class="slot-time">
                         <strong>
                           {fmtMinute(s.start)}
@@ -468,21 +512,38 @@ export const BoardPage: FC<BoardProps> = (p) => {
                           ) : free ? (
                             <>
                               <span class="status-dot" />
-                              {option.machines.length > 1 ? "Begge ledige" : "Ledig"}
+                              {paired ? "Begge ledige" : "Ledig"}
+                            </>
+                          ) : partial ? (
+                            <>
+                              <span class="status-dot half" />
+                              Delvis ledig
                             </>
                           ) : (
                             "Reservert"
                           )}
                         </strong>
-                        <small>
-                          {over
-                            ? ""
-                            : free
-                              ? option.machines.map((m) => KIND_LABEL[m.kind]).join(" + ")
-                              : [...new Set(occupied.map((b) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`)))].join(
-                                  " · ",
-                                )}
-                        </small>
+                        {!over && !free && !ownAll && paired ? (
+                          <small class="machine-status">
+                            {option.machines.map((m) => {
+                              const bookings = occupied.filter((b) => b.machine_id === m.id);
+                              return (
+                                <span class={bookings.length ? "" : "free"}>
+                                  <Icon name={m.kind} size={14} />
+                                  {KIND_SHORT[m.kind]}: {bookings.length ? [...new Set(bookings.map(holder))].join(", ") : "ledig"}
+                                </span>
+                              );
+                            })}
+                          </small>
+                        ) : (
+                          <small>
+                            {over
+                              ? ""
+                              : free
+                                ? option.machines.map((m) => KIND_LABEL[m.kind]).join(" + ")
+                                : [...new Set(occupied.map(holder))].join(" · ")}
+                          </small>
+                        )}
                       </div>
                       <div class="slot-action">
                         {free &&
@@ -500,6 +561,43 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                 <Icon name="arrow" size={16} />
                               </button>
                             </form>
+                          ) : (
+                            <a class="button secondary" href="#apartment-start">
+                              Velg leilighet
+                            </a>
+                          ))}
+                        {partial &&
+                          (p.apartment ? (
+                            freeMachines.map((m) => (
+                              <details class="slot-details slot-confirm">
+                                <summary
+                                  class="reserve-button"
+                                  aria-label={`Reserver ${KIND_SHORT[m.kind].toLowerCase()}, ${m.name}, ${time}`}
+                                >
+                                  <Icon name={m.kind} size={15} />
+                                  Reserver {KIND_SHORT[m.kind].toLowerCase()}
+                                </summary>
+                                <div class="slot-popover">
+                                  <p>
+                                    Kun {KIND_DEFINITE[m.kind]} er ledig. Vil du reservere den?
+                                    <small>
+                                      {m.name} · {fmtMinute(s.start)}–{fmtMinute(s.end)}
+                                    </small>
+                                  </p>
+                                  <div class="confirm-actions">
+                                    <form method="post" action={action("book")} data-reserve>
+                                      <Hidden fields={{ mode: String(m.id), date: selected, start: s.start }} />
+                                      <button class="small-button" aria-label={`Ja, reserver ${m.name}, ${time}`}>
+                                        Ja
+                                      </button>
+                                    </form>
+                                    <a class="button secondary" href={url()} data-close>
+                                      Nei
+                                    </a>
+                                  </div>
+                                </div>
+                              </details>
+                            ))
                           ) : (
                             <a class="button secondary" href="#apartment-start">
                               Velg leilighet
@@ -568,16 +666,20 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   );
                 })}
             </div>
-            <div class="schedule-note" hidden={past}>
-              <Icon name="check" size={16} />
-              <span>
-                {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Du kan avbestille
-                under Dine tider.
-              </span>
-            </div>
+            {!p.hideHint && (
+              <div class="schedule-note" hidden={past}>
+                <Icon name="check" size={16} />
+                <span>
+                  {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Du kan
+                  avbestille under Dine tider.
+                </span>
+              </div>
+            )}
             {option && !past && available(selected) === 0 && (
               <p class="next-day">
-                Ingen ledige tider igjen denne dagen.{" "}
+                {p.slots.some((s) => !slotIsOver(selected, s.end, p.now) && partlyFree(selected, s))
+                  ? "Ingen tider med alle maskinene ledige denne dagen."
+                  : "Ingen ledige tider igjen denne dagen."}{" "}
                 {p.days.find((d) => d > selected && available(d) > 0) ? (
                   <a href={url(p.days.find((d) => d > selected && available(d) > 0)!)}>Se neste ledige dag →</a>
                 ) : (
