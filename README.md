@@ -43,7 +43,8 @@ D1 migrations to the remote database and then runs `wrangler deploy`. Migrations
 happens if they succeed, so the app never runs against an outdated database. A failed migration leaves the
 previous version live. `wrangler deploy` runs the `build` hook in `wrangler.jsonc`, which compiles `client/*.ts`
 into `public/`. Write migrations so the currently deployed version keeps working until the new one is live.
-When Workers Builds is unavailable, run `npm run deploy` from your machine (after `npx wrangler login`).
+`CI=true` makes the migration step skip wrangler's confirmation prompt, so `npm run deploy` behaves the same from
+your machine (after `npx wrangler login`) as in Workers Builds; use it when Workers Builds is unavailable.
 
 Previews are off because they would share the live database: preview builds for branches and PRs are disabled in
 the dashboard, and per-version preview URLs by `"preview_urls": false` in `wrangler.jsonc`.
