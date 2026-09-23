@@ -22,7 +22,7 @@
 
 ## Admin
 
-- [] Improve the UX on the admin/settings page.
+- [x] Improve the UX on the admin/settings page. (2026-09-23: admin redesign on branch `fm/vk-admin-redesign`: resident-style header and cards, sectioned settings with a desktop table of contents, slot-length picker with live preview, inline machine reorder/switch/rename, modal/drawer dialogs, resident password on/off toggle and readable encrypted door code (migration 0003), apartment count and duplicate flags. Toasts, audit log and danger zone are separate tasks.)
 
 ## Onboarding
 
@@ -38,4 +38,5 @@
 
 ## Log
 
+- 2026-09-23: Admin redesign (see Admin). Admin styles and script live in `public/admin.css` and `client/admin.ts`, loaded only on admin pages. Pages render without a doctype (quirks mode); worth fixing in `Layout` separately.
 - 2026-09-23: Added GitHub Actions CI (typecheck + tests on PRs and pushes to main, Node 24) and MIT LICENSE.

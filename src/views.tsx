@@ -25,6 +25,7 @@ export const Layout: FC<{
   children: Child;
   tenant?: Tenant;
   vapidKey?: string;
+  head?: Child;
 }> = (p) => (
   <html lang="nb">
     <head>
@@ -36,6 +37,7 @@ export const Layout: FC<{
       <link rel="manifest" href="/manifest.webmanifest" />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />
       <script type="module" src="/app.js" defer></script>
+      {p.head}
     </head>
     <body data-slug={p.tenant?.slug} data-vapid={p.vapidKey}>
       {p.children}
@@ -108,7 +110,7 @@ export const ApartmentPicker: FC<{
   </form>
 );
 
-const Icon: FC<{
+export const Icon: FC<{
   name?: "washer" | "arrow" | "clock" | "check" | "home" | "calendar";
   size?: number;
 }> = ({ name = "washer", size = 20 }) => (
