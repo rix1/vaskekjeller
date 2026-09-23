@@ -9,10 +9,13 @@
   // Compiles client/*.ts (page script + service worker) into public/
   "build": { "command": "tsc -p client && tsc -p client/tsconfig.sw.json" },
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": false },
+  // Created with `wrangler d1 create --jurisdiction eu`: data stays in the EU.
+  // A D1 database's jurisdiction cannot be changed after creation.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "vaskekjeller",
+      "database_id": "ec66ae5d-4004-4ff3-a54e-f3ea3fbe4ce1",
       "migrations_dir": "migrations"
     }
   ],
