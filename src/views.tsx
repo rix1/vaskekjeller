@@ -1,6 +1,16 @@
 import type { Child, FC } from "hono/jsx";
 import { bookingOptions } from "./booking-options.ts";
-import { KIND_LABEL, slotKey, type Booking, type Machine, type Tenant, type WaitEntry } from "./db.ts";
+import {
+  KIND_LABEL,
+  MAX_MESSAGES,
+  MESSAGES,
+  slotKey,
+  type Booking,
+  type Machine,
+  type MessageCount,
+  type Tenant,
+  type WaitEntry,
+} from "./db.ts";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
@@ -16,6 +26,9 @@ export const FLASH: Record<string, string> = {
   waiting: "Du står på ventelisten. Slå på varsler for å få beskjed når tiden blir ledig eller får en ny kommentar.",
   unwaited: "Du er fjernet fra ventelisten.",
   note: "Kommentaren er lagret.",
+  "message-sent": "Meldingen er sendt. Du står nå på ventelisten og får beskjed når kommentaren endres.",
+  "message-limit": `Du har allerede sendt ${MAX_MESSAGES} meldinger om denne tiden.`,
+  "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
   "wrong-password": "Feil passord.",
   saved: "Lagret.",
 };
@@ -45,7 +58,10 @@ export const Layout: FC<{
 
 const Flash: FC<{ code?: string }> = ({ code }) =>
   code && FLASH[code] ? (
-    <p role="status" class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password"].includes(code) ? "err" : ""}`}>
+    <p
+      role="status"
+      class={`flash ${["taken", "limit", "invalid", "over", "bad-apt", "wrong-password", "message-limit", "no-push"].includes(code) ? "err" : ""}`}
+    >
       {FLASH[code]}
     </p>
   ) : null;
@@ -151,6 +167,51 @@ const Icon: FC<{
   </svg>
 );
 
+/** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
+const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; sent: number }> = ({
+  booking: b,
+  action,
+  notifiable,
+  sent,
+}) => (
+  <div class="slot-message">
+    {!notifiable ? (
+      <small>Leil. {b.apartment} har ikke varsler på.</small>
+    ) : sent >= MAX_MESSAGES ? (
+      <small>
+        Du har sendt {MAX_MESSAGES} av {MAX_MESSAGES} meldinger til leil. {b.apartment} om denne tiden.
+      </small>
+    ) : (
+      <details>
+        <summary>
+          Send melding til leil. {b.apartment} <span aria-hidden="true">⌄</span>
+        </summary>
+        <form method="post" action={action} class="message-form">
+          <Hidden fields={{ booking_id: b.id }} />
+          <fieldset>
+            <legend>Velg melding</legend>
+            {Object.entries(MESSAGES).map(([key, text], i) => (
+              <label class="message-choice">
+                <input type="radio" name="preset" value={key} required checked={i === 0} />
+                {text}
+              </label>
+            ))}
+          </fieldset>
+          <label>
+            Legg til (valgfritt)
+            <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
+          </label>
+          <small>
+            Leil. {b.apartment} får et varsel og kan svare med en kommentar.{" "}
+            {sent > 0 ? `${sent} av ${MAX_MESSAGES} sendt.` : "Du settes på ventelisten."}
+          </small>
+          <button class="small-button">Send melding</button>
+        </form>
+      </details>
+    )}
+  </div>
+);
+
 type BoardProps = {
   tenant: Tenant;
   /** Includes inactive machines, so past days still show who used them. */
@@ -164,6 +225,11 @@ type BoardProps = {
   waitlist: WaitEntry[];
   apartment?: string;
   apartments: string[];
+  /** Apartments with upcoming bookings that have at least one device with notifications on. */
+  notifiable: string[];
+  messagesSent: MessageCount[];
+  /** Booking id whose comment field opens (from a message push). */
+  openNote?: string;
   now: LocalNow;
   flash?: string;
   vapidKey: string;
@@ -221,6 +287,10 @@ export const BoardPage: FC<BoardProps> = (p) => {
         )
         .map((w) => w.apartment),
     ).size;
+  const messageState = (b: Booking) => ({
+    notifiable: p.notifiable.includes(b.apartment),
+    sent: p.messagesSent.find((m) => m.date === b.date && m.start_min === b.start_min && m.holder === b.apartment)?.sent ?? 0,
+  });
   const weekIndex = p.weeks.findIndex((w) => w.includes(selected));
   const week = p.weeks[weekIndex] ?? [];
   // Opening a week selects today when it is in that week, else its first viewable day.
@@ -576,6 +646,10 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                   </div>
                                 );
                               })}
+                              {p.apartment &&
+                                other
+                                  .filter((b, i) => other.findIndex((x) => x.apartment === b.apartment) === i)
+                                  .map((b) => <MessageForm booking={b} action={action("message")} {...messageState(b)} />)}
                             </div>
                           </details>
                         )}
@@ -626,6 +700,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 const b = bookings[0]!;
                 const ids = bookings.map((x) => x.id).join(",");
                 const waiting = waiters(bookings);
+                const openNote = bookings.some((x) => String(x.id) === p.openNote);
                 return (
                   <article class={`reservation-card ${index === 0 ? "next-reservation" : ""}`} id={`reservation-${b.id}`}>
                     {bookings.slice(1).map((x) => (
@@ -651,7 +726,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                       </p>
                     )}
                     <div class="reservation-actions">
-                      <details>
+                      <details open={openNote}>
                         <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
                         <form method="post" action={`${base}/note${query(b.date)}`} class="note-form">
                           <Hidden fields={{ booking_ids: ids }} />
@@ -662,6 +737,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                               maxlength={140}
                               value={b.note ?? ""}
                               placeholder="F.eks. ferdig litt før"
+                              autofocus={openNote}
                               aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
                             />
                           </label>

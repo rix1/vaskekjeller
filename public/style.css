@@ -891,6 +891,73 @@ summary::-webkit-details-marker {
   font-size: 12px;
   min-height: 32px;
 }
+.slot-message summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.slot-message details[open] summary span {
+  transform: rotate(180deg);
+}
+.message-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+.message-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.message-form legend {
+  padding: 0 0 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+label.message-choice {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 450;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+label.message-choice:has(:checked) {
+  border-color: var(--accent);
+  background: #f2f6f3;
+}
+.message-choice input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.message-form > label {
+  font-size: 11px;
+}
+.message-form input[name="note"] {
+  font-size: 12px;
+  min-height: 36px;
+}
+@media (pointer: coarse) {
+  /* Below 16px, iOS zooms the page when the field gets focus. */
+  .message-form input[name="note"] {
+    font-size: 16px;
+  }
+}
 .schedule-note {
   display: flex;
   gap: 8px;

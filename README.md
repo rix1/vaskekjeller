@@ -15,6 +15,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   waitlist gets a push notification. First to book wins.
   The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
   everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
+- **Messages**: under "Se detaljer" on someone else's booking, "Send melding" pushes a ready-made question (plus an
+  optional 140-character note) to the holder's devices. It is only offered when the holder has notifications on.
+  The holder answers by updating their comment; the sender is put on that slot's waitlist to hear it. At most 3
+  messages per apartment per booking; only that count is stored, never the text.
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats.
@@ -81,8 +85,8 @@ reservations after an administrator changes the schedule. Apply migrations befor
 `npm run typecheck` checks server, client, scripts, and service-worker types.
 `npm test` runs the real Hono booking routes against isolated SQLite (Node 22.13+), covering paired
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
-calendar-week date strip, the read-only past-day view, apartment selection, and waitlist counts and comment
-pushes. It also compiles the service worker and runs it as a classic script, since `/sw.js` is registered
+calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
+pushes, and messages to booking holders (`tests/push-messages.test.mjs`). It also compiles the service worker and runs it as a classic script, since `/sw.js` is registered
 without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 

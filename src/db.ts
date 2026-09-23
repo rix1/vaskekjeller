@@ -30,6 +30,18 @@ export type Booking = {
 
 export type WaitEntry = { machine_id: number; date: string; start_min: number; apartment: string };
 
+/** Ready-made messages a resident can push to another apartment's reservation. */
+export const MESSAGES = {
+  "done-soon": "Er du ferdig snart?",
+  "forgot-clothes": "Du har glemt klær i maskinen",
+  "take-dryer": "Kan jeg ta over tørketrommelen?",
+} as const;
+export type MessageKey = keyof typeof MESSAGES;
+/** Messages one apartment may send about one reservation. */
+export const MAX_MESSAGES = 3;
+/** How many messages the viewer has sent about a reservation (holder, date, start_min). */
+export type MessageCount = { date: string; start_min: number; holder: string; sent: number };
+
 export function apartmentList(t: Tenant): string[] {
   return (t.apartments ?? "")
     .split(/[\n,]/)

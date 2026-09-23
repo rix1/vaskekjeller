@@ -17,6 +17,7 @@ function cleanUrl(raw: string) {
   const url = new URL(raw, location.href);
   url.searchParams.delete("m");
   url.searchParams.delete("reservation");
+  url.searchParams.delete("note");
   return url;
 }
 
