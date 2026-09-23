@@ -66,7 +66,8 @@ const reset = async () => {
   await db.batch([
     db.prepare("DELETE FROM bookings"),
     db.prepare("DELETE FROM waitlist"),
-    db.prepare("UPDATE tenants SET max_active_bookings = 0"),
+    db.prepare("UPDATE tenants SET max_active_bookings = 0, day_start_min = 480"),
+    db.prepare("UPDATE machines SET active = 1"),
   ]);
 };
 const flash = (response) => new URL(response.headers.get("location"), "http://localhost").searchParams.get("m");
@@ -235,6 +236,25 @@ test("past days show who used each machine, read-only, without cancelled booking
   assert.doesNotMatch(html, /action="\/demo\/(book|wait|unwait)/);
   assert.doesNotMatch(html, /reserve-button/);
   assert.match(html, new RegExp(`data-date="${day}"[^>]*aria-label="[^"]*, passert"[^>]*>.*?<small>Passert</small>`));
+});
+
+test("past days still show bookings on since-deactivated machines and outside today's opening hours", async () => {
+  await reset();
+  const day = localDate(-2);
+  await insertBooking(day, 2, "E5", "Glemte tøy i tørketrommelen");
+  await db.prepare("UPDATE machines SET active = 0 WHERE id = 2").run();
+  let html = await board(day);
+  assert.match(html, /class="usage-machine">Tørketrommel</);
+  assert.match(html, /Leil\. E5/);
+  assert.match(html, /Glemte tøy i tørketrommelen/);
+
+  await db.prepare("UPDATE tenants SET day_start_min = 600").run();
+  html = await board(day);
+  assert.match(html, /08:00<span class="time-dash">–<\/span>10:00/);
+  assert.match(html, /Leil\. E5/);
+
+  await db.prepare("UPDATE machines SET active = 0").run();
+  assert.match(await board(day), /Leil\. E5/);
 });
 
 test("writes to past slots are still rejected", async () => {

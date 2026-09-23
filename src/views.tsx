@@ -153,6 +153,7 @@ const Icon: FC<{
 
 type BoardProps = {
   tenant: Tenant;
+  /** Includes inactive machines, so past days still show who used them. */
   machines: Machine[];
   /** Every viewable day, from the look-back window through the booking horizon. */
   days: string[];
@@ -174,10 +175,20 @@ type BoardProps = {
 
 export const BoardPage: FC<BoardProps> = (p) => {
   const base = `/${p.tenant.slug}`;
-  const options = bookingOptions(p.machines);
+  const options = bookingOptions(p.machines.filter((m) => m.active));
   const option = options.find((o) => o.key === p.mode) ?? options[0];
   const selected = p.days.includes(p.selectedDate ?? "") ? p.selectedDate! : p.now.date;
   const past = selected < p.now.date;
+  // Past days follow what was booked, even if machines or opening hours have changed since.
+  const overlaps = (b: Booking, s: Slot) => b.start_min < s.end && b.end_min > s.start;
+  const dayBookings = p.bookings.filter((b) => b.date === selected);
+  const pastMachines = p.machines.filter((m) => m.active || dayBookings.some((b) => b.machine_id === m.id));
+  const pastSlots = [
+    ...p.slots,
+    ...dayBookings.filter((b) => !p.slots.some((s) => overlaps(b, s))).map((b) => ({ start: b.start_min, end: b.end_min })),
+  ]
+    .filter((s, i, all) => all.findIndex((o) => o.start === s.start && o.end === s.end) === i)
+    .sort((a, b) => a.start - b.start);
   const mode = option?.key ?? "";
   const query = (date = selected, key = mode) => `?date=${date}&mode=${key}`;
   const url = (date = selected, key = mode) => `${base}${query(date, key)}`;
@@ -374,21 +385,18 @@ export const BoardPage: FC<BoardProps> = (p) => {
               )}
             </div>
             <div class="slots" id={`d-${selected}`}>
-              {!option && (
+              {!option && !past && (
                 <div class="empty-state">
                   <Icon />
                   <h3>Vaskerommet gjøres klart</h3>
                   <p>Ingen maskiner er lagt til ennå.</p>
                 </div>
               )}
-              {option &&
-                past &&
-                p.slots.map((s) => {
-                  const usage = p.machines.map((m) => ({
+              {past &&
+                pastSlots.map((s) => {
+                  const usage = pastMachines.map((m) => ({
                     machine: m,
-                    bookings: p.bookings.filter(
-                      (b) => b.machine_id === m.id && b.date === selected && b.start_min < s.end && b.end_min > s.start,
-                    ),
+                    bookings: dayBookings.filter((b) => b.machine_id === m.id && overlaps(b, s)),
                   }));
                   const used = usage.some((u) => u.bookings.length);
                   return (

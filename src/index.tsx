@@ -107,7 +107,7 @@ t.get("/", async (c) => {
   const first = addDays(now.date, -LOOKBACK_DAYS);
   const last = addDays(now.date, tenant.booking_horizon_days - 1);
   const [machines, bookings, waitlist] = await Promise.all([
-    getMachines(c.env.DB, tenant.id),
+    getMachines(c.env.DB, tenant.id, true),
     getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
   ]);
