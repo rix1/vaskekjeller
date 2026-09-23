@@ -1875,7 +1875,7 @@ summary.reserve-button:active {
   animation-play-state: paused;
 }
 .toaster .toast.leaving {
-  animation: toast-out 200ms ease forwards;
+  animation: toast-leave 200ms ease forwards;
 }
 .toast-icon {
   flex: none;
@@ -1954,6 +1954,13 @@ summary.reserve-button:active {
   }
 }
 @keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    visibility: hidden;
+  }
+}
+@keyframes toast-leave {
   to {
     opacity: 0;
     transform: translateY(8px) scale(0.98);

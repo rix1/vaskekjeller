@@ -22,7 +22,7 @@ const toastText = (toast: Element) =>
 
 function trackToast(toast: HTMLElement) {
   toast.addEventListener("animationend", (event) => {
-    if (event.animationName === "toast-out") toast.remove();
+    if (event.animationName === "toast-out" || event.animationName === "toast-leave") toast.remove();
   });
 }
 
@@ -70,7 +70,13 @@ function clientToast(tone: "success" | "error", message: string) {
   return toast;
 }
 
-document.querySelectorAll<HTMLElement>(".toast").forEach(trackToast);
+const pageToasts = [...document.querySelectorAll<HTMLElement>(".toast")];
+pageToasts.forEach(trackToast);
+const pageStatus = pageToasts.filter((toast) => toast.getAttribute("role") === "status").map(toastText).join(" ");
+if (pageStatus)
+  setTimeout(() => {
+    if (!live.textContent) live.textContent = pageStatus;
+  }, 500);
 document.addEventListener("visibilitychange", () => {
   document.querySelector(".toaster")?.classList.toggle("paused", document.hidden);
 });
