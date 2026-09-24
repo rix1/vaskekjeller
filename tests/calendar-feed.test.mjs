@@ -101,6 +101,7 @@ before(async () => {
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
   sqlite.exec(await readFile("migrations/0003_resident_password_readable.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
+  sqlite.exec(await readFile("migrations/0006_audit_log_and_closing.sql", "utf8"));
   await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test',?)").bind(pbkdf2Hash(ADMIN_PASSWORD)).run();
   await db
     .prepare(
