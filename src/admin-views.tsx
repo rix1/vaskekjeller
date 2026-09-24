@@ -268,19 +268,6 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
   return (
     <AdminPage tenant={tenant} title="Oversikt" active="overview" flash={flash}>
       <div class="admin-stack">
-        {stats.bookings30 === 0 && upcoming.length === 0 && (
-          <section class="card invite-card" aria-labelledby="inviter">
-            <div class="setting-row">
-              <div class="setting-text">
-                <h2 id="inviter">Ingen har booket ennå</h2>
-                <p>Send en melding til beboerne med lenken og hvordan de kommer i gang. Den er skrevet ferdig for deg.</p>
-              </div>
-              <a href={`/${tenant.slug}/admin/kom-i-gang/del`} class="button">
-                Lag melding
-              </a>
-            </div>
-          </section>
-        )}
         <section class="card" aria-labelledby="siste-30">
           <div class="card-head">
             <h2 id="siste-30">Siste 30 dager</h2>
@@ -893,18 +880,6 @@ export const AdminSettings: FC<
                   {tenant.recovery_code_hash ? "Lag ny" : "Lag kode"}
                 </a>
               )}
-            </div>
-            <div class="setting-row">
-              <span class="setting-icon">
-                <AdminIcon name="share" />
-              </span>
-              <div class="setting-text">
-                <h3>Del med beboere og admins</h3>
-                <p>Ferdige meldinger med lenken{passwordOn ? " og beboerpassordet" : ""}, klare til å kopiere og sende.</p>
-              </div>
-              <a href={`${base}/kom-i-gang/del`} class="button secondary small">
-                Lag melding
-              </a>
             </div>
             <div class="danger-zone">
               <div class="setting-row">

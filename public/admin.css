@@ -1194,25 +1194,10 @@ dialog.sheet:focus-visible {
   }
 }
 
-/* Primary link buttons (the invite card, the last signup step) */
+/* Primary link buttons (the last signup step) */
 .admin-main a.button:not(.secondary, .ghost) {
   background: var(--green);
   color: #fff;
-}
-
-/* Invite card on the overview while nobody has booked */
-.invite-card {
-  background: var(--green-soft);
-  border-color: #d6e4d6;
-}
-.invite-card .setting-row {
-  padding: 0;
-}
-.invite-card h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.3px;
 }
 
 /* Recovery code: settings dialog and signup step 7 */

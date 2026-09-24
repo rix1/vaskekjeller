@@ -601,6 +601,36 @@ test("the recovery code resets the admin password once and is replaced by a new 
   assert.equal(reused.status, 422, "the old code is used up");
 });
 
+test("a double-submitted reset with the same code succeeds once, and the winner sees the new code", async () => {
+  const { code } = await withCode();
+  const id = tenant("lofotgata").id;
+  const before = auditLog(id).length;
+  const tabs = [browser(), browser()];
+  const responses = await Promise.all(
+    tabs.map((b, i) =>
+      b.post("/lofotgata/admin/nullstill", {
+        recovery_code: code,
+        admin_password: `new password ${i}`,
+        admin_password_confirm: `new password ${i}`,
+      }),
+    ),
+  );
+  assert.deepEqual(responses.map((r) => r.status).sort(), [303, 422]);
+  const winner = responses.findIndex((r) => r.status === 303);
+  const loser = 1 - winner;
+  assert.equal(auditLog(id).length, before + 1, "one reset, one log entry");
+
+  const settings = await (await tabs[winner].get(`${location(responses[winner]).pathname}?vis=kode`)).text();
+  const fresh = /id="recovery-code-value">([^<]+)</.exec(settings)?.[1];
+  assert.ok(fresh, "the winner stays logged in and sees the new code");
+  assert.equal(await lib.recoveryHash(id, fresh), tenant("lofotgata").recovery_code_hash);
+  assert.equal(location(await tabs[loser].get("/lofotgata/admin/settings")).pathname, "/lofotgata/admin/login");
+  assert.equal(
+    location(await browser().post("/lofotgata/admin/login", { password: `new password ${winner}` })).pathname,
+    "/lofotgata/admin",
+  );
+});
+
 test("admins can make a new code from the settings; the old one stops working", async () => {
   const { b, code } = await withCode();
   assert.equal(location(await browser().post("/lofotgata/admin/recovery", {})).pathname, "/lofotgata/admin/login");
@@ -637,13 +667,6 @@ test("recovery codes: format, typing mistakes and hashing", async () => {
   assert.equal(lib.normalizeRecoveryCode("abcd efgh-ijkl mnop-qrs0"), "ABCDEFGH1JK1MN0PQRS0");
   assert.equal(await lib.recoveryHash(1, code), await lib.recoveryHash(1, code.toLowerCase()));
   assert.notEqual(await lib.recoveryHash(1, code), await lib.recoveryHash(2, code));
-});
-
-test("the overview invites a new building's admin to share the link", async () => {
-  const { b } = await signUp();
-  const page = await (await b.get("/lofotgata/admin")).text();
-  assert.match(page, /Ingen har booket ennå/);
-  assert.match(page, /href="\/lofotgata\/admin\/kom-i-gang\/del"/);
 });
 
 // ---------------------------------------------------------------------------

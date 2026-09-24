@@ -43,12 +43,14 @@ type Ctx = Context<{ Bindings: Env; Variables: any }>;
 const cookiePath = (t: Tenant) => `/${t.slug}/admin`;
 const cookieContext = (t: Tenant) => `tenant:${t.id}:recovery-code`;
 
-/** Makes a new code, replacing the old one, and keeps it in the cookie so it can be shown. Returns the new hash.
- * `also` is written in the same batch, e.g. the audit entry. */
-export async function issueRecoveryCode(c: Ctx, t: Tenant, also: D1PreparedStatement[] = []): Promise<string> {
+/** A new code for the building and its hash. Nothing is stored yet. */
+export async function mintRecoveryCode(t: Tenant): Promise<{ code: string; hash: string }> {
   const code = newRecoveryCode();
-  const hash = await recoveryHash(t.id, code);
-  await c.env.DB.batch([c.env.DB.prepare("UPDATE tenants SET recovery_code_hash = ? WHERE id = ?").bind(hash, t.id), ...also]);
+  return { code, hash: await recoveryHash(t.id, code) };
+}
+
+/** Keeps a code that is now the building's current one in the cookie, so it can be shown. */
+export async function rememberRecoveryCode(c: Ctx, t: Tenant, code: string) {
   setCookie(c, COOKIE, await encryptText(c.env.SESSION_SECRET, code, cookieContext(t)), {
     path: cookiePath(t),
     httpOnly: true,
@@ -56,7 +58,14 @@ export async function issueRecoveryCode(c: Ctx, t: Tenant, also: D1PreparedState
     sameSite: "Strict",
     maxAge: COOKIE_MAX_AGE,
   });
-  return hash;
+}
+
+/** Makes a new code, replacing the old one, and keeps it in the cookie so it can be shown.
+ * `also` is written in the same batch, e.g. the audit entry. */
+export async function issueRecoveryCode(c: Ctx, t: Tenant, also: D1PreparedStatement[] = []) {
+  const { code, hash } = await mintRecoveryCode(t);
+  await c.env.DB.batch([c.env.DB.prepare("UPDATE tenants SET recovery_code_hash = ? WHERE id = ?").bind(hash, t.id), ...also]);
+  await rememberRecoveryCode(c, t, code);
 }
 
 /** The code made in the last hour on this device, if it is still the building's current one. */

@@ -63,7 +63,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   steps are plain GET forms; the building is created by the third, which is guarded by an invisible Cloudflare
   Turnstile check and a limit of 3 buildings per network per day. The limit counts a salted, daily-rotating hash
   of the IPv4 address or IPv6 /64, never the address itself. The later steps are admin pages under
-  `/<slug>/admin/kom-i-gang`, and the share step is also linked from the admin page.
+  `/<slug>/admin/kom-i-gang`.
 - **Recovery code**: there is no email, so the only way to reset a forgotten admin password is the recovery code
   shown once at the end of signup (copy or download it). Only its SHA-256 hash is stored. It resets the password at
   `/<slug>/admin/nullstill` (linked from the admin login) and is then replaced by a new one; admins can also make a

@@ -35,7 +35,15 @@ import {
 } from "./db.ts";
 import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
 import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
-import { forgetRecoveryCode, issueRecoveryCode, pendingRecoveryCode, recoveryCodeMatches, recoveryFile } from "./recovery.ts";
+import {
+  forgetRecoveryCode,
+  issueRecoveryCode,
+  mintRecoveryCode,
+  pendingRecoveryCode,
+  recoveryCodeMatches,
+  recoveryFile,
+  rememberRecoveryCode,
+} from "./recovery.ts";
 import { onboarding, signup } from "./signup-routes.tsx";
 import { RecoveryResetPage } from "./signup-views.tsx";
 import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, slotIsOver, slotsFor } from "./time.ts";
@@ -672,16 +680,18 @@ admin.post("/nullstill", async (c) => {
     errors.recovery_code = "Koden stemmer ikke. Sjekk at du har skrevet den riktig.";
   if (Object.keys(errors).length) return c.html(<RecoveryResetPage tenant={tenant} errors={errors} />, 422);
   const hash = await hashPassword(f.admin_password!);
+  const next = await mintRecoveryCode(tenant);
   // Only the first of two simultaneous resets with the same code wins.
-  const used = await c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ? AND recovery_code_hash = ?")
-    .bind(hash, tenant.id, tenant.recovery_code_hash)
+  const used = await c.env.DB.prepare(
+    "UPDATE tenants SET admin_password_hash = ?, recovery_code_hash = ? WHERE id = ? AND recovery_code_hash = ?",
+  )
+    .bind(hash, next.hash, tenant.id, tenant.recovery_code_hash)
     .run();
   if (!used.meta.changes)
     return c.html(<RecoveryResetPage tenant={tenant} errors={{ recovery_code: "Koden stemmer ikke. Sjekk at du har skrevet den riktig." }} />, 422);
-  const reset = { ...tenant, admin_password_hash: hash };
-  await issueRecoveryCode(c, reset, [
-    auditStatement(c, "admin-password", "Nullstilte adminpassordet med gjenopprettingskoden. Koden er byttet ut med en ny."),
-  ]);
+  const reset = { ...tenant, admin_password_hash: hash, recovery_code_hash: next.hash };
+  await audit(c, "admin-password", "Nullstilte adminpassordet med gjenopprettingskoden. Koden er byttet ut med en ny.");
+  await rememberRecoveryCode(c, reset, next.code);
   await auth.grant(c, reset, "admin");
   return c.redirect(`${adminBase(c)}/settings?m=admin-reset&vis=kode#tilgang`, 303);
 });
