@@ -189,6 +189,16 @@ test("the apartment feed lists own bookings with machines, comment, waiting coun
   );
 });
 
+test("past bookings in the feed do not count waiters", async () => {
+  await reset();
+  const past = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+  await db.prepare("INSERT INTO bookings (tenant_id, machine_id, date, start_min, end_min, apartment) VALUES (1, 1, ?, 480, 600, 'A3')").bind(past).run();
+  await db.prepare("INSERT INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (1, 1, ?, 480, 'B2')").bind(past).run();
+  const [own] = events(await (await fetchFeed(await feedUrl())).text());
+  assert.equal(own.URL, `http://localhost/demo?date=${past}`);
+  assert.doesNotMatch(own.DESCRIPTION, /venter/);
+});
+
 test("including others marks their bookings free, and the toggle updates the same link", async () => {
   await reset();
   await book(480, "A3");
@@ -296,6 +306,7 @@ test("setting, changing or removing the resident password retires every link", a
 
     await residentPassword();
     assert.equal((await fetchFeed(second)).status, 404);
+    assert.equal((await fetchFeed(before[1])).status, 404, "a link retired earlier stays retired");
     const third = await feedUrl();
     assert.ok(![...before, first, second].includes(third));
     assert.equal((await fetchFeed(third)).status, 200);

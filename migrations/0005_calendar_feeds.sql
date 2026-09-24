@@ -9,7 +9,7 @@ CREATE TABLE calendar_feeds (
   token           TEXT NOT NULL UNIQUE,
   -- Also list other apartments' bookings (marked free) so the calendar shows when the room is occupied
   include_others  INTEGER NOT NULL DEFAULT 0,
-  -- '' when the building has no resident password
+  -- '' when the building has no resident password; 'retired' once that password changes
   password_key    TEXT NOT NULL DEFAULT '',
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (tenant_id, apartment)

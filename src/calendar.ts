@@ -56,6 +56,10 @@ export async function replaceFeedToken(db: D1Database, tenant: Tenant, apartment
     .run();
 }
 
+/** Resident password set, changed or turned off: no existing link opens a feed again, even if the key repeats. */
+export const retireFeeds = (db: D1Database, tenantId: number) =>
+  db.prepare("UPDATE calendar_feeds SET password_key = 'retired' WHERE tenant_id = ?").bind(tenantId);
+
 /** Only links made under the current resident password open a feed. */
 export async function feedByToken(db: D1Database, tenant: Tenant, token: string) {
   return db
@@ -125,7 +129,7 @@ export async function buildFeed(db: D1Database, tenant: Tenant, feed: CalendarFe
   const [machines, bookings, waitlist] = await Promise.all([
     getMachines(db, tenant.id, true),
     getBookings(db, tenant.id, first, last),
-    getWaitlist(db, tenant.id, first, last),
+    getWaitlist(db, tenant.id, today, last),
   ]);
   const host = `${tenant.slug}.vaskekjeller`;
   const groups = new Map<string, Booking[]>();

@@ -4,7 +4,7 @@ import { csrf } from "hono/csrf";
 import { AdminOverview, AdminSettings, apartmentSummary, SECTIONS, SLOT_LENGTHS, type SettingsState, type Stats } from "./admin-views.tsx";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
-import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
+import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken, retireFeeds } from "./calendar.ts";
 import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import {
   apartmentList,
@@ -890,18 +890,20 @@ admin.post("/access", async (c) => {
     );
   const hash = await hashPassword(pw);
   const encrypted = await encryptText(c.env.SESSION_SECRET, pw, accessContext(tenant));
-  await c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?")
-    .bind(hash, encrypted, tenant.id)
-    .run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?").bind(hash, encrypted, tenant.id),
+    retireFeeds(c.env.DB, tenant.id),
+  ]);
   // Keep the admin's own device signed in as a resident
   await auth.grant(c, { ...tenant, access_password_hash: hash }, "access");
   return settingsBack(c, tenant.access_password_hash ? "access-changed" : "access-on", "tilgang");
 });
 
 admin.post("/access/off", async (c) => {
-  await c.env.DB.prepare("UPDATE tenants SET access_password_hash = NULL, access_password_enc = NULL WHERE id = ?")
-    .bind(c.var.tenant.id)
-    .run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tenants SET access_password_hash = NULL, access_password_enc = NULL WHERE id = ?").bind(c.var.tenant.id),
+    retireFeeds(c.env.DB, c.var.tenant.id),
+  ]);
   return settingsBack(c, "access-off", "tilgang");
 });
 
