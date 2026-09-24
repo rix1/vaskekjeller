@@ -122,7 +122,8 @@ One-time dashboard setup (connecting the repo, build token permissions, creating
 - Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
   (already set) and `TURNSTILE_SECRET_KEY`. Signup at `/ny` stays closed until both Turnstile keys are set; the
   steps are in [docs/deploy.md](docs/deploy.md#turn-on-signup-turnstile). Don't rotate the VAPID keys: existing
-  push subscriptions stop working. To set one again, use `npx wrangler secret put NAME`, which prompts for the value without echoing it.
+  push subscriptions stop working. To set one again, use `npx wrangler secret put NAME`, which prompts for the
+  value without echoing it.
 - New building: through `/ny`, or `node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote` (prompts
   for the admin password; such a building has no recovery code until an admin makes one).
 
@@ -170,9 +171,9 @@ pushes, the board's partly free rows, day-strip status, and first-booking hint c
 toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
 closing/deleting a building (`tests/audit-danger.test.mjs`), signup, onboarding, Turnstile, the signup limit,
-recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), and the settings table of contents
-and inline
-machine updates in `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
+recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
+(`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
+`client/admin.ts` against a simulated page. It also compiles the service worker and runs it
 as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 
