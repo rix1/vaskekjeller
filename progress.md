@@ -27,7 +27,7 @@
 ## Onboarding
 
 - [] Create a minimal landing page that explains what this is with a nice screenshot (full of bookings)
-- [] Create an signup and onboarding flow for new tenants. Should end with "share with tenants" with some prepared "marketing" material/copy that admins can send out to tenants + other admins (shared account): "copy this message and share it to your tenants to get them started". Slug should be auto-generated from name (and checked for conflicts) but also possible to override/customize.
+- [] Create an signup and onboarding flow for new tenants. Should end with "share with tenants" with some prepared "marketing" material/copy that admins can send out to tenants + other admins (shared account): "copy this message and share it to your tenants to get them started". Slug should be auto-generated from name (and checked for conflicts) but also possible to override/customize. If signup adds recovery codes, log their regeneration in the activity log (`auditStatement` in src/audit.ts).
 - [] Add about page explaining what this is, with FAQ on how data is stored etc. focus on: installing/getting started and how notifications work: when are you notified, how, etc.
 
 ## Devops
@@ -39,6 +39,7 @@
 
 ## Log
 
+- 2026-09-24: Live-validated activity log and danger zone on `wrangler dev` + headless Chrome: every admin action logs one before → after line with a coarse device label (no IP/UA stored), resident bookings are not logged, the cron prunes entries older than 12 months, closing needs the name (410 for booking page/feeds), relogin shows the Stengt panel, reopen works, delete-now needs the name again and leaves no rows, and the cron deletes only buildings closed 7+ days ago.
 - 2026-09-24: Activity log shows every retained entry (capped by `AUDIT_MAX` in src/index.tsx) in one scroll box, with no "Vis alle" paging; the closed-building admin page shows only the Stengt notice, Gjenåpne and Slett permanent nå.
 - 2026-09-24: Live-validated the calendar feed on `wrangler dev` + headless Chrome: popover (Apple button, copy link, lag note, switch, Lag ny lenke), feed content (machines, comment, waiting count, day link, OPAQUE/TRANSPARENT, PT15M), toggle on the same link, rotation 404s the old link, feed works without the resident password, and set/change/off retire every link with no revival.
 - 2026-09-24: Calendar links: admin resident-password routes (set/change/off) now retire every feed of the building in the same batch (`retireFeeds`, password_key = 'retired'), so a link retired earlier can't come back when the key repeats (password off again). Feed waiting counts read the waitlist from today, so past events never say neighbours are waiting.
