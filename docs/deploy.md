@@ -64,7 +64,10 @@ depend on them.
   1. **DNS** → **Records**: add `AAAA` `@` → `100::`, **Proxied** (a placeholder so requests reach Cloudflare).
   2. **Rules** → **Redirect Rules** → create a rule: when hostname equals `vaskekjeller.no`, dynamic
      redirect to `concat("https://www.vaskekjeller.no", http.request.uri.path)`, status **301**,
-     **Preserve query string** on.
+     **Preserve query string** on. Match on hostname only, not the "Redirect from root to WWW"
+     template's `https://vaskekjeller.no/*` URL, which skips plain HTTP: `http://` visitors then reach
+     the `100::` placeholder and get a 522 error. Check with `curl -I http://vaskekjeller.no/`, which should
+     return a 301 to `https://www.vaskekjeller.no/`.
 
 ## If a build fails
 
