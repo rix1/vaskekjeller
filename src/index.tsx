@@ -7,15 +7,14 @@ import {
   AdminSettings,
   apartmentSummary,
   SECTIONS,
-  SLOT_LENGTHS,
   type SettingsState,
   type Stats,
 } from "./admin-views.tsx";
 import { audit, AUDIT_RETENTION, auditEntries, auditStatement, CLOSED_GRACE_DAYS, purgeDate, sameName } from "./audit.ts";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
-import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken, retireFeeds } from "./calendar.ts";
-import { decryptText, encryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
+import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
+import { decryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import {
   apartmentList,
   getBookings,
@@ -34,8 +33,12 @@ import {
   type MessageKey,
   type Tenant,
 } from "./db.ts";
+import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
 import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
-import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, parseHHMM, slotIsOver, slotsFor } from "./time.ts";
+import { forgetRecoveryCode, issueRecoveryCode, pendingRecoveryCode, recoveryCodeMatches, recoveryFile } from "./recovery.ts";
+import { onboarding, signup } from "./signup-routes.tsx";
+import { RecoveryResetPage } from "./signup-views.tsx";
+import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, slotIsOver, slotsFor } from "./time.ts";
 import { BoardPage, ClosedPage, DeletedPage, PasswordPage } from "./views.tsx";
 
 type App = { Bindings: Env; Variables: { tenant: Tenant } };
@@ -46,6 +49,9 @@ const app = new Hono<App>();
 app.use(csrf());
 
 app.get("/", (c) => (c.env.DEFAULT_TENANT ? c.redirect(`/${c.env.DEFAULT_TENANT}`) : c.text("Vaskekjeller", 200)));
+
+// Self-service signup for new buildings. "ny" is a reserved slug, so no building can shadow it.
+app.route("/ny", signup);
 
 // ---------------------------------------------------------------------------
 // Tenant loading + optional resident password gate
@@ -102,11 +108,6 @@ function rememberApartment(c: Ctx, apt: string) {
     sameSite: "Lax",
     maxAge: 60 * 60 * 24 * 400, // browser maximum; refreshed on every visit
   });
-}
-
-async function form(c: Ctx): Promise<Record<string, string>> {
-  const body = await c.req.parseBody();
-  return Object.fromEntries(Object.entries(body).map(([k, v]) => [k, typeof v === "string" ? v : ""]));
 }
 
 t.get("/login", (c) =>
@@ -646,6 +647,7 @@ admin.get("/login", (c) =>
       action={`${adminBase(c)}/login`}
       heading={`Admin · ${c.var.tenant.name}`}
       flash={c.req.query("m")}
+      footer={<a href={`${adminBase(c)}/nullstill`}>Glemt adminpassordet?</a>}
     />,
   ),
 );
@@ -658,8 +660,34 @@ admin.post("/login", async (c) => {
   return c.redirect(adminBase(c), 303);
 });
 
+// Resetting a forgotten admin password with the recovery code. The code works once: a successful
+// reset replaces it with a new one, shown right away on the settings page.
+admin.get("/nullstill", (c) => c.html(<RecoveryResetPage tenant={c.var.tenant} />));
+
+admin.post("/nullstill", async (c) => {
+  const tenant = c.var.tenant;
+  const f = await form(c);
+  const errors: Record<string, string> = adminPasswordErrors(f);
+  if (!(await recoveryCodeMatches(tenant, f.recovery_code ?? "")))
+    errors.recovery_code = "Koden stemmer ikke. Sjekk at du har skrevet den riktig.";
+  if (Object.keys(errors).length) return c.html(<RecoveryResetPage tenant={tenant} errors={errors} />, 422);
+  const hash = await hashPassword(f.admin_password!);
+  // Only the first of two simultaneous resets with the same code wins.
+  const used = await c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ? AND recovery_code_hash = ?")
+    .bind(hash, tenant.id, tenant.recovery_code_hash)
+    .run();
+  if (!used.meta.changes)
+    return c.html(<RecoveryResetPage tenant={tenant} errors={{ recovery_code: "Koden stemmer ikke. Sjekk at du har skrevet den riktig." }} />, 422);
+  const reset = { ...tenant, admin_password_hash: hash };
+  await issueRecoveryCode(c, reset, [
+    auditStatement(c, "admin-password", "Nullstilte adminpassordet med gjenopprettingskoden. Koden er byttet ut med en ny."),
+  ]);
+  await auth.grant(c, reset, "admin");
+  return c.redirect(`${adminBase(c)}/settings?m=admin-reset&vis=kode#tilgang`, 303);
+});
+
 admin.use(async (c, next) => {
-  if (c.req.path.endsWith("/admin/login")) return next();
+  if (c.req.path.endsWith("/admin/login") || c.req.path.endsWith("/admin/nullstill")) return next();
   if (!(await auth.has(c, c.var.tenant, "admin"))) return c.redirect(`${adminBase(c)}/login`, 303);
   // While closed, the admin can only reopen, delete now, or log out; everything else leads to that choice.
   const sub = c.req.path.slice(adminBase(c).length);
@@ -766,12 +794,13 @@ const settingsSections = new Set<string>(SECTIONS.map(([id]) => id));
 
 async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 422 = 200) {
   const tenant = c.var.tenant;
-  const [machines, residentPassword, log] = await Promise.all([
+  const [machines, residentPassword, log, recoveryCode] = await Promise.all([
     getMachines(c.env.DB, tenant.id, true),
     tenant.access_password_enc ? decryptText(c.env.SESSION_SECRET, tenant.access_password_enc, accessContext(tenant)) : null,
     auditEntries(c.env.DB, tenant.id, AUDIT_MAX),
+    pendingRecoveryCode(c, tenant),
   ]);
-  // The page can show the resident password in plain text.
+  // The page can show the resident password and a new recovery code in plain text.
   c.header("Cache-Control", "no-store");
   return c.html(
     <AdminSettings
@@ -779,7 +808,9 @@ async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 4
       machines={machines}
       residentPassword={residentPassword}
       log={log}
+      recoveryCode={recoveryCode}
       flash={c.req.query("m")}
+      dialog={c.req.query("vis") === "kode" ? "gjenopprettingskode" : undefined}
       {...state}
     />,
     status,
@@ -809,8 +840,6 @@ const settingsSection = (section: string) => (settingsSections.has(section) ? se
 const settingsBack = (c: Ctx, flash: string | undefined, section: string) =>
   c.redirect(`${adminBase(c)}/settings${flash ? `?m=${flash}` : ""}#${settingsSection(section)}`, 303);
 
-const accessContext = (t: Tenant) => `tenant:${t.id}:access-password`;
-
 // Each settings card posts only its own fields; fields that are absent are left unchanged.
 admin.post("/settings", async (c) => {
   const f = await form(c);
@@ -824,17 +853,9 @@ admin.post("/settings", async (c) => {
     else updates.name = name;
   }
   if ("day_start" in f || "day_end" in f || "slot_min" in f) {
-    const start = parseHHMM(f.day_start ?? "");
-    const end = parseHHMM(f.day_end ?? "");
-    const slot = Number(f.slot_min);
-    if (start === null) errors.day_start = "Skriv inn et klokkeslett, f.eks. 08:00.";
-    if (end === null) errors.day_end = "Skriv inn et klokkeslett, f.eks. 20:00.";
-    else if (start !== null && start >= end) errors.day_end = "Siste tid må slutte etter at første tid starter.";
-    if (!SLOT_LENGTHS.includes(slot)) errors.slot_min = "Velg en av lengdene.";
-    else if (start !== null && end !== null && start < end && slot > end - start)
-      errors.slot_min = "Lengden per tid er lengre enn åpningstiden.";
-    if (!errors.day_start && !errors.day_end && !errors.slot_min)
-      Object.assign(updates, { day_start_min: start, day_end_min: end, slot_min: slot });
+    const schedule = parseSchedule(f);
+    Object.assign(errors, schedule.errors);
+    Object.assign(updates, schedule.updates);
   }
   if ("horizon" in f) {
     const horizon = Number(f.horizon);
@@ -983,22 +1004,13 @@ admin.post("/machines/:id/active", async (c) => {
   return settingsBack(c, active ? "machine-on" : "machine-off", "maskiner");
 });
 
-// Sets or changes the resident password. It is verified against the hash (which resident
-// cookies are bound to) and also stored encrypted so admins can read it back.
+// Sets or changes the resident password (see setResidentPassword).
 admin.post("/access", async (c) => {
   const tenant = c.var.tenant;
   const pw = ((await form(c)).access_password ?? "").trim();
-  if (!pw || pw.length > 100)
-    return renderSettings(
-      c,
-      { errors: { access_password: pw ? "Passordet kan ha maks 100 tegn." : "Skriv inn et passord." }, dialog: "beboerpassord" },
-      422,
-    );
-  const hash = await hashPassword(pw);
-  const encrypted = await encryptText(c.env.SESSION_SECRET, pw, accessContext(tenant));
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?").bind(hash, encrypted, tenant.id),
-    retireFeeds(c.env.DB, tenant.id),
+  const error = residentPasswordError(pw);
+  if (error) return renderSettings(c, { errors: { access_password: error }, dialog: "beboerpassord" }, 422);
+  const hash = await setResidentPassword(c, tenant, pw, [
     auditStatement(c, "access-password", tenant.access_password_hash ? "Endret beboerpassordet" : "Slo på beboerpassord"),
   ]);
   // Keep the admin's own device signed in as a resident
@@ -1008,22 +1020,15 @@ admin.post("/access", async (c) => {
 
 admin.post("/access/off", async (c) => {
   if (c.var.tenant.access_password_hash)
-    await c.env.DB.batch([
-      c.env.DB.prepare("UPDATE tenants SET access_password_hash = NULL, access_password_enc = NULL WHERE id = ?").bind(c.var.tenant.id),
-      retireFeeds(c.env.DB, c.var.tenant.id),
-      auditStatement(c, "access-password", "Slo av beboerpassord"),
-    ]);
+    await setResidentPassword(c, c.var.tenant, null, [auditStatement(c, "access-password", "Slo av beboerpassord")]);
   return settingsBack(c, "access-off", "tilgang");
 });
 
 admin.post("/admin-password", async (c) => {
   const f = await form(c);
-  const pw = f.admin_password ?? "";
-  const errors: Record<string, string> = {};
-  if (pw.length < 8) errors.admin_password = "Adminpassordet må ha minst 8 tegn.";
-  else if (f.admin_password_confirm !== pw) errors.admin_password_confirm = "Passordene er ikke like.";
+  const errors = adminPasswordErrors(f);
   if (Object.keys(errors).length) return renderSettings(c, { errors, dialog: "adminpassord" }, 422);
-  const hash = await hashPassword(pw);
+  const hash = await hashPassword(f.admin_password!);
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE tenants SET admin_password_hash = ? WHERE id = ?").bind(hash, c.var.tenant.id),
     auditStatement(c, "admin-password", "Byttet adminpassordet"),
@@ -1075,6 +1080,35 @@ admin.post("/delete", async (c) => {
   return c.html(<DeletedPage name={tenant.name} />);
 });
 
+// A new code replaces the old one at once. It is shown on the page the admin came from until
+// they confirm it is saved (or for an hour), and can be downloaded as a text file meanwhile.
+admin.post("/recovery", async (c) => {
+  const onboardingStep = (await form(c)).tilbake === "kom-i-gang";
+  const had = !!c.var.tenant.recovery_code_hash;
+  await issueRecoveryCode(c, c.var.tenant, [
+    auditStatement(c, "recovery-code", had ? "Laget ny gjenopprettingskode. Den gamle virker ikke lenger." : "Laget gjenopprettingskode"),
+  ]);
+  if (onboardingStep) return c.redirect(`${adminBase(c)}/kom-i-gang/kode`, 303);
+  return c.redirect(`${adminBase(c)}/settings?m=recovery-new&vis=kode#tilgang`, 303);
+});
+
+admin.post("/recovery/lagret", (c) => {
+  forgetRecoveryCode(c, c.var.tenant);
+  return settingsBack(c, undefined, "tilgang");
+});
+
+admin.get("/gjenopprettingskode.txt", async (c) => {
+  const code = await pendingRecoveryCode(c, c.var.tenant);
+  if (!code) return c.redirect(`${adminBase(c)}/settings#tilgang`, 303);
+  return c.body(recoveryFile(c.var.tenant, code, new URL(c.req.url).origin), 200, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Content-Disposition": `attachment; filename="vaskekjeller-${c.var.tenant.slug}-gjenopprettingskode.txt"`,
+    "Cache-Control": "no-store",
+  });
+});
+
+admin.route("/kom-i-gang", onboarding);
+
 t.route("/admin", admin);
 app.route("/:slug", t);
 
@@ -1091,18 +1125,44 @@ function deleteTenant(db: D1Database, id: number) {
   ];
 }
 
+/** A building created through /ny that nobody has booked this many days after signup is closed by the cron. */
+const UNUSED_DAYS = 30;
+
+/** Closes unused self-signup buildings once, through the same grace period as closing by hand. */
+async function closeUnused(env: Env) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, timezone FROM tenants WHERE close_if_unused = 1 AND closed_at IS NULL AND created_at <= datetime('now', ?)
+     AND NOT EXISTS (SELECT 1 FROM bookings WHERE bookings.tenant_id = tenants.id)`,
+  )
+    .bind(`-${UNUSED_DAYS} days`)
+    .all<{ id: number; timezone: string }>();
+  const closedAt = new Date().toISOString().slice(0, 19).replace("T", " ");
+  return results.flatMap((t) => [
+    env.DB.prepare("UPDATE tenants SET closed_at = ?, close_if_unused = 0 WHERE id = ? AND closed_at IS NULL").bind(closedAt, t.id),
+    env.DB.prepare("INSERT INTO audit_log (tenant_id, action, detail, device) VALUES (?, 'building', ?, 'Automatisk opprydding')").bind(
+      t.id,
+      `Stengte vaskekjelleren fordi ingen har booket de første ${UNUSED_DAYS} dagene. Slettes permanent ` +
+        `${fmtDay(purgeDate(closedAt, t.timezone)).toLowerCase()} (etter ${CLOSED_GRACE_DAYS} dager) hvis den ikke åpnes igjen.`,
+    ),
+  ]);
+}
+
 async function scheduled(_: ScheduledController, env: Env) {
   // Using UTC "yesterday" is conservative enough for any European tenant.
   const yesterday = addDays(new Date().toISOString().slice(0, 10), -1);
+  // Selected before this run closes anything, so a building closed now still gets its full grace period.
   const { results: expired } = await env.DB.prepare("SELECT id FROM tenants WHERE closed_at <= datetime('now', ?)")
     .bind(`-${CLOSED_GRACE_DAYS} days`)
     .all<{ id: number }>();
+  const unused = await closeUnused(env);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM waitlist WHERE date < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM visitor_hashes WHERE day < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM message_counts WHERE date < ?").bind(yesterday),
     env.DB.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', ?)").bind(AUDIT_RETENTION),
     ...expired.flatMap((t) => deleteTenant(env.DB, t.id)),
+    ...unused,
+    env.DB.prepare("DELETE FROM signup_counts WHERE day < ?").bind(yesterday),
   ]);
 }
 

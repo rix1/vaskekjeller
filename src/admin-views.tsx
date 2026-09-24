@@ -1,6 +1,7 @@
 import type { Child, FC } from "hono/jsx";
 import { KIND_LABEL, normalizeApartment, type Booking, type Machine, type Tenant } from "./db.ts";
 import { fromSqlTime, type AuditAction, type AuditEntry } from "./audit.ts";
+import { RECOVERY_WARNING } from "./recovery.ts";
 import { addDays, fmtDay, fmtMinute, localNow, slotsFor } from "./time.ts";
 import { FLASH, Icon, Layout, Toast, Toaster } from "./views.tsx";
 
@@ -28,6 +29,8 @@ const ADMIN_FLASH: Record<string, string> = {
   "machine-failed": "Endringen ble ikke lagret. Prøv igjen.",
   closed: "Vaskekjelleren er stengt. Bookingsiden er offline.",
   reopened: "Vaskekjelleren er åpen igjen.",
+  "recovery-new": "Ny gjenopprettingskode er laget. Den gamle virker ikke lenger.",
+  "admin-reset": "Adminpassordet er nullstilt. Lagre den nye gjenopprettingskoden.",
 };
 const ADMIN_ERRORS = ["wrong-password", "machine-failed"];
 
@@ -61,9 +64,23 @@ export function apartmentSummary(text: string) {
 
 const apartmentCount = (n: number) => (n === 0 ? "Ingen liste – alle numre er tillatt" : `${n} ${n === 1 ? "leilighet" : "leiligheter"}`);
 
-type IconName = "up" | "down" | "plus" | "copy" | "key" | "shield" | "close" | "external" | "sliders" | "trash" | "door";
+export type IconName =
+  | "up"
+  | "down"
+  | "plus"
+  | "copy"
+  | "key"
+  | "shield"
+  | "close"
+  | "external"
+  | "sliders"
+  | "trash"
+  | "door"
+  | "download"
+  | "share"
+  | "check";
 
-const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) => (
+export const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) => (
   <svg
     width={size}
     height={size}
@@ -104,10 +121,39 @@ const AdminIcon: FC<{ name: IconName; size?: number }> = ({ name, size = 18 }) =
         <path d="M4 21h16M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17" />
         <path d="M14 12h.01" stroke-width="2.4" />
       </>
+    ) : name === "download" ? (
+      <path d="M12 4v11m-5-5 5 5 5-5M5 20h14" />
+    ) : name === "share" ? (
+      <path d="M12 15V4m-4 4 4-4 4 4M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" />
+    ) : name === "check" ? (
+      <path d="m5 12 4 4L19 6" />
     ) : (
       <path d="M8 16 16 8m-7 0h7v7" />
     )}
   </svg>
+);
+
+/** The code in large type with copy and download; the admin settings dialog shows the same block. */
+export const RecoveryCodeBlock: FC<{ tenant: Tenant; code: string }> = ({ tenant, code }) => (
+  <div class="recovery">
+    <code class="recovery-code" id="recovery-code-value">
+      {code}
+    </code>
+    <p class="recovery-warning">
+      <AdminIcon name="shield" size={16} />
+      <span>{RECOVERY_WARNING}</span>
+    </p>
+    <div class="share-actions">
+      <button type="button" class="button secondary" data-copy="#recovery-code-value" hidden>
+        <AdminIcon name="copy" size={16} />
+        <span data-copy-label>Kopier</span>
+      </button>
+      <a class="button secondary" href={`/${tenant.slug}/admin/gjenopprettingskode.txt`} download>
+        <AdminIcon name="download" size={16} />
+        Last ned
+      </a>
+    </div>
+  </div>
 );
 
 const AdminPage: FC<{
@@ -222,6 +268,19 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
   return (
     <AdminPage tenant={tenant} title="Oversikt" active="overview" flash={flash}>
       <div class="admin-stack">
+        {stats.bookings30 === 0 && upcoming.length === 0 && (
+          <section class="card invite-card" aria-labelledby="inviter">
+            <div class="setting-row">
+              <div class="setting-text">
+                <h2 id="inviter">Ingen har booket ennå</h2>
+                <p>Send en melding til beboerne med lenken og hvordan de kommer i gang. Den er skrevet ferdig for deg.</p>
+              </div>
+              <a href={`/${tenant.slug}/admin/kom-i-gang/del`} class="button">
+                Lag melding
+              </a>
+            </div>
+          </section>
+        )}
         <section class="card" aria-labelledby="siste-30">
           <div class="card-head">
             <h2 id="siste-30">Siste 30 dager</h2>
@@ -344,7 +403,7 @@ const Sheet: FC<{ id: string; title: string; closeTo: string; open?: boolean; ch
   </dialog>
 );
 
-const FieldError: FC<{ id: string; error?: string }> = ({ id, error }) =>
+export const FieldError: FC<{ id: string; error?: string }> = ({ id, error }) =>
   error ? (
     <p class="field-error" id={`${id}-error`}>
       {error}
@@ -352,7 +411,7 @@ const FieldError: FC<{ id: string; error?: string }> = ({ id, error }) =>
   ) : null;
 
 /** Accessibility attributes that tie an input to its hint and inline error. */
-const described = (id: string, error?: string, hint = false) => ({
+export const described = (id: string, error?: string, hint = false) => ({
   id,
   "aria-invalid": error ? "true" : undefined,
   "aria-describedby": [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(" ") || undefined,
@@ -372,6 +431,7 @@ const AUDIT_ICON: Record<AuditAction, Child> = {
   machine: <Icon name="washer" size={16} />,
   "access-password": <AdminIcon name="key" size={16} />,
   "admin-password": <AdminIcon name="shield" size={16} />,
+  "recovery-code": <AdminIcon name="download" size={16} />,
   booking: <Icon name="calendar" size={16} />,
   building: <AdminIcon name="door" size={16} />,
 };
@@ -462,9 +522,11 @@ export const AdminSettings: FC<
     machines: Machine[];
     residentPassword: string | null;
     log: AuditEntry[];
+    /** A recovery code made in the last hour on this device, shown until the admin says it is saved. */
+    recoveryCode: string | null;
     flash?: string;
   } & SettingsState
-> = ({ tenant, machines, residentPassword, log, flash, errors = {}, values = {}, dialog, card }) => {
+> = ({ tenant, machines, residentPassword, log, recoveryCode, flash, errors = {}, values = {}, dialog, card }) => {
   const base = `/${tenant.slug}/admin`;
   const back = (section: string) => `${base}/settings#${section}`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
@@ -808,6 +870,42 @@ export const AdminSettings: FC<
                 Bytt
               </a>
             </div>
+            <div class="setting-row">
+              <span class="setting-icon">
+                <AdminIcon name="download" />
+              </span>
+              <div class="setting-text">
+                <h3>Gjenopprettingskode</h3>
+                <p>
+                  {recoveryCode
+                    ? "Du har laget en ny kode. Den vises til du bekrefter at den er lagret."
+                    : tenant.recovery_code_hash
+                      ? "Eneste måte å nullstille et glemt adminpassord på. Koden kan ikke vises igjen, men du kan lage en ny."
+                      : "Ingen kode ennå. Uten den kan et glemt adminpassord ikke nullstilles."}
+                </p>
+              </div>
+              {recoveryCode ? (
+                <a href="#gjenopprettingskode" data-dialog="gjenopprettingskode" class="button secondary small">
+                  Vis koden
+                </a>
+              ) : (
+                <a href="#ny-gjenopprettingskode" data-dialog="ny-gjenopprettingskode" class="button secondary small">
+                  {tenant.recovery_code_hash ? "Lag ny" : "Lag kode"}
+                </a>
+              )}
+            </div>
+            <div class="setting-row">
+              <span class="setting-icon">
+                <AdminIcon name="share" />
+              </span>
+              <div class="setting-text">
+                <h3>Del med beboere og admins</h3>
+                <p>Ferdige meldinger med lenken{passwordOn ? " og beboerpassordet" : ""}, klare til å kopiere og sende.</p>
+              </div>
+              <a href={`${base}/kom-i-gang/del`} class="button secondary small">
+                Lag melding
+              </a>
+            </div>
             <div class="danger-zone">
               <div class="setting-row">
                 <span class="setting-icon">
@@ -971,6 +1069,35 @@ export const AdminSettings: FC<
           </div>
         </form>
       </Sheet>
+
+      <Sheet id="ny-gjenopprettingskode" title={tenant.recovery_code_hash ? "Lage ny gjenopprettingskode?" : "Lag gjenopprettingskode"} closeTo={back("tilgang")}>
+        <p class="sheet-copy">
+          {tenant.recovery_code_hash
+            ? "Den gamle koden slutter å virke med en gang. Den nye vises én gang, så ha et trygt sted klart å lagre den."
+            : "Koden vises én gang, så ha et trygt sted klart å lagre den."}
+        </p>
+        <form method="post" action={`${base}/recovery`} class="sheet-actions">
+          <a href={back("tilgang")} class="button ghost" data-dialog-close>
+            Avbryt
+          </a>
+          <button>{tenant.recovery_code_hash ? "Lag ny kode" : "Lag kode"}</button>
+        </form>
+      </Sheet>
+
+      {recoveryCode && (
+        <Sheet id="gjenopprettingskode" title="Din nye gjenopprettingskode" closeTo={back("tilgang")} open={dialog === "gjenopprettingskode"}>
+          <RecoveryCodeBlock tenant={tenant} code={recoveryCode} />
+          <form method="post" action={`${base}/recovery/lagret`} class="sheet-form recovery-saved">
+            <label class="check">
+              <input type="checkbox" name="lagret" value="1" required />
+              <span>Jeg har lagret koden et trygt sted</span>
+            </label>
+            <div class="sheet-actions">
+              <button>Ferdig</button>
+            </div>
+          </form>
+        </Sheet>
+      )}
     </AdminPage>
   );
 };

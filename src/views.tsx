@@ -111,6 +111,8 @@ export const PasswordPage: FC<{
   action: string;
   heading: string;
   flash?: string;
+  /** Shown under the form, e.g. the admin page's link to the password reset. */
+  footer?: Child;
 }> = (p) => (
   <Layout title={p.tenant.name} tenant={p.tenant}>
     <main class="narrow">
@@ -122,6 +124,7 @@ export const PasswordPage: FC<{
         </label>
         <button>Logg inn</button>
       </form>
+      {p.footer && <p class="login-footer">{p.footer}</p>}
     </main>
     <Toaster code={p.flash} dismissHref={p.action} />
   </Layout>

@@ -1,0 +1,461 @@
+/* Signup flow (/ny and /<slug>/admin/kom-i-gang): one question per page in a narrow column,
+   built from the admin cards, fields and segmented controls in admin.css. */
+
+/* Steps crossfade instead of flashing white; the progress bar stays in place and fills in. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: var(--ease-out);
+}
+.progress-bar {
+  view-transition-name: signup-progress;
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+
+header.top.signup-top {
+  max-width: 560px;
+  height: 88px;
+  border-bottom: 0;
+}
+.signup-main {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Progress: "STEG 2 AV 8 · ADRESSE" over eight segments */
+.progress {
+  padding: 4px 2px 0;
+}
+.progress .eyebrow {
+  margin: 0 0 10px;
+}
+.progress-bar {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.progress-bar li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: #dfe3d8;
+  overflow: hidden;
+}
+.progress-bar li.done,
+.progress-bar li.current::before {
+  background: var(--green);
+}
+.progress-bar li.current::before {
+  content: "";
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  animation: step-fill 480ms var(--ease-out) 80ms both;
+}
+@keyframes step-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.signup-card {
+  padding: 30px 30px 28px;
+}
+.signup-intro {
+  margin-bottom: 24px;
+}
+.signup-intro h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.8px;
+  text-wrap: balance;
+}
+.signup-intro .lead {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.signup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.signup-actions > .button.ghost:first-child {
+  margin-right: auto;
+}
+.signup-actions button,
+.signup-actions .button {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 10px;
+}
+.signup-next svg {
+  transition: transform 160ms var(--ease-out);
+}
+button[aria-disabled="true"].signup-next svg {
+  opacity: 0;
+}
+.signup-fineprint {
+  text-align: center;
+}
+
+/* Step 2: the address with the site's host in front */
+.address-input {
+  display: flex;
+  align-items: stretch;
+  min-height: 44px;
+  border: 1px solid #dcdfd5;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+.address-input:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px #2b594822;
+}
+.address-input:has([aria-invalid="true"]) {
+  border-color: var(--err);
+}
+.address-host {
+  display: flex;
+  align-items: center;
+  max-width: 55%;
+  padding: 0 4px 0 12px;
+  background: #f2f3ef;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+/* A long host is cut from the left, so the part next to the address stays visible. */
+.address-host span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+.signup-main .address-input input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding-left: 6px;
+  border: 0;
+  border-radius: 0;
+  font-weight: 600;
+}
+.signup-main .address-input input:focus-visible {
+  box-shadow: none;
+}
+.slug-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+.slug-status[data-slug-status="free"] {
+  color: var(--free-fg);
+  font-weight: 600;
+}
+.slug-status[data-slug-status="free"]::before {
+  content: "✓";
+}
+.slug-status[data-slug-status="taken"] {
+  color: var(--err);
+  font-weight: 600;
+}
+
+/* Step 3 */
+.summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: -8px 0 22px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fafbf8;
+  font-size: 13px;
+}
+.summary-line span {
+  color: var(--muted);
+}
+.summary-line strong {
+  overflow-wrap: anywhere;
+}
+.cf-turnstile:empty {
+  display: none;
+}
+
+/* Step 4 */
+.created-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 10px;
+  background: var(--green-soft);
+  color: var(--free-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Step 5: − 1 + per machine kind */
+.counter-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.counter-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+.counter-row + .counter-row {
+  border-top: 1px solid var(--line);
+}
+.counter-row label {
+  font-size: 15px;
+  font-weight: 600;
+}
+.counter-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eef2ea;
+  color: var(--green);
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.signup-main .stepper input {
+  width: 64px;
+  text-align: center;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.stepper.enhanced input {
+  width: 44px;
+  border-color: transparent;
+  background: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stepper.enhanced input::-webkit-inner-spin-button,
+.stepper.enhanced input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.stepper .icon-btn {
+  width: 44px;
+  min-height: 44px;
+  border: 1px solid #d9ddd2;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+/* Step 6: two choices, and the password field slides open under "Ja" */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.choice {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dcdfd5;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.choice:has(input:checked) {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+.choice input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+.choice span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.choice strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.choice small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 240ms var(--ease-out),
+    opacity 200ms ease;
+}
+.reveal.collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: -18px;
+}
+.reveal-inner {
+  min-height: 0;
+  overflow: hidden;
+  /* Room for the focus ring inside the clipped box. */
+  padding: 4px;
+  margin: -4px;
+}
+
+.notice-box {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #f0dfbd;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: #5b4516;
+  font-size: 14px;
+}
+.signup-card .recovery + .field-hint {
+  margin: 14px 0 22px;
+}
+
+/* Step 8 */
+.done-card {
+  text-align: left;
+}
+.done-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  animation: done-pop 520ms var(--ease-out) 120ms both;
+}
+.done-mark path {
+  stroke-dasharray: 24;
+  animation: done-draw 360ms var(--ease-out) 380ms both;
+}
+@keyframes done-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+@keyframes done-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+}
+.done-card .signup-intro {
+  margin-bottom: 0;
+}
+.share-card {
+  padding: 26px 30px;
+}
+.share-card .card-head {
+  margin-bottom: 14px;
+}
+.signup-main .share-text {
+  display: block;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbf8;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: none;
+  field-sizing: content;
+}
+.final-actions {
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar li.current::before,
+  .done-mark,
+  .done-mark path {
+    animation: none;
+  }
+  .reveal {
+    transition: none;
+  }
+}
+
+@media (max-width: 740px) {
+  header.top.signup-top {
+    height: 72px;
+  }
+  .signup-card,
+  .share-card {
+    padding: 22px 18px 20px;
+  }
+  .signup-intro h1 {
+    font-size: 23px;
+    letter-spacing: -0.6px;
+  }
+  .signup-actions .signup-next,
+  .final-actions > .button:last-child {
+    flex: 1;
+  }
+  .final-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .final-actions > .button.ghost:first-child {
+    margin-right: 0;
+  }
+  .share-actions > * {
+    flex: 1 1 auto;
+    white-space: nowrap;
+  }
+}

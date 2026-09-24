@@ -7,5 +7,5 @@
     "outDir": "../public",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "files": ["app.ts", "admin.ts"]
+  "files": ["app.ts", "admin.ts", "signup.ts"]
 }
