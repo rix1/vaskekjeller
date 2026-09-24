@@ -44,7 +44,8 @@ Already done, don't redo:
 
 7. **Open it.** The app is public at `https://www.vaskekjeller.no/lofotgata`. The admin page is
    `/lofotgata/admin`.
-   `/` shows a plain placeholder until a landing page exists.
+   `/` is the landing page; its preview and "Prøv demoen" use the demo buildings `/visning` and `/demo`, which
+   are created on first visit and reset every night.
 
 ## Domain
 

@@ -31,8 +31,8 @@ class HTMLFormElement extends HTMLElement {
   }
 }
 
-const SETTINGS = "http://localhost/demo/admin/settings";
-const MOVE = "http://localhost/demo/admin/machines/3/move";
+const SETTINGS = "http://localhost/bygg/admin/settings";
+const MOVE = "http://localhost/bygg/admin/machines/3/move";
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 async function machinesPage(respond) {
@@ -52,7 +52,7 @@ async function machinesPage(respond) {
   const page = {
     location: {
       href: SETTINGS,
-      pathname: "/demo/admin/settings",
+      pathname: "/bygg/admin/settings",
       search: "",
       hash: "",
       assign: (url) => navigations.push(url),
@@ -126,13 +126,13 @@ test("an error page from the server reloads settings with an error, without post
   for (const text of ["Forbidden", "Internal Server Error"]) {
     const admin = await machinesPage(response({ text: async () => text }));
     await admin.clickUp();
-    assert.deepEqual(admin.navigations, ["/demo/admin/settings?m=machine-failed#maskiner"]);
+    assert.deepEqual(admin.navigations, ["/bygg/admin/settings?m=machine-failed#maskiner"]);
     assert.equal(admin.form.submitted, undefined);
   }
 });
 
 test("an expired session follows the redirect to the login page", async () => {
-  const login = "http://localhost/demo/admin/login";
+  const login = "http://localhost/bygg/admin/login";
   const admin = await machinesPage(response({ redirected: true, url: login, text: async () => "login" }));
   await admin.clickUp();
   assert.deepEqual(admin.navigations, [login]);

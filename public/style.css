@@ -1229,7 +1229,8 @@ button.cancel-link {
 .note-form label {
   font-size: 11px;
 }
-.note-form input {
+.note-form input,
+.note-form select {
   font-size: 12px;
   min-height: 40px;
 }
@@ -2151,4 +2152,29 @@ summary.reserve-button:active {
   margin: 0;
   text-align: center;
   font-size: 14px;
+}
+
+/* Demo buildings from the landing page: a slim note above the header. */
+.demo-banner {
+  max-width: 1120px;
+  margin: 12px auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 10px 14px;
+  border: 1px solid #dce4d2;
+  border-radius: 8px;
+  background: var(--green-soft);
+  font-size: 13px;
+  color: #345940;
+}
+.demo-banner a {
+  font-weight: 600;
+  text-decoration: none;
+}
+/* The showcase's apartment is fixed, so its chip is only a label. */
+span.apartment-chip:hover {
+  background: #fafbf7;
 }

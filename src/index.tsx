@@ -15,6 +15,8 @@ import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
 import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
 import { decryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
+import { DEMO_SLUGS, demoSeed, demoToday, isDemoSlug, NOTE_PRESETS, SHOWCASE_VIEWER, type DemoSlug } from "./demo.ts";
+import { LandingPage } from "./landing.tsx";
 import {
   apartmentList,
   getBookings,
@@ -56,7 +58,23 @@ const app = new Hono<App>();
 
 app.use(csrf());
 
-app.get("/", (c) => (c.env.DEFAULT_TENANT ? c.redirect(`/${c.env.DEFAULT_TENANT}`) : c.text("Vaskekjeller", 200)));
+// Pages may only be framed by this site itself (the landing page's preview of /visning).
+app.use(async (c, next) => {
+  await next();
+  c.res.headers.set("X-Frame-Options", "SAMEORIGIN");
+  c.res.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+});
+
+// The last building opened on this device, for the landing page's "Gå til <navn>" link. Slug only.
+const lastCookie = "vk_last";
+
+app.get("/", async (c) => {
+  const slug = getCookie(c, lastCookie) ?? "";
+  const last = /^[a-z0-9-]{1,64}$/.test(slug) && !isDemoSlug(slug) ? await getTenant(c.env.DB, slug) : null;
+  c.header("Cache-Control", "private, no-cache");
+  // A closed building (danger zone, or unused) gets no shortcut.
+  return c.html(<LandingPage last={last && !last.closed_at ? last : undefined} previewDate={addDays(demoToday(), 1)} />);
+});
 
 // Self-service signup for new buildings. "ny" is a reserved slug, so no building can shadow it.
 app.route("/ny", signup);
@@ -68,10 +86,27 @@ app.route("/ny", signup);
 const t = new Hono<App>();
 
 t.use(async (c, next) => {
-  const tenant = await getTenant(c.env.DB, c.req.param("slug")!);
+  const slug = c.req.param("slug")!;
+  let tenant = await getTenant(c.env.DB, slug);
+  // The demos exist from their first visit on; the nightly cron resets them.
+  if (!tenant && isDemoSlug(slug)) {
+    await seedDemos(c.env.DB, [slug]);
+    tenant = await getTenant(c.env.DB, slug);
+  }
   if (!tenant) return c.notFound();
   c.set("tenant", tenant);
+  // The showcase can't be changed by anyone: every write route stops here.
+  if (tenant.read_only && c.req.method !== "GET" && c.req.method !== "HEAD") return c.text("Denne visningen kan ikke endres.", 403);
   const sub = c.req.path.slice(tenant.slug.length + 1);
+  // Opening any page of an open building (not a demo, not a calendar feed) remembers it for "Gå til".
+  if (c.req.method === "GET" && !isDemoSlug(tenant.slug) && !tenant.closed_at && !sub.startsWith("/cal/"))
+    setCookie(c, lastCookie, tenant.slug, {
+      path: "/",
+      httpOnly: true,
+      secure: new URL(c.req.url).protocol === "https:",
+      sameSite: "Lax",
+      maxAge: 60 * 60 * 24 * 400,
+    });
   // A closed building is offline for residents (including feeds); only the admin page still works.
   if (tenant.closed_at && !sub.startsWith("/admin")) return c.html(<ClosedPage tenant={tenant} />, 410);
   // Calendar feeds are keyed by their secret token, so calendar apps need no password.
@@ -105,7 +140,16 @@ function validApartment(c: Ctx, raw: string): string | undefined {
 }
 
 function currentApartment(c: Ctx): string | undefined {
+  // Everyone sees the read-only showcase as the same apartment, so it shows "Din tid" and "Dine tider".
+  if (c.var.tenant.read_only) return SHOWCASE_VIEWER;
   return validApartment(c, getCookie(c, aptCookie) ?? "");
+}
+
+/** A comment as typed, or in a presets-only building only a ready-made one; undefined when not allowed. */
+function parseNote(c: Ctx, raw: string | undefined): string | null | undefined {
+  const note = (raw ?? "").trim().slice(0, 140) || null;
+  if (note && c.var.tenant.presets_only && !(NOTE_PRESETS as readonly string[]).includes(note)) return undefined;
+  return note;
 }
 
 function rememberApartment(c: Ctx, apt: string) {
@@ -147,10 +191,11 @@ t.get("/", async (c) => {
     getMachines(c.env.DB, tenant.id, true),
     getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
-    apartment ? ensureFeed(c.env.DB, tenant, apartment) : undefined,
+    // The read-only showcase offers no calendar link, so it never creates one.
+    apartment && !tenant.read_only ? ensureFeed(c.env.DB, tenant, apartment) : undefined,
   ]);
   c.executionCtx.waitUntil(recordVisit(c, now.date));
-  if (apartment) rememberApartment(c, apartment);
+  if (apartment && !tenant.read_only) rememberApartment(c, apartment);
   // "Send melding" needs to know which holders from today on have notifications on (today includes
   // slots that just ended, for the late forgot-clothes message).
   const holders = [...new Set(bookings.filter((b) => b.date >= now.date && b.apartment !== apartment).map((b) => b.apartment))];
@@ -182,6 +227,8 @@ t.get("/", async (c) => {
       mode={c.req.query("mode")}
       bookedIds={c.req.query("reservation")}
       hideHint={getCookie(c, bookedCookie) === "1"}
+      demo={isDemoSlug(tenant.slug)}
+      embed={c.req.query("embed") === "1"}
       vapidKey={c.env.VAPID_PUBLIC_KEY}
       calendar={
         feed && {
@@ -272,7 +319,8 @@ t.post("/book", async (c) => {
   });
   if (!s) return back(c, "invalid");
   if (s.over) return back(c, "over", `d-${s.date}`);
-  const note = (f.note ?? "").trim().slice(0, 140) || null;
+  const note = parseNote(c, f.note);
+  if (note === undefined) return back(c, "invalid");
   try {
     // A single INSERT reserves the entire selection. The limit check is part of
     // the same write, so simultaneous requests cannot exceed the household cap.
@@ -375,7 +423,8 @@ t.post("/note", async (c) => {
   if (!bookings.length) return back(c, "invalid");
   const now = localNow(c.var.tenant.timezone);
   if (bookings.some((b) => slotIsOver(b.date, b.end_min, now))) return back(c, "over");
-  const note = (f.note || "").trim().slice(0, 140) || null;
+  const note = parseNote(c, f.note);
+  if (note === undefined) return back(c, "invalid");
   await c.env.DB.batch(bookings.map((b) => c.env.DB.prepare("UPDATE bookings SET note = ? WHERE id = ?").bind(note, b.id)));
   if (note && bookings.some((b) => b.note !== note)) c.executionCtx.waitUntil(notifyNote(c.env, c.var.tenant, bookings, note));
   return back(c, "note", `d-${bookings[0]!.date}`);
@@ -429,7 +478,8 @@ t.post("/message", async (c) => {
   const f = await form(c);
   const text = Object.hasOwn(MESSAGES, f.preset ?? "") ? MESSAGES[f.preset as MessageKey] : undefined;
   const extra = (f.note ?? "").trim();
-  if (!text || extra.length > 140) return back(c, "invalid");
+  // A presets-only building sends the ready-made message alone, without a typed addition.
+  if (!text || extra.length > 140 || (extra && tenant.presets_only)) return back(c, "invalid");
   const b = await c.env.DB.prepare("SELECT * FROM bookings WHERE id = ? AND tenant_id = ? AND cancelled_at IS NULL")
     .bind(Number(f.booking_id), tenant.id)
     .first<Booking>();
@@ -1150,9 +1200,10 @@ const UNUSED_DAYS = 30;
 async function closeUnused(env: Env) {
   const { results } = await env.DB.prepare(
     `SELECT id, timezone FROM tenants WHERE close_if_unused = 1 AND closed_at IS NULL AND created_at <= datetime('now', ?)
+     AND slug NOT IN (SELECT value FROM json_each(?))
      AND NOT EXISTS (SELECT 1 FROM bookings WHERE bookings.tenant_id = tenants.id)`,
   )
-    .bind(`-${UNUSED_DAYS} days`)
+    .bind(`-${UNUSED_DAYS} days`, JSON.stringify(DEMO_SLUGS))
     .all<{ id: number; timezone: string }>();
   const closedAt = new Date().toISOString().slice(0, 19).replace("T", " ");
   return results.flatMap((t) => [
@@ -1182,6 +1233,13 @@ async function scheduled(_: ScheduledController, env: Env) {
     ...unused,
     env.DB.prepare("DELETE FROM signup_counts WHERE day < ?").bind(yesterday),
   ]);
+  // Both demo buildings start each day fresh, with bookings placed around the new "today".
+  await seedDemos(env.DB);
+}
+
+/** Resets one or both demo buildings in a single transaction. */
+async function seedDemos(db: D1Database, slugs: readonly DemoSlug[] = DEMO_SLUGS, today = demoToday()) {
+  await db.batch(slugs.flatMap((slug) => demoSeed(slug, today)).map((s) => db.prepare(s.sql).bind(...s.params)));
 }
 
 export default { fetch: app.fetch, scheduled } satisfies ExportedHandler<Env>;

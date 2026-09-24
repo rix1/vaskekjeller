@@ -26,12 +26,10 @@
     }
   ],
   // Daily housekeeping: drop expired waitlist entries, yesterday's visitor hashes and signup counts, prune the
-  // activity log, close unused self-signup buildings, delete buildings closed 7+ days ago. The time is
+  // activity log, close unused self-signup buildings, reset the demo buildings, delete buildings closed 7+ days ago. The time is
   // mirrored in src/audit.ts (CRON_UTC_MINUTE).
   "triggers": { "crons": ["17 2 * * *"] },
   "vars": {
-    // Where "/" redirects to while there is only one building (empty: no redirect)
-    "DEFAULT_TENANT": "",
     "VAPID_SUBJECT": "mailto:rikardeide+vask@gmail.com",
     // Public site key of the invisible Turnstile widget that guards signup at /ny (docs/deploy.md).
     // Signup stays closed until both this and the TURNSTILE_SECRET_KEY secret are set.

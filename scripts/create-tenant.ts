@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { hashPassword } from "../src/crypto.ts";
+import { isDemoSlug } from "../src/demo.ts";
 
 const { values } = parseArgs({
   options: {
@@ -18,6 +19,11 @@ const { values } = parseArgs({
 
 if (!values.slug || !/^[a-z0-9-]+$/.test(values.slug) || !values.name) {
   console.error('Usage: node scripts/create-tenant.ts --slug <a-z0-9-> --name "<name>" [--remote]');
+  process.exit(1);
+}
+// The nightly demo reset would take over a building with a demo's slug.
+if (isDemoSlug(values.slug)) {
+  console.error(`/${values.slug} is a demo building.`);
   process.exit(1);
 }
 

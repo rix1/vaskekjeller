@@ -38,7 +38,7 @@ function statement(sql) {
 }
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const post = (path, body, apartment = "A3") =>
-  mf.dispatchFetch(`http://localhost/demo/${path}?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -89,7 +89,7 @@ before(async () => {
   sqlite.exec(await readFile("migrations/0001_init.sql", "utf8"));
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test','unused')").run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'bygg','Test','unused')").run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -115,7 +115,7 @@ test("booking redirects to a confirmation toast with a working Angre form", asyn
   assert.match(toast[3], /Tiden er din!/);
   assert.match(toast[3], /08:00–10:00 · Vaskemaskin \+ Tørketrommel/);
   const ids = (await active()).results.map((b) => b.id).join(",");
-  assert.match(toast[3], new RegExp(`<form method="post" action="/demo/cancel\\?date=${tomorrow}&amp;mode=pair-1-2"`));
+  assert.match(toast[3], new RegExp(`<form method="post" action="/bygg/cancel\\?date=${tomorrow}&amp;mode=pair-1-2"`));
   assert.match(toast[3], new RegExp(`name="booking_ids" value="${ids}"`));
   assert.match(toast[3], />Angre</);
   const undo = await post("cancel", { booking_ids: ids });
@@ -135,8 +135,8 @@ test("errors render as toasts that stay until closed", async () => {
   assert.equal(toast[1], "toast error");
   assert.equal(toast[2], "alert");
   assert.match(toast[3], /noen var raskere/);
-  assert.equal(toasts(await page(`/demo?date=${tomorrow}`)).length, 0);
-  const [password] = toasts(await page("/demo/admin/login?m=wrong-password"));
+  assert.equal(toasts(await page(`/bygg?date=${tomorrow}`)).length, 0);
+  const [password] = toasts(await page("/bygg/admin/login?m=wrong-password"));
   assert.equal(password[1], "toast error");
   assert.match(password[3], /Feil passord\./);
 });

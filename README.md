@@ -54,8 +54,19 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   The admin password is only ever hashed.
 - **Stats** are privacy friendly: only daily totals are stored. Unique visitors are counted with a salted hash that
   rotates every day and is deleted by a daily cron.
-- **Multi-tenant**: every table has `tenant_id`; each building lives under `/<slug>`. `DEFAULT_TENANT` makes `/`
-  redirect to one of them.
+- **Multi-tenant**: every table has `tenant_id`; each building lives under `/<slug>`.
+- **Landing page** (`/`): what this is, a live preview, "Prøv demoen" and "Opprett vaskekjeller" (`/ny`), plus a hint
+  to use the link from the board. Opening a building sets a root cookie `vk_last` (the slug only), so the landing
+  page shows "Gå til <navn> →" for the last building used on the device while it exists and is not closed.
+- **Demo buildings** (`src/demo.ts`): `/visning` is a read-only showcase (tenant flag `read_only`: every write route
+  answers 403 and the board hides its actions), seen as apartment B2 and shown in the landing page's phone frame
+  through a non-interactive iframe (`?embed=1` drops the banner and footer). `/demo` is the playground behind
+  "Prøv demoen": anyone can book and cancel, but apartments come from a list and comments and messages are limited
+  to ready-made choices (tenant flag `presets_only`, enforced by the routes). Both are created on first visit and
+  reset by the nightly cron with a month of bookings, comments and waitlists placed around today; their admin pages
+  can't be logged in to, and the unused-building cleanup never closes them. Both slugs are in signup's
+  `RESERVED_SLUGS`. Pages may only be framed by the site itself (`X-Frame-Options: SAMEORIGIN`,
+  `frame-ancestors 'self'`).
 - **Signup** (`/ny`): anyone can create a building in eight steps: name, web address, admin password, opening
   hours and slot length, machines (one washer and one dryer to start with), an optional resident password, the
   recovery code, and ready-made messages to share. The address is made from the name (æ→ae, ø→o, å→a), checked
@@ -78,9 +89,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 
 ```sh
 npm install
-node scripts/gen-vapid.ts --dev-vars      # writes .dev.vars (secrets); add DEFAULT_TENANT=demo to it
+node scripts/gen-vapid.ts --dev-vars      # writes .dev.vars (secrets)
 npm run db:migrate:local
-node scripts/create-tenant.ts --slug demo --name "Borettslaget"   # prompts for admin password
+node scripts/create-tenant.ts --slug hjem --name "Borettslaget"   # prompts for admin password
+node scripts/seed-demo.ts                  # (re)creates /visning and /demo around today
 npm run dev                                # also applies any new migrations first
 npm run typecheck
 ```
@@ -116,9 +128,8 @@ One-time dashboard setup (connecting the repo, build token permissions, creating
 
 ### Configuration
 
-- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact),
-  `DEFAULT_TENANT` (where `/` redirects; empty means no redirect), and `TURNSTILE_SITE_KEY` (the public key of
-  the signup bot check).
+- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact) and
+  `TURNSTILE_SITE_KEY` (the public key of the signup bot check).
 - Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
   (already set) and `TURNSTILE_SECRET_KEY`. Signup at `/ny` stays closed until both Turnstile keys are set; the
   steps are in [docs/deploy.md](docs/deploy.md#turn-on-signup-turnstile). Don't rotate the VAPID keys: existing
@@ -159,7 +170,8 @@ The active-booking limit counts distinct time periods per apartment, so reservin
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
 reservations after an administrator changes the schedule. Migration `0003_resident_password_readable.sql`
 adds the encrypted resident password column. Migration `0007_signup_and_recovery.sql` adds the recovery code hash,
-the unused-building cleanup mark and the per-network signup counts.
+the unused-building cleanup mark and the per-network signup counts. Migration `0008_demo_buildings.sql` adds the
+`read_only` and `presets_only` flags.
 
 ## Verification
 
@@ -170,7 +182,8 @@ calendar-week date strip, the read-only past-day view, apartment selection, wait
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
 toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
-closing/deleting a building (`tests/audit-danger.test.mjs`), signup, onboarding, Turnstile, the signup limit,
+closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only showcase on every write
+route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`), signup, onboarding, Turnstile, the signup limit,
 recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
