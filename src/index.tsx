@@ -6,7 +6,6 @@ import {
   AdminOverview,
   AdminSettings,
   apartmentSummary,
-  AUDIT_PAGE,
   SECTIONS,
   SLOT_LENGTHS,
   type SettingsState,
@@ -767,11 +766,10 @@ const settingsSections = new Set<string>(SECTIONS.map(([id]) => id));
 
 async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 422 = 200) {
   const tenant = c.var.tenant;
-  const showAll = c.req.query("aktivitet") === "alle";
   const [machines, residentPassword, log] = await Promise.all([
     getMachines(c.env.DB, tenant.id, true),
     tenant.access_password_enc ? decryptText(c.env.SESSION_SECRET, tenant.access_password_enc, accessContext(tenant)) : null,
-    auditEntries(c.env.DB, tenant.id, showAll ? AUDIT_MAX : AUDIT_PAGE + 1),
+    auditEntries(c.env.DB, tenant.id, AUDIT_MAX),
   ]);
   // The page can show the resident password in plain text.
   c.header("Cache-Control", "no-store");
@@ -780,8 +778,7 @@ async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 4
       tenant={tenant}
       machines={machines}
       residentPassword={residentPassword}
-      log={log.slice(0, showAll ? AUDIT_MAX : AUDIT_PAGE)}
-      moreLog={!showAll && log.length > AUDIT_PAGE}
+      log={log}
       flash={c.req.query("m")}
       {...state}
     />,
@@ -789,18 +786,16 @@ async function renderSettings(c: Ctx, state: SettingsState = {}, status: 200 | 4
   );
 }
 
-/** Upper bound for "Vis alle" in the activity log; 12 months of admin changes stays far below it. */
+/** Upper bound for the activity log; 12 months of admin changes stays far below it. */
 const AUDIT_MAX = 2000;
 
 async function renderClosed(c: Ctx, state: { error?: string; dialog?: boolean } = {}, status: 200 | 422 = 200) {
   const tenant = c.var.tenant;
-  const log = await auditEntries(c.env.DB, tenant.id, AUDIT_PAGE);
   c.header("Cache-Control", "no-store");
   return c.html(
     <AdminClosed
       tenant={tenant}
       purgeOn={purgeDate(tenant.closed_at!, tenant.timezone)}
-      log={log}
       flash={c.req.query("m")}
       {...state}
     />,
