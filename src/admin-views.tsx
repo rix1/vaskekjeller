@@ -367,9 +367,6 @@ export const SECTIONS = [
   ["tilgang", "Tilgang"],
 ] as const;
 
-/** Activity entries shown before "Vis alle". */
-export const AUDIT_PAGE = 100;
-
 const AUDIT_ICON: Record<AuditAction, Child> = {
   settings: <AdminIcon name="sliders" size={16} />,
   machine: <Icon name="washer" size={16} />,
@@ -380,7 +377,7 @@ const AUDIT_ICON: Record<AuditAction, Child> = {
 };
 
 /** The admin activity log, newest first, grouped by day in a scrollable box. */
-const AuditLog: FC<{ tenant: Tenant; entries: AuditEntry[]; moreHref?: string }> = ({ tenant, entries, moreHref }) => {
+const AuditLog: FC<{ tenant: Tenant; entries: AuditEntry[] }> = ({ tenant, entries }) => {
   const today = localNow(tenant.timezone).date;
   const days: { date: string; entries: (AuditEntry & { time: string })[] }[] = [];
   for (const e of entries) {
@@ -425,14 +422,6 @@ const AuditLog: FC<{ tenant: Tenant; entries: AuditEntry[]; moreHref?: string }>
           ))}
         </div>
       )}
-      {moreHref && (
-        <div class="card-foot">
-          <p class="hint">Viser de {AUDIT_PAGE} nyeste endringene.</p>
-          <a href={moreHref} class="button secondary small">
-            Vis alle
-          </a>
-        </div>
-      )}
     </section>
   );
 };
@@ -473,11 +462,9 @@ export const AdminSettings: FC<
     machines: Machine[];
     residentPassword: string | null;
     log: AuditEntry[];
-    /** Whether older activity entries exist than the ones shown. */
-    moreLog: boolean;
     flash?: string;
   } & SettingsState
-> = ({ tenant, machines, residentPassword, log, moreLog, flash, errors = {}, values = {}, dialog, card }) => {
+> = ({ tenant, machines, residentPassword, log, flash, errors = {}, values = {}, dialog, card }) => {
   const base = `/${tenant.slug}/admin`;
   const back = (section: string) => `${base}/settings#${section}`;
   const v = (name: string, fallback: string) => values[name] ?? fallback;
@@ -742,7 +729,7 @@ export const AdminSettings: FC<
             </div>
           </section>
 
-          <AuditLog tenant={tenant} entries={log} moreHref={moreLog ? `${base}/settings?aktivitet=alle#aktivitet` : undefined} />
+          <AuditLog tenant={tenant} entries={log} />
 
           <section class="card" id="tilgang" aria-labelledby="tilgang-title">
             <div class="card-head">
@@ -993,12 +980,11 @@ export const AdminClosed: FC<{
   tenant: Tenant;
   /** Tenant-local date the daily cron deletes the building. */
   purgeOn: string;
-  log: AuditEntry[];
   flash?: string;
   /** Validation error from "Slett permanent nå". */
   error?: string;
   dialog?: boolean;
-}> = ({ tenant, purgeOn, log, flash, error, dialog }) => {
+}> = ({ tenant, purgeOn, flash, error, dialog }) => {
   const base = `/${tenant.slug}/admin`;
   const date = fmtDay(purgeOn).replace(/^./, (ch) => ch.toLowerCase());
   return (
@@ -1028,7 +1014,6 @@ export const AdminClosed: FC<{
             </form>
           </div>
         </section>
-        <AuditLog tenant={tenant} entries={log} />
       </div>
 
       <Sheet id="slett-na" title="Slette alt permanent nå?" closeTo={base} open={dialog}>

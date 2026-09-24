@@ -236,16 +236,13 @@ test("the settings page lists the activity newest first with the device, in its 
   assert.match(section, /iPhone · Safari/);
 });
 
-test("the activity section shows the newest 100 with a link to the rest", async () => {
+test("the activity section shows every retained entry in one list, with no paging", async () => {
   const insert = sqlite.prepare("INSERT INTO audit_log (tenant_id, created_at, action, detail, device) VALUES (1, ?, 'settings', ?, 'Mac · Firefox')");
   for (let i = 0; i < 105; i++) insert.run(sqlTime(-i * 60_000), `Endring ${i}`);
   const page = await (await get("admin/settings", admin)).text();
-  assert.match(page, /Endring 99</);
-  assert.doesNotMatch(page, /Endring 100</);
-  assert.match(page, /href="\/demo\/admin\/settings\?aktivitet=alle#aktivitet"/);
-  const all = await (await get("admin/settings?aktivitet=alle", admin)).text();
-  assert.match(all, /Endring 104</);
-  assert.doesNotMatch(all, /aktivitet=alle#aktivitet/);
+  assert.match(page, /Endring 0</);
+  assert.match(page, /Endring 104</);
+  assert.doesNotMatch(page, /Vis alle/);
 });
 
 test("only a coarse device label is stored: no IP address and no raw User-Agent", async () => {
@@ -351,7 +348,7 @@ test("closing takes the booking page, resident routes and feeds offline at once;
   assert.ok(html.includes(`Stengt – slettes permanent ${date}`), html);
   assert.match(html, /Gjenåpne/);
   assert.match(html, /Slett permanent nå/);
-  assert.match(html, /Stengte vaskekjelleren/, "the activity log is still visible");
+  assert.doesNotMatch(html, /id="aktivitet"/, "the closed page shows no activity log");
 
   // Everything else on the admin page leads back to that choice and changes nothing.
   const settings = await get("admin/settings", fresh);
