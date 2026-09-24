@@ -67,10 +67,10 @@ the dashboard, and per-version preview URLs by `"preview_urls": false` in `wrang
 
 The app is served only at `https://www.vaskekjeller.no/<slug>` (for example `/lofotgata`); the `*.workers.dev`
 address is off. The `routes` entry with `"custom_domain": true` in `wrangler.jsonc` makes each deploy
-create and own the `www` DNS record and its certificate, so the zone must have no other `www` record: never add
-one by hand, and delete any imported from the previous DNS host. The bare domain `vaskekjeller.no` redirects to
-www via a Cloudflare Redirect Rule, not the app; see [docs/deploy.md](docs/deploy.md#domain). All links the app
-builds are relative, so nothing depends on the host.
+create and own the `www` DNS record and its certificate, so the zone must have no other `A`, `AAAA` or `CNAME`
+record on `www`: never add one by hand, and delete any imported from the previous DNS host. The bare domain
+`vaskekjeller.no` redirects to www via a Cloudflare Redirect Rule, not the app; see
+[docs/deploy.md](docs/deploy.md#domain). All links the app builds are relative, so nothing depends on the host.
 
 One-time dashboard setup (connecting the repo, build token permissions, creating the first building) is in
 [docs/deploy.md](docs/deploy.md).
