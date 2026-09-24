@@ -182,6 +182,11 @@ test("address rules: format, length and reserved words", () => {
     assert.match(lib.slugProblem(reserved), /reservert/, reserved);
 });
 
+test("the admin message ends the sentence once after a name with a trailing period", () => {
+  assert.match(lib.adminMessage("Grünerløkka Brl.", "http://x/a"), /i Grünerløkka Brl\. Vil du/);
+  assert.match(lib.adminMessage("Lofotgata", "http://x/a"), /i Lofotgata\. Vil du/);
+});
+
 test("the suggested address skips taken and reserved ones", async () => {
   const b = browser();
   let page = await (await b.get("/ny/adresse?navn=Lofotgata")).text();

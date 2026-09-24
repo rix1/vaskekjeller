@@ -285,7 +285,10 @@ test("resident password: set, view, verify residents, change, and turn off", asy
 
   const settings = await get("admin/settings", admin);
   assert.equal(settings.headers.get("cache-control"), "no-store");
-  assert.match(await settings.text(), /<span class="secret-plain">1234-dør<\/span>/);
+  const settingsPage = await settings.text();
+  assert.match(settingsPage, /<span class="secret-plain">1234-dør<\/span>/);
+  // client/admin.ts copies the element the button names (tests/copy-buttons.test.mjs).
+  assert.match(settingsPage, /<button type="button" class="text-button" data-copy=".secret-plain"/);
 
   // Residents are verified against the hash, and their cookie is bound to it.
   assert.equal(location(await get("")).pathname, "/demo/login");

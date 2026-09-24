@@ -826,7 +826,7 @@ export const AdminSettings: FC<
                       <span class="secret-hide">Skjul</span>
                       <span class="sr-only"> beboerpassord</span>
                     </label>
-                    <button type="button" class="text-button" data-copy hidden>
+                    <button type="button" class="text-button" data-copy=".secret-plain" hidden>
                       <AdminIcon name="copy" size={15} />
                       <span data-copy-label>Kopier</span>
                     </button>

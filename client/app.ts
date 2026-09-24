@@ -369,7 +369,7 @@ if (isBoard()) history.replaceState(null, "", cleanUrl(location.href));
 // Calendar link: a copy button when JS runs; without it the read-only field is still selectable.
 document.documentElement.classList.add("js");
 document.addEventListener("click", (event) => {
-  const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("[data-copy]") : null;
+  const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>(".calendar-link [data-copy]") : null;
   const input = button && document.querySelector<HTMLInputElement>(button.dataset.copy!);
   if (!button || !input) return;
   const done = (text: string) => {

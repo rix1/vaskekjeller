@@ -181,7 +181,7 @@ export function adminMessage(name: string, adminUrl: string): string {
   return [
     "Hei!",
     "",
-    `Jeg har satt opp booking av vaskekjelleren i ${name}. Vil du hjelpe til som admin? Vi deler samme innlogging.`,
+    `Jeg har satt opp booking av vaskekjelleren i ${name.replace(/\.$/, "")}. Vil du hjelpe til som admin? Vi deler samme innlogging.`,
     "",
     `Adminsiden: ${adminUrl}`,
     "Passordet får du av meg.",

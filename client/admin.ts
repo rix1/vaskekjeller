@@ -259,9 +259,9 @@ document.addEventListener("input", (event) => {
 // Copy and share: the resident password, the recovery code and the ready-made messages
 // ---------------------------------------------------------------------------
 
-// `data-copy` / `data-share` name the element holding the text; a bare `data-copy` is the resident password.
+// `data-copy` / `data-share` name the element holding the text.
 const textOf = (selector: string | undefined) => {
-  const source = document.querySelector(selector || ".secret-plain");
+  const source = document.querySelector(selector!);
   return source instanceof HTMLTextAreaElement ? source.value : (source?.textContent ?? "");
 };
 
