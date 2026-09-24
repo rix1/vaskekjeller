@@ -169,6 +169,10 @@ async function updateBoard(
       const matching = [...nextMain.querySelectorAll<HTMLAnchorElement>("a")].find((a) => a.href === options.focusHref);
       const focusTarget = matching ?? nextMain.querySelector<HTMLElement>(".apt-picker input, .apt-picker select");
       focusTarget?.focus({ preventScroll: true });
+    } else if (options.form?.closest(".apartment-menu") && nextHeader.querySelector(".apartment-menu[open]")) {
+      // Calendar settings keep the popover open; stay on the control that was used.
+      const same = [...nextHeader.querySelectorAll("form")].find((f) => f.action === options.form!.action);
+      same?.querySelector("button")?.focus({ preventScroll: true });
     } else if (options.form) {
       // Toasts never take focus; return it to the day that was just updated.
       const focus = nextMain.querySelector<HTMLElement>(".day-heading h3");
@@ -361,3 +365,25 @@ async function setupPush() {
 
 void setupPush().catch(() => {});
 if (isBoard()) history.replaceState(null, "", cleanUrl(location.href));
+
+// Calendar link: a copy button when JS runs; without it the read-only field is still selectable.
+document.documentElement.classList.add("js");
+document.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("[data-copy]") : null;
+  const input = button && document.querySelector<HTMLInputElement>(button.dataset.copy!);
+  if (!button || !input) return;
+  const done = (text: string) => {
+    button.textContent = text;
+    setTimeout(() => button.isConnected && (button.textContent = "Kopier"), 2000);
+  };
+  navigator.clipboard.writeText(input.value).then(
+    () => done("Kopiert"),
+    () => {
+      input.select();
+      done("Merket");
+    },
+  );
+});
+document.addEventListener("focusin", (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.matches(".calendar-link input")) event.target.select();
+});

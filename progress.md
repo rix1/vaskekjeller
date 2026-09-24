@@ -12,7 +12,7 @@
 
 ## Features
 
-- [] Add a Google calendar subscription feature, similar to how I did it for ~/Development/family-cal - so you can check bookings straight from your calendar. Event should contain useful info and a link to the tenant page.
+- [x] Add a Google calendar subscription feature, similar to how I did it for ~/Development/family-cal - so you can check bookings straight from your calendar. Event should contain useful info and a link to the tenant page. (2026-09-24: shipped as an Apple Calendar-only feed per apartment in the header-chip popover; Google refreshes too slowly. See README "Calendar".)
 - [] Add the option for people to set name/contact details (phone number) along with their apartment and add a directory where admins can see this and a way for users to reach out to people with existing bookings to ask questions. Adding this info is optional per resident.
 
 ## UI
@@ -39,6 +39,8 @@
 
 ## Log
 
+- 2026-09-24: Live-validated the calendar feed on `wrangler dev` + headless Chrome: popover (Apple button, copy link, lag note, switch, Lag ny lenke), feed content (machines, comment, waiting count, day link, OPAQUE/TRANSPARENT, PT15M), toggle on the same link, rotation 404s the old link, feed works without the resident password, and set/change/off retire every link with no revival.
+- 2026-09-24: Calendar links: admin resident-password routes (set/change/off) now retire every feed of the building in the same batch (`retireFeeds`, password_key = 'retired'), so a link retired earlier can't come back when the key repeats (password off again). Feed waiting counts read the waitlist from today, so past events never say neighbours are waiting.
 - 2026-09-23: GitOps deploy via Workers Builds: push to main runs remote D1 migrations, then `wrangler deploy`. Worker `vaskekjeller` created as a placeholder by `wrangler secret bulk`, with SESSION_SECRET and VAPID keys set (only in Cloudflare). VAPID_SUBJECT set. Remote DB migrations not yet applied; the first build does it. Checklist: docs/deploy.md. Dashboard: build command empty, deploy command `npm run deploy` (migrate-then-deploy lives only in package.json); `preview_urls: false` in wrangler.jsonc. Regenerated worker-configuration.d.ts for the new VAPID_SUBJECT. `npm run deploy` applies migrations with `CI=true` (no confirm prompt), so a declined prompt can't deploy.
 - 2026-09-23: README documents the calendar-week strip and read-only past days.
 - 2026-09-23: Past days now also show bookings on since-deactivated machines and bookings outside the current opening hours (the board loads inactive machines; only active ones are bookable).

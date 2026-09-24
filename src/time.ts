@@ -87,3 +87,14 @@ export function slotsFor(t: { day_start_min: number; day_end_min: number; slot_m
 export function slotIsOver(date: string, endMin: number, now: LocalNow): boolean {
   return date < now.date || (date === now.date && endMin <= now.minute);
 }
+
+/** The UTC instant of a tenant-local date and minute-of-day. */
+export function zonedToUtc(date: string, minute: number, timeZone: string): Date {
+  const wall = Date.parse(`${date}T00:00:00Z`) + minute * 60_000;
+  const offset = (at: number) => {
+    const local = localNow(timeZone, new Date(at));
+    return Date.parse(`${local.date}T00:00:00Z`) + local.minute * 60_000 - at;
+  };
+  // Re-check the offset at the first guess so times next to a DST switch land right.
+  return new Date(wall - offset(wall - offset(wall)));
+}

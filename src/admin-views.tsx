@@ -771,8 +771,8 @@ export const AdminSettings: FC<
             />
             <p class="field-hint" id="access_password-hint">
               {passwordOn
-                ? "Alle beboere må skrive inn det nye passordet neste gang de åpner bookingsiden."
-                : "En felles kode, som en dørkode. Du kan alltid se den igjen her."}
+                ? "Alle beboere må skrive inn det nye passordet neste gang de åpner bookingsiden. Kalenderlenkene deres slutter å virke."
+                : "En felles kode, som en dørkode. Du kan alltid se den igjen her. Kalenderlenker som alt er delt, slutter å virke."}
             </p>
             <FieldError id="access_password" error={errors.access_password} />
           </div>
@@ -787,7 +787,7 @@ export const AdminSettings: FC<
 
       {passwordOn && (
         <Sheet id="slaa-av-beboerpassord" title="Slå av beboerpassord?" closeTo={back("tilgang")}>
-          <p class="sheet-copy">Alle med lenken kan da se bookingsiden og reservere tider.</p>
+          <p class="sheet-copy">Alle med lenken kan da se bookingsiden og reservere tider. Beboernes kalenderlenker slutter å virke.</p>
           <form method="post" action={`${base}/access/off`} class="sheet-actions">
             <a href={back("tilgang")} class="button ghost" data-dialog-close>
               Avbryt
