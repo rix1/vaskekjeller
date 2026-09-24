@@ -24,11 +24,15 @@ Already done, don't redo:
 3. **Turn off preview builds.** **Settings** → **Build** → **Branch control**: uncheck **Enable Preview
    Builds** (builds for non-production branches). Previews would use the live database. Per-version
    preview URLs are already off via `"preview_urls": false` in `wrangler.jsonc`.
-4. **Give the build token D1 access.** `npm run deploy` applies migrations first, which needs **D1 Edit**.
+4. **Give the build token D1 and zone access.** `npm run deploy` applies migrations first, which needs **D1 Edit**.
    The token Workers Builds creates by default (**Create new token** in the connect dialog) has Workers
    Scripts, KV and R2 edit, but not D1. After connecting, go to **My Profile** → **API Tokens**, edit that
    token, and add **Account** → **D1** → **Edit**. You can also create a token with those permissions
    yourself and select it under **Settings** → **Build** → **API token**.
+
+   The deploy then attaches the custom domain `www.vaskekjeller.no`, which needs access to the
+   `vaskekjeller.no` zone: **Zone** → **Workers Routes** → **Edit**, with that zone included under **Zone
+   Resources**. The default token has this for all zones; a token you create yourself must include it.
 5. **Run the first build.** Push a commit to `main` (merging a PR counts). The build log
    should show every migration in `migrations/` applied, then the deploy.
 6. **Create the first building** from your own machine (after `npm install` and `npx wrangler login`),
@@ -38,12 +42,40 @@ Already done, don't redo:
    node scripts/create-tenant.ts --slug lofotgata --name "Lofotgata" --remote
    ```
 
-7. **Open it.** The app is public at `https://vaskekjeller.<your-subdomain>.workers.dev/lofotgata`
-   (the exact address is on the Worker's overview page). The admin page is `/lofotgata/admin`.
+7. **Open it.** The app is public at `https://www.vaskekjeller.no/lofotgata`. The admin page is
+   `/lofotgata/admin`.
    `/` shows a plain placeholder until a landing page exists.
+
+## Domain
+
+`vaskekjeller.no` is registered at Domeneshop with its nameservers pointing to Cloudflare, where the zone
+is active.
+
+First, in **DNS** → **Records**, check for address records Cloudflare imported from Domeneshop when the
+zone was added. Delete any `A`, `AAAA` or `CNAME` record on `www` (it makes the deploy fail) and any
+DNS-only `A`, `AAAA` or `CNAME` record on `@` (it sends visitors straight to the old host, past the
+redirect). Keep `MX`, `TXT` and all other records: they don't conflict, and mail and domain verification
+depend on them.
+
+- **www.vaskekjeller.no** is a Workers Custom Domain declared in `routes` in `wrangler.jsonc`. Deploy
+  creates the DNS record and certificate. Never add a `www` address record by hand: any other `A`,
+  `AAAA` or `CNAME` record on `www` makes the deploy fail.
+- **vaskekjeller.no** (apex) redirects to www:
+  1. **DNS** → **Records**: add `AAAA` `@` → `100::`, **Proxied** (a placeholder so requests reach Cloudflare).
+  2. **Rules** → **Redirect Rules** → create a rule: when hostname equals `vaskekjeller.no`, dynamic
+     redirect to `concat("https://www.vaskekjeller.no", http.request.uri.path)`, status **301**,
+     **Preserve query string** on. Match on hostname only, not the "Redirect from root to WWW"
+     template's `https://vaskekjeller.no/*` URL, which skips plain HTTP: `http://` visitors then reach
+     the `100::` placeholder and get a 522 error. Check with `curl -I http://vaskekjeller.no/`, which should
+     return a 301 to `https://www.vaskekjeller.no/`.
 
 ## If a build fails
 
 - **Migration step fails** (for example, an authorization error): the deploy never runs, so the live
   app keeps running the previous version against an unchanged database. Check the token has D1 Edit.
+- **Custom domain step fails** (after the upload, for example an authorization error on
+  `www.vaskekjeller.no`): the build token can't reach the `vaskekjeller.no` zone. Check it has **Zone** →
+  **Workers Routes** → **Edit** covering that zone (step 4). A conflicting `A`, `AAAA` or `CNAME` record on
+  `www`, including one imported from the previous DNS host, also fails this step; delete it and rerun the
+  build.
 - **Worker name mismatch:** the dashboard Worker name must equal `name` in `wrangler.jsonc`.
