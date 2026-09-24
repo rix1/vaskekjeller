@@ -51,9 +51,13 @@ Already done, don't redo:
 `vaskekjeller.no` is registered at Domeneshop with its nameservers pointing to Cloudflare, where the zone
 is active.
 
+First, in **DNS** → **Records**, delete any existing `@` and `www` records, including ones Cloudflare
+imported from Domeneshop when the zone was added. A leftover `www` record makes the deploy fail, and a
+leftover DNS-only apex record sends visitors straight to the old host, past the redirect.
+
 - **www.vaskekjeller.no** is a Workers Custom Domain declared in `routes` in `wrangler.jsonc`. Deploy
-  creates the DNS record and certificate. Never add a `www` DNS record by hand: a conflicting record makes
-  the deploy fail.
+  creates the DNS record and certificate. Never add a `www` DNS record by hand: any other `www` record
+  makes the deploy fail.
 - **vaskekjeller.no** (apex) redirects to www:
   1. **DNS** → **Records**: add `AAAA` `@` → `100::`, **Proxied** (a placeholder so requests reach Cloudflare).
   2. **Rules** → **Redirect Rules** → create a rule: when hostname equals `vaskekjeller.no`, dynamic
@@ -66,6 +70,6 @@ is active.
   app keeps running the previous version against an unchanged database. Check the token has D1 Edit.
 - **Custom domain step fails** (after the upload, for example an authorization error on
   `www.vaskekjeller.no`): the build token can't reach the `vaskekjeller.no` zone. Check it has **Zone** →
-  **Workers Routes** → **Edit** covering that zone (step 4). A conflicting `www` DNS record added by hand
-  also fails this step; delete it and rerun the build.
+  **Workers Routes** → **Edit** covering that zone (step 4). A conflicting `www` DNS record, including one
+  imported from the previous DNS host, also fails this step; delete it and rerun the build.
 - **Worker name mismatch:** the dashboard Worker name must equal `name` in `wrangler.jsonc`.
