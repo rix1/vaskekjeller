@@ -45,7 +45,7 @@ function statement(sql) {
 
 const env = () => ({ DB: db, SESSION_SECRET: SECRET, VAPID_PUBLIC_KEY: "", VAPID_PRIVATE_KEY: "", VAPID_SUBJECT: "" });
 const fetchApp = (path, init = {}) =>
-  worker.fetch(new Request(`http://localhost/demo${path ? `/${path}` : ""}`, { redirect: "manual", ...init }), env(), {
+  worker.fetch(new Request(`http://localhost/bygg${path ? `/${path}` : ""}`, { redirect: "manual", ...init }), env(), {
     waitUntil: (promise) => promise.catch(() => {}),
   });
 const headers = (cookie, extra = {}) => ({ Cookie: cookie ?? "", "User-Agent": IPHONE_UA, "CF-Connecting-IP": IP, ...extra });
@@ -119,7 +119,7 @@ beforeEach(async () => {
   sqlite.exec("DELETE FROM tenants; DELETE FROM visitor_hashes;");
   const hash = await crypto.hashPassword(ADMIN_PASSWORD);
   sqlite
-    .prepare("INSERT INTO tenants (id, slug, name, admin_password_hash) VALUES (1, 'demo', 'Lofotgata 5', ?), (2, 'other', 'Nabo', ?)")
+    .prepare("INSERT INTO tenants (id, slug, name, admin_password_hash) VALUES (1, 'bygg', 'Lofotgata 5', ?), (2, 'other', 'Nabo', ?)")
     .run(hash, hash);
   sqlite.exec(
     `INSERT INTO machines (id, tenant_id, kind, name) VALUES (1, 1, 'washer', 'Vask 1'), (2, 1, 'dryer', 'Tørk 1'), (3, 1, 'washer', 'Vask 2'),
@@ -294,7 +294,7 @@ test("the danger zone sits at the bottom of the access section and needs the bui
   const access = page.slice(page.indexOf('id="tilgang"'));
   assert.match(access, /class="danger-zone"/);
   assert.match(access, /href="#steng" data-dialog="steng"/);
-  assert.match(page, /<dialog id="steng"[^>]*>[\s\S]*action="\/demo\/admin\/close"[\s\S]*data-confirm-name="Lofotgata 5"/);
+  assert.match(page, /<dialog id="steng"[^>]*>[\s\S]*action="\/bygg\/admin\/close"[\s\S]*data-confirm-name="Lofotgata 5"/);
 });
 
 test("closing needs the building's name; a wrong name changes nothing", async () => {
@@ -314,7 +314,7 @@ test("closing takes the booking page, resident routes and feeds offline at once;
   sqlite.prepare("UPDATE tenants SET access_password_hash = NULL WHERE id = 1").run();
   const response = await post("admin/close", { confirm_name: "  lofotgata   5 " }, admin);
   assert.equal(response.status, 303);
-  assert.equal(location(response).pathname, "/demo/admin");
+  assert.equal(location(response).pathname, "/bygg/admin");
   assert.equal(location(response).searchParams.get("m"), "closed");
   assert.ok(tenant().closed_at);
   assert.equal(log().length, 1);
@@ -353,7 +353,7 @@ test("closing takes the booking page, resident routes and feeds offline at once;
   // Everything else on the admin page leads back to that choice and changes nothing.
   const settings = await get("admin/settings", fresh);
   assert.equal(settings.status, 303);
-  assert.equal(location(settings).pathname, "/demo/admin");
+  assert.equal(location(settings).pathname, "/bygg/admin");
   await post("admin/settings", { section: "generelt", name: "Hacked" }, fresh);
   assert.equal(tenant().name, "Lofotgata 5");
 });

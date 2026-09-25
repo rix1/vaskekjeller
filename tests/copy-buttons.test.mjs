@@ -69,7 +69,7 @@ async function page(elements, scripts) {
   body.append = () => {};
   const all = elements;
   const context = {
-    location: { href: "http://localhost/demo/admin/settings", pathname: "/demo/admin/settings", search: "", hash: "", origin: "http://localhost" },
+    location: { href: "http://localhost/bygg/admin/settings", pathname: "/bygg/admin/settings", search: "", hash: "", origin: "http://localhost" },
     history: { replaceState() {} },
     URL,
     Element,

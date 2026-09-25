@@ -22,7 +22,7 @@ test("compiled service worker runs as a classic script and shows pushed notifica
     };
     script.runInContext(createContext({ self }));
 
-    const message = { title: "Ny kommentar", body: "Tir. 29. sep. 10:00–12:00: «ferdig kl. 11»", url: "/demo", tag: "note-x", renotify: true };
+    const message = { title: "Ny kommentar", body: "Tir. 29. sep. 10:00–12:00: «ferdig kl. 11»", url: "/bygg", tag: "note-x", renotify: true };
     const waits = [];
     listeners.push({ data: { json: () => message }, waitUntil: (p) => waits.push(p) });
     await Promise.all(waits);
@@ -32,7 +32,7 @@ test("compiled service worker runs as a classic script and shows pushed notifica
     assert.equal(shown[0].options.body, message.body);
     assert.equal(shown[0].options.tag, "note-x");
     assert.equal(shown[0].options.renotify, true);
-    assert.equal(shown[0].options.data.url, "/demo");
+    assert.equal(shown[0].options.data.url, "/bygg");
   } finally {
     await rm(temp, { recursive: true, force: true });
   }

@@ -52,7 +52,7 @@ function statement(sql) {
 }
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const post = (path, body, apartment = "A3") =>
-  mf.dispatchFetch(`http://localhost/demo/${path}?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -180,7 +180,7 @@ before(async () => {
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
   sqlite.exec(await readFile("migrations/0004_message_counts.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test','unused')").run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'bygg','Test','unused')").run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -279,7 +279,7 @@ const localDate = (offset = 0) => {
 };
 const board = async (date, apartment) =>
   (
-    await mf.dispatchFetch(`http://localhost/demo${date ? `?date=${date}` : ""}`, {
+    await mf.dispatchFetch(`http://localhost/bygg${date ? `?date=${date}` : ""}`, {
       headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
     })
   ).text();
@@ -303,7 +303,7 @@ test("past days show who used each machine, read-only, without cancelled booking
   assert.match(html, /Leil\. D4/);
   assert.match(html, /Tøy ligger i tørketrommelen/);
   assert.doesNotMatch(html, /leil\. Z9/i);
-  assert.doesNotMatch(html, /action="\/demo\/(book|wait|unwait)/);
+  assert.doesNotMatch(html, /action="\/bygg\/(book|wait|unwait)/);
   assert.doesNotMatch(html, /reserve-button/);
   assert.match(html, new RegExp(`data-date="${day}"[^>]*aria-label="[^"]*, passert"[^>]*>.*?<small>Passert</small>`));
 });
@@ -368,7 +368,7 @@ test("the date strip shows Monday-to-Sunday weeks within the 14-day look-back an
 });
 
 const boardFor = (apartment) =>
-  mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&mode=pair-1-2`, {
     headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
   });
 
@@ -395,7 +395,7 @@ test("first visit shows the inline welcome; a saved apartment gets the chip popo
   const saved = await (await boardFor("A3")).text();
   assert.doesNotMatch(saved, /Hei, nabo\./);
   assert.match(saved, /<details class="apartment-menu">/);
-  assert.match(saved, /class="apartment-popover"[\s\S]*action="\/demo\/apartment\?date=/);
+  assert.match(saved, /class="apartment-popover"[\s\S]*action="\/bygg\/apartment\?date=/);
 });
 
 test("reservation card shows how many other households are waiting", async () => {
@@ -457,7 +457,7 @@ test("adding or changing a comment notifies each waiting household's devices onc
   for (const { message } of pushed) {
     assert.equal(message.body, expected);
     assert.equal(message.tag, `note-${tomorrow}-600-A3`);
-    assert.equal(message.url, `/demo?date=${tomorrow}`);
+    assert.equal(message.url, `/bygg?date=${tomorrow}`);
   }
   assert.equal(await db.prepare("SELECT notifications FROM daily_stats").first("notifications"), 3);
 

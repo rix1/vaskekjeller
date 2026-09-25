@@ -29,7 +29,7 @@ async function settingsPage(hash = "") {
   const page = {
     scrollY: 0,
     innerHeight: 900,
-    location: { href: `http://localhost/demo/admin/settings${hash}`, pathname: "/demo/admin/settings", search: "", hash },
+    location: { href: `http://localhost/bygg/admin/settings${hash}`, pathname: "/bygg/admin/settings", search: "", hash },
     history: { replaceState() {} },
     URL,
     HTMLDialogElement: class {},

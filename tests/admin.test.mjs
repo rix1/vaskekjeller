@@ -42,7 +42,7 @@ function statement(sql) {
 
 const fetchApp = (path, init = {}) =>
   worker.fetch(
-    new Request(`http://localhost/demo${path ? `/${path}` : ""}`, { redirect: "manual", ...init }),
+    new Request(`http://localhost/bygg${path ? `/${path}` : ""}`, { redirect: "manual", ...init }),
     { DB: db, SESSION_SECRET: SECRET, VAPID_PUBLIC_KEY: "", VAPID_PRIVATE_KEY: "", VAPID_SUBJECT: "" },
     { waitUntil: (promise) => promise.catch(() => {}) },
   );
@@ -115,7 +115,7 @@ before(async () => {
 beforeEach(async () => {
   sqlite.exec("DELETE FROM machines; DELETE FROM tenants;");
   sqlite
-    .prepare("INSERT INTO tenants (id, slug, name, admin_password_hash) VALUES (1, 'demo', 'Test', ?)")
+    .prepare("INSERT INTO tenants (id, slug, name, admin_password_hash) VALUES (1, 'bygg', 'Test', ?)")
     .run(await crypto.hashPassword(ADMIN_PASSWORD));
   sqlite.exec(
     "INSERT INTO machines (id, tenant_id, kind, name) VALUES (1, 1, 'washer', 'Vask 1'), (2, 1, 'dryer', 'Tørk 1'), (3, 1, 'washer', 'Vask 2')",
@@ -131,7 +131,7 @@ after(async () => {
 test("settings routes require an admin session", async () => {
   const response = await post("admin/settings", { section: "generelt", name: "Hacked" });
   assert.equal(response.status, 303);
-  assert.equal(location(response).pathname, "/demo/admin/login");
+  assert.equal(location(response).pathname, "/bygg/admin/login");
   assert.equal(tenant().name, "Test");
 });
 
@@ -291,7 +291,7 @@ test("resident password: set, view, verify residents, change, and turn off", asy
   assert.match(settingsPage, /<button type="button" class="text-button" data-copy=".secret-plain"/);
 
   // Residents are verified against the hash, and their cookie is bound to it.
-  assert.equal(location(await get("")).pathname, "/demo/login");
+  assert.equal(location(await get("")).pathname, "/bygg/login");
   assert.equal(location(await post("login", { password: "wrong" })).searchParams.get("m"), "wrong-password");
   const resident = cookieFrom(await post("login", { password: "1234-dør" }), "vk_access");
   assert.equal((await get("", resident)).status, 200);
@@ -357,7 +357,7 @@ test("admin password keeps its rules: min 8 chars, hashed, other sessions logged
   assert.ok(await crypto.verifyPassword("new password", tenant().admin_password_hash));
   const fresh = cookieFrom(changed, "vk_admin");
   assert.equal((await get("admin/settings", fresh)).status, 200);
-  assert.equal(location(await get("admin/settings", admin)).pathname, "/demo/admin/login");
+  assert.equal(location(await get("admin/settings", admin)).pathname, "/bygg/admin/login");
   assert.doesNotMatch(await (await get("admin/settings", fresh)).text(), /new password/);
   assert.equal(await login(ADMIN_PASSWORD), undefined);
   assert.ok(await login("new password"));
@@ -375,8 +375,8 @@ test("a dialog reopened after an error closes without JavaScript", async () => {
     const sheet = (await response.text()).match(new RegExp(`<dialog id="${dialog}"[^>]* open=""[\\s\\S]*?</dialog>`))?.[0];
     assert.ok(sheet, `${dialog} is open`);
     const closers = [...sheet.matchAll(/<a href="([^"]*)"[^>]*data-dialog-close/g)].map((m) => m[1]);
-    assert.deepEqual(closers, [`/demo/admin/settings#${section}`, `/demo/admin/settings#${section}`], dialog);
-    const closed = await get(closers[0].slice("/demo/".length).split("#")[0], admin);
+    assert.deepEqual(closers, [`/bygg/admin/settings#${section}`, `/bygg/admin/settings#${section}`], dialog);
+    const closed = await get(closers[0].slice("/bygg/".length).split("#")[0], admin);
     assert.equal(closed.status, 200);
     assert.doesNotMatch(await closed.text(), /<dialog[^>]* open=""/);
   }

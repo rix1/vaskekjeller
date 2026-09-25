@@ -54,7 +54,7 @@ function statement(sql) {
 }
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const post = (path, body, apartment = "A3") =>
-  mf.dispatchFetch(`http://localhost/demo/${path}?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -178,7 +178,7 @@ before(async () => {
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
   sqlite.exec(await readFile("migrations/0004_message_counts.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test','unused')").run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'bygg','Test','unused')").run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -199,7 +199,7 @@ const localDate = (offset = 0) => {
 };
 const board = async (date, apartment) =>
   (
-    await mf.dispatchFetch(`http://localhost/demo${date ? `?date=${date}` : ""}`, {
+    await mf.dispatchFetch(`http://localhost/bygg${date ? `?date=${date}` : ""}`, {
       headers: apartment ? { Cookie: `vk_apt=${apartment}` } : {},
     })
   ).text();
@@ -236,7 +236,7 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
   for (const { message: m } of pushed) {
     assert.equal(m.title, `Leil. B2 om ${shortDay(tomorrow)} 10:00–12:00`);
     assert.equal(m.body, "Du har glemt klær i maskinen «Ligger i kurven»\nSvar med en kommentar – de som venter får beskjed.");
-    assert.equal(m.url, `/demo?date=${tomorrow}&note=${washer.id}#reservation-${washer.id}`);
+    assert.equal(m.url, `/bygg?date=${tomorrow}&note=${washer.id}#reservation-${washer.id}`);
     assert.equal(m.tag, `message-${tomorrow}-600-B2`);
     assert.equal(m.renotify, true);
   }
@@ -257,7 +257,7 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
   assert.match(
     sent,
     new RegExp(
-      `action="/demo/unwait-reservation[^"]*" class="toast-action"><input type="hidden" name="booking_id" value="${washer.id}"/><button class="toast-button">Forlat venteliste`,
+      `action="/bygg/unwait-reservation[^"]*" class="toast-action"><input type="hidden" name="booking_id" value="${washer.id}"/><button class="toast-button">Forlat venteliste`,
     ),
     "the sender can leave right away",
   );
@@ -323,7 +323,7 @@ test("for 2 hours after a slot ends, only the forgot-clothes message can be sent
     const slot = (await board(day, "B2")).match(/08:00<span class="time-dash">–<\/span>10:00[\s\S]*?<\/article>/)?.[0] ?? "";
     assert.match(slot, /Send melding til leil\. A3/);
     assert.match(slot, /value="forgot-clothes"/);
-    assert.doesNotMatch(slot, /value="done-soon"|value="take-dryer"|action="\/demo\/wait/);
+    assert.doesNotMatch(slot, /value="done-soon"|value="take-dryer"|action="\/bygg\/wait/);
 
     assert.equal(flash(await message(washer.id)), "over");
     const response = await message(washer.id, { preset: "forgot-clothes", note: "Ligger i kurven" });
@@ -332,7 +332,7 @@ test("for 2 hours after a slot ends, only the forgot-clothes message can be sent
     assert.equal(pushed.length, 1);
     assert.equal(pushed[0].message.title, `Leil. B2 om ${shortDay(day)} 08:00–10:00`);
     assert.equal(pushed[0].message.body, "Du har glemt klær i maskinen «Ligger i kurven»");
-    assert.equal(pushed[0].message.url, `/demo?date=${day}`);
+    assert.equal(pushed[0].message.url, `/bygg?date=${day}`);
     assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM waitlist").get().n, 0);
     const sent = await (
       await mf.dispatchFetch(`http://localhost${response.headers.get("location")}`, { headers: { Cookie: "vk_apt=B2" } })
@@ -356,7 +356,7 @@ test("tapping the message opens the holder's comment field", async () => {
   await book(600);
   const [washer, dryer] = (await active()).results;
   const html = await (
-    await mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&note=${dryer.id}`, { headers: { Cookie: "vk_apt=A3" } })
+    await mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&note=${dryer.id}`, { headers: { Cookie: "vk_apt=A3" } })
   ).text();
   assert.match(html, new RegExp(`id="reservation-${washer.id}"[\\s\\S]*?<details open="">\\s*<summary>Legg til kommentar`));
   assert.match(html, /<input name="note"[^>]*autofocus=""/);

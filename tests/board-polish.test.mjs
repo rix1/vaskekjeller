@@ -38,7 +38,7 @@ function statement(sql) {
 }
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const post = (path, body, apartment = "A3") =>
-  mf.dispatchFetch(`http://localhost/demo/${path}?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -89,7 +89,7 @@ before(async () => {
   sqlite.exec(await readFile("migrations/0001_init.sql", "utf8"));
   await db.prepare(await readFile("migrations/0002_booking_overlap.sql", "utf8")).run();
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test','unused')").run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'bygg','Test','unused')").run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -102,7 +102,7 @@ after(async () => {
 });
 
 const tomorrowBoard = async (cookie = "vk_apt=A3", mode = "pair-1-2") =>
-  (await mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=${mode}`, { headers: { Cookie: cookie } })).text();
+  (await mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&mode=${mode}`, { headers: { Cookie: cookie } })).text();
 const dayItem = (html) => html.match(new RegExp(`<a [^>]*data-date="${tomorrow}"[^>]*>.*?</a>`))?.[0] ?? "";
 const bookAllSlots = async (machines) => {
   for (const start of [480, 600, 720, 840, 960, 1080])
@@ -174,7 +174,7 @@ test("the first successful booking sets a device cookie that hides the booking h
   assert.equal(flash(response), "booked");
   const cookie = response.headers.get("set-cookie") ?? "";
   assert.match(cookie, /^vk_booked=1;/);
-  assert.match(cookie, /Path=\/demo/);
+  assert.match(cookie, /Path=\/bygg/);
   assert.match(cookie, /Max-Age=34560000/);
   assert.doesNotMatch(await tomorrowBoard("vk_apt=A3; vk_booked=1"), /Ett trykk reserverer/);
 });
@@ -185,11 +185,11 @@ test("past days never render the booking hint, even before the first booking", a
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 3);
   const past = d.toISOString().slice(0, 10);
-  const html = await (await mf.dispatchFetch(`http://localhost/demo?date=${past}`, { headers: { Cookie: "vk_apt=A3" } })).text();
+  const html = await (await mf.dispatchFetch(`http://localhost/bygg?date=${past}`, { headers: { Cookie: "vk_apt=A3" } })).text();
   assert.match(html, new RegExp(`data-date="${past}"[^>]*aria-current="date"`));
   assert.doesNotMatch(html, /Ett trykk reserverer/);
   assert.match(
-    await (await mf.dispatchFetch(`http://localhost/demo`, { headers: { Cookie: "vk_apt=A3" } })).text(),
+    await (await mf.dispatchFetch(`http://localhost/bygg`, { headers: { Cookie: "vk_apt=A3" } })).text(),
     /Ett trykk reserverer/,
   );
 });

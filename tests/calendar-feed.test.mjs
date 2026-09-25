@@ -44,7 +44,7 @@ function statement(sql) {
 }
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const post = (path, body, apartment = "A3") =>
-  mf.dispatchFetch(`http://localhost/demo/${path}?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -102,7 +102,7 @@ before(async () => {
   sqlite.exec(await readFile("migrations/0003_resident_password_readable.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0005_calendar_feeds.sql", "utf8"));
   sqlite.exec(await readFile("migrations/0006_audit_log_and_closing.sql", "utf8"));
-  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'demo','Test',?)").bind(pbkdf2Hash(ADMIN_PASSWORD)).run();
+  await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (1,'bygg','Test',?)").bind(pbkdf2Hash(ADMIN_PASSWORD)).run();
   await db
     .prepare(
       "INSERT INTO machines (id,tenant_id,kind,name) VALUES (1,1,'washer','Vaskemaskin'),(2,1,'dryer','Tørketrommel'),(3,1,'washer','Ekstra vaskemaskin')",
@@ -117,19 +117,19 @@ after(async () => {
 // Cookie from a resident login, sent with every board load once the password is on.
 let access = "";
 const boardFor = (apartment) =>
-  mf.dispatchFetch(`http://localhost/demo?date=${tomorrow}&mode=pair-1-2`, {
+  mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&mode=pair-1-2`, {
     headers: { Cookie: [apartment && `vk_apt=${apartment}`, access].filter(Boolean).join("; ") },
   });
 /** Sets (or with no argument removes) the resident password through the admin routes; the admin device stays logged in. */
 const residentPassword = async (password) => {
-  const login = await mf.dispatchFetch("http://localhost/demo/admin/login", {
+  const login = await mf.dispatchFetch("http://localhost/bygg/admin/login", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost" },
     body: new URLSearchParams({ password: ADMIN_PASSWORD }),
     redirect: "manual",
   });
   const admin = login.headers.get("set-cookie").split(";")[0];
-  const response = await mf.dispatchFetch(`http://localhost/demo/admin/${password ? "access" : "access/off"}`, {
+  const response = await mf.dispatchFetch(`http://localhost/bygg/admin/${password ? "access" : "access/off"}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost", Cookie: admin },
     body: new URLSearchParams(password ? { access_password: password } : {}),
@@ -162,7 +162,7 @@ test("the apartment feed lists own bookings with machines, comment, waiting coun
   await book(600, "D4", "1");
 
   const url = await feedUrl();
-  assert.match(url, /^http:\/\/localhost\/demo\/cal\/[\w-]{40,}\.ics$/);
+  assert.match(url, /^http:\/\/localhost\/bygg\/cal\/[\w-]{40,}\.ics$/);
   const res = await fetchFeed(url);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-type"), "text/calendar; charset=utf-8");
@@ -178,7 +178,7 @@ test("the apartment feed lists own bookings with machines, comment, waiting coun
   assert.equal(rest.length, 0, "other apartments stay out by default");
   assert.equal(own.SUMMARY, "Vask & tørk");
   assert.equal(own.TRANSP, "OPAQUE");
-  assert.equal(own.URL, `http://localhost/demo?date=${tomorrow}`);
+  assert.equal(own.URL, `http://localhost/bygg?date=${tomorrow}`);
   const oslo = (min) => new Date(`${tomorrow}T0${min / 60}:00:00+02:00`).getTime();
   const utc = (v) => Date.parse(v.replace(/(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z/, "$1-$2-$3T$4:$5:$6Z"));
   // Oslo is UTC+1 or +2; the booking is 08:00–10:00 local either way.
@@ -186,7 +186,7 @@ test("the apartment feed lists own bookings with machines, comment, waiting coun
   assert.equal(utc(own.DTEND) - utc(own.DTSTART), 2 * 3600000);
   assert.equal(
     own.DESCRIPTION,
-    `Vaskemaskin + Tørketrommel\\nKommentar: Ferdig før 10\\, lover\\; tøy\\\\sokker\\n2 naboer venter på denne tiden.\\nSe dagen: http://localhost/demo?date=${tomorrow}`,
+    `Vaskemaskin + Tørketrommel\\nKommentar: Ferdig før 10\\, lover\\; tøy\\\\sokker\\n2 naboer venter på denne tiden.\\nSe dagen: http://localhost/bygg?date=${tomorrow}`,
   );
 });
 
@@ -196,7 +196,7 @@ test("past bookings in the feed do not count waiters", async () => {
   await db.prepare("INSERT INTO bookings (tenant_id, machine_id, date, start_min, end_min, apartment) VALUES (1, 1, ?, 480, 600, 'A3')").bind(past).run();
   await db.prepare("INSERT INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (1, 1, ?, 480, 'B2')").bind(past).run();
   const [own] = events(await (await fetchFeed(await feedUrl())).text());
-  assert.equal(own.URL, `http://localhost/demo?date=${past}`);
+  assert.equal(own.URL, `http://localhost/bygg?date=${past}`);
   assert.doesNotMatch(own.DESCRIPTION, /venter/);
 });
 
@@ -231,14 +231,14 @@ test("including others marks their bookings free, and the toggle updates the sam
 
 test("unknown and replaced links are 404; a new link keeps the setting", async () => {
   await reset();
-  assert.equal((await fetchFeed("http://localhost/demo/cal/not-a-real-token-at-all-xyz.ics")).status, 404);
-  assert.equal((await fetchFeed("http://localhost/demo/cal/.ics")).status, 404);
+  assert.equal((await fetchFeed("http://localhost/bygg/cal/not-a-real-token-at-all-xyz.ics")).status, 404);
+  assert.equal((await fetchFeed("http://localhost/bygg/cal/.ics")).status, 404);
   const old = await feedUrl();
   assert.equal((await fetchFeed(old)).status, 200);
   // A token only opens its own building's feed.
   await db.prepare("INSERT INTO tenants (id,slug,name,admin_password_hash) VALUES (2,'other','Annen','unused')").run();
   try {
-    assert.equal((await fetchFeed(old.replace("/demo/", "/other/"))).status, 404);
+    assert.equal((await fetchFeed(old.replace("/bygg/", "/other/"))).status, 404);
   } finally {
     await db.prepare("DELETE FROM tenants WHERE id = 2").run();
   }

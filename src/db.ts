@@ -20,6 +20,10 @@ export type Tenant = {
   /** 1 for buildings created through /ny until the daily cron has closed one nobody booked (see UNUSED_DAYS). */
   close_if_unused: number;
   created_at: string;
+  /** 1: every write route is refused and the board hides its actions (the showcase demo). */
+  read_only: number;
+  /** 1: comments and messages are limited to ready-made choices (the playground demo). */
+  presets_only: number;
 };
 
 export type MachineKind = "washer" | "dryer";

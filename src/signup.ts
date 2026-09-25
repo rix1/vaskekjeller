@@ -1,5 +1,6 @@
 // Self-service signup: web addresses (slugs), the Turnstile bot check, and the per-network daily limit.
 import { sha256Hex } from "./crypto.ts";
+import { PLAYGROUND_SLUG, SHOWCASE_SLUG } from "./demo.ts";
 
 export const SLUG_MIN = 3;
 export const SLUG_MAX = 40;
@@ -7,7 +8,7 @@ export const SLUG_MAX = 40;
 /** Paths that are, or may become, pages of their own rather than a building. */
 export const RESERVED_SLUGS = new Set([
   // Routes and planned pages
-  "admin", "ny", "om", "cal", "api", "demo", "visning", "login", "logout", "nullstill", "registrer", "signup",
+  "admin", "ny", "om", "cal", "api", PLAYGROUND_SLUG, SHOWCASE_SLUG, "login", "logout", "nullstill", "registrer", "signup",
   "hjelp", "faq", "kontakt", "personvern", "vilkar", "priser", "blogg", "status", "app", "www",
   // Static files and the folders they could move to
   "static", "assets", "public", "favicon", "robots", "sitemap", "manifest", "icon", "sw", "style", "well-known",

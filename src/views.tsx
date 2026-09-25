@@ -14,6 +14,7 @@ import {
   type Tenant,
   type WaitEntry,
 } from "./db.ts";
+import { NOTE_PRESETS, PLAYGROUND_SLUG } from "./demo.ts";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
@@ -228,7 +229,7 @@ const CalendarSubscription: FC<{
 );
 
 export const Icon: FC<{
-  name?: MachineKind | "arrow" | "clock" | "check" | "home" | "calendar" | "alert";
+  name?: MachineKind | "arrow" | "clock" | "check" | "home" | "calendar" | "alert" | "bell" | "phone" | "shield";
   size?: number;
 }> = ({ name = "washer", size = 20 }) => (
   <svg
@@ -265,6 +266,15 @@ export const Icon: FC<{
       <path d="m5 12 4 4L19 6" />
     ) : name === "alert" ? (
       <path d="M12 7v6m0 4h.01" stroke-width="2.2" />
+    ) : name === "bell" ? (
+      <path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />
+    ) : name === "phone" ? (
+      <>
+        <rect x="7" y="2" width="10" height="20" rx="2.5" />
+        <path d="M11 18.5h2" />
+      </>
+    ) : name === "shield" ? (
+      <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zm-3 9 2 2 4-4" />
     ) : name === "home" ? (
       <>
         <path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8" />
@@ -291,11 +301,12 @@ const MachineIcons: FC<{ machines: Machine[]; size?: number }> = ({ machines, si
 );
 
 /** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
-const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; late: boolean }> = ({
+const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; late: boolean; presetsOnly: boolean }> = ({
   booking: b,
   action,
   notifiable,
   late,
+  presetsOnly,
 }) => (
   <div class="slot-message">
     {!notifiable ? (
@@ -318,10 +329,12 @@ const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; l
                 </label>
               ))}
           </fieldset>
-          <label>
-            Legg til (valgfritt)
-            <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
-          </label>
+          {!presetsOnly && (
+            <label>
+              Legg til (valgfritt)
+              <input name="note" maxlength={140} placeholder="F.eks. jeg står i kjelleren nå" autocomplete="off" />
+            </label>
+          )}
           <small>
             {late
               ? `Leil. ${b.apartment} får et varsel.`
@@ -362,10 +375,17 @@ type BoardProps = {
   hideHint?: boolean;
   /** The apartment's calendar feed; absent until an apartment is chosen. */
   calendar?: { url: string; includeOthers: boolean };
+  /** One of the landing page's demo buildings: shows a banner and no admin link. */
+  demo?: boolean;
+  /** Rendered inside the landing page's phone preview: no banner or footer. */
+  embed?: boolean;
 };
 
 export const BoardPage: FC<BoardProps> = (p) => {
   const base = `/${p.tenant.slug}`;
+  // The showcase hides every action; its routes refuse writes as well.
+  const readOnly = !!p.tenant.read_only;
+  const presetsOnly = !!p.tenant.presets_only;
   const options = bookingOptions(p.machines.filter((m) => m.active));
   const option = options.find((o) => o.key === p.mode) ?? options[0];
   const selected = p.days.includes(p.selectedDate ?? "") ? p.selectedDate! : p.now.date;
@@ -447,6 +467,21 @@ export const BoardPage: FC<BoardProps> = (p) => {
 
   return (
     <Layout title={`Vaskekjeller · ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
+      {p.demo && !p.embed && (
+        <p class="demo-banner">
+          {readOnly ? (
+            <>
+              <span>Dette er en visning. Ingenting kan endres her.</span>
+              <a href={`/${PLAYGROUND_SLUG}`}>Prøv demoen →</a>
+            </>
+          ) : (
+            <>
+              <span>Demo: prøv så mye du vil. Alt nullstilles hver natt.</span>
+              <a href="/">Til forsiden</a>
+            </>
+          )}
+        </p>
+      )}
       <header class="top resident-top">
         <a class="brand" href={base} aria-label="Vaskekjeller, hjem">
           <span class="brand-icon">
@@ -456,7 +491,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
             Vaskekjeller<small>{p.tenant.name}</small>
           </span>
         </a>
-        {p.apartment ? (
+        {p.apartment && readOnly ? (
+          <span class="apartment-chip">
+            <Icon name="home" size={16} />
+            <span>
+              Leilighet <strong>{p.apartment}</strong>
+            </span>
+          </span>
+        ) : p.apartment ? (
           <details class="apartment-menu" open={p.flash?.startsWith("cal-")}>
             <summary class="apartment-chip" aria-label={`Leilighet ${p.apartment}, endre leilighet`}>
               <Icon name="home" size={16} />
@@ -661,7 +703,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const partial = !over && partlyFree(selected, s);
                   const freeMachines = option.machines.filter((m) => !occupied.some((b) => b.machine_id === m.id));
                   const holder = (b: Booking) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`);
-                  const late = over && !!p.apartment && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
+                  const late = over && !!p.apartment && !readOnly && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
                   const time = `${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
                   const label = `${option.label}, ${time}`;
                   return (
@@ -722,6 +764,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                       </div>
                       <div class="slot-action">
                         {free &&
+                          !readOnly &&
                           (p.apartment ? (
                             <form method="post" action={action("book")} data-reserve>
                               <Hidden
@@ -742,6 +785,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                             </a>
                           ))}
                         {partial &&
+                          !readOnly &&
                           (p.apartment ? (
                             freeMachines.map((m) => (
                               <details class="slot-details slot-confirm">
@@ -812,6 +856,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                     )}
                                     {p.apartment &&
                                       !over &&
+                                      !readOnly &&
                                       (bookings.length ? (
                                         bookings.every((b) => b.apartment === p.apartment) ? (
                                           <a href={`#reservation-${bookings[0]!.id}`}>Din reservasjon ↗</a>
@@ -834,10 +879,17 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                 );
                               })}
                               {p.apartment &&
+                                !readOnly &&
                                 other
                                   .filter((b, i) => other.findIndex((x) => x.apartment === b.apartment) === i)
                                   .map((b) => (
-                                    <MessageForm booking={b} action={action("message")} notifiable={p.notifiable.includes(b.apartment)} late={over} />
+                                    <MessageForm
+                                      booking={b}
+                                      action={action("message")}
+                                      notifiable={p.notifiable.includes(b.apartment)}
+                                      late={over}
+                                      presetsOnly={presetsOnly}
+                                    />
                                   ))}
                             </div>
                           </details>
@@ -848,7 +900,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   );
                 })}
             </div>
-            {!past && !p.hideHint && (
+            {!past && !p.hideHint && !readOnly && (
               <div class="schedule-note">
                 <Icon name="check" size={16} />
                 <span>
@@ -918,39 +970,56 @@ export const BoardPage: FC<BoardProps> = (p) => {
                         </span>
                       </p>
                     )}
-                    <div class="reservation-actions">
-                      <details open={openNote}>
-                        <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
-                        <form method="post" action={`${base}/note${query(b.date)}`} class="note-form">
+                    {!readOnly && (
+                      <div class="reservation-actions">
+                        <details open={openNote}>
+                          <summary>{b.note ? "Endre kommentar" : "Legg til kommentar"}</summary>
+                          <form method="post" action={`${base}/note${query(b.date)}`} class="note-form">
+                            <Hidden fields={{ booking_ids: ids }} />
+                            <label>
+                              Kommentar til naboene
+                              {presetsOnly ? (
+                                <select
+                                  name="note"
+                                  autofocus={openNote}
+                                  aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
+                                >
+                                  <option value="">Ingen kommentar</option>
+                                  {NOTE_PRESETS.map((n) => (
+                                    <option value={n} selected={n === b.note}>
+                                      {n}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  name="note"
+                                  maxlength={140}
+                                  value={b.note ?? ""}
+                                  placeholder="F.eks. ferdig litt før"
+                                  autofocus={openNote}
+                                  aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
+                                />
+                              )}
+                            </label>
+                            {waiting > 0 && (
+                              <small class="note-hint" id={`note-hint-${b.id}`}>
+                                {waiting} venter – de får beskjed om kommentaren din.
+                              </small>
+                            )}
+                            <button class="small-button">Lagre</button>
+                          </form>
+                        </details>
+                        <form
+                          method="post"
+                          action={`${base}/cancel${query(b.date)}`}
+                          data-confirm={`Avbestille ${groupLabel(bookings)}, ${fmtDay(b.date)} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}?`}
+                        >
                           <Hidden fields={{ booking_ids: ids }} />
-                          <label>
-                            Kommentar til naboene
-                            <input
-                              name="note"
-                              maxlength={140}
-                              value={b.note ?? ""}
-                              placeholder="F.eks. ferdig litt før"
-                              autofocus={openNote}
-                              aria-describedby={waiting > 0 ? `note-hint-${b.id}` : undefined}
-                            />
-                          </label>
-                          {waiting > 0 && (
-                            <small class="note-hint" id={`note-hint-${b.id}`}>
-                              {waiting} venter – de får beskjed om kommentaren din.
-                            </small>
-                          )}
-                          <button class="small-button">Lagre</button>
+                          <button class="link cancel-link">Avbestill</button>
                         </form>
-                      </details>
-                      <form
-                        method="post"
-                        action={`${base}/cancel${query(b.date)}`}
-                        data-confirm={`Avbestille ${groupLabel(bookings)}, ${fmtDay(b.date)} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}?`}
-                      >
-                        <Hidden fields={{ booking_ids: ids }} />
-                        <button class="link cancel-link">Avbestill</button>
-                      </form>
-                    </div>
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -969,24 +1038,28 @@ export const BoardPage: FC<BoardProps> = (p) => {
                       {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
                     </strong>
                     <small>{machineName(w.machine_id)}</small>
-                    <form method="post" action={`${base}/unwait${query(w.date)}`}>
-                      <Hidden
-                        fields={{
-                          machine_id: w.machine_id,
-                          date: w.date,
-                          start: w.start_min,
-                        }}
-                      />
-                      <button class="link">Forlat venteliste</button>
-                    </form>
+                    {!readOnly && (
+                      <form method="post" action={`${base}/unwait${query(w.date)}`}>
+                        <Hidden
+                          fields={{
+                            machine_id: w.machine_id,
+                            date: w.date,
+                            start: w.start_min,
+                          }}
+                        />
+                        <button class="link">Forlat venteliste</button>
+                      </form>
+                    )}
                   </div>
                 ))}
-                <div id="push-banner" class="push-banner" hidden>
-                  <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
-                  <button type="button" id="push-toggle">
-                    Slå på varsler
-                  </button>
-                </div>
+                {!p.demo && (
+                  <div id="push-banner" class="push-banner" hidden>
+                    <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
+                    <button type="button" id="push-toggle">
+                      Slå på varsler
+                    </button>
+                  </div>
+                )}
                 <p class="muted">Ventelisten reserverer ikke automatisk. Først til mølla når tiden blir ledig.</p>
               </section>
             )}
@@ -1042,12 +1115,16 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </Toast>
         ) : null}
       </Toaster>
-      <footer class="foot resident-foot">
-        <span>Felles vaskerom, færre løse tråder.</span>
-        <a href={`${base}/admin`}>
-          Administrasjon <span aria-hidden="true">↗</span>
-        </a>
-      </footer>
+      {!p.embed && (
+        <footer class="foot resident-foot">
+          <span>Felles vaskerom, færre løse tråder.</span>
+          {!p.demo && (
+            <a href={`${base}/admin`}>
+              Administrasjon <span aria-hidden="true">↗</span>
+            </a>
+          )}
+        </footer>
+      )}
     </Layout>
   );
 };
