@@ -56,6 +56,23 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   rotates every day and is deleted by a daily cron.
 - **Multi-tenant**: every table has `tenant_id`; each building lives under `/<slug>`. `DEFAULT_TENANT` makes `/`
   redirect to one of them.
+- **Signup** (`/ny`): anyone can create a building in eight steps: name, web address, admin password, opening
+  hours and slot length, machines (one washer and one dryer to start with), an optional resident password, the
+  recovery code, and ready-made messages to share. The address is made from the name (æ→ae, ø→o, å→a), checked
+  live against taken and reserved words (`RESERVED_SLUGS` in `src/signup.ts`), and can be edited. The first three
+  steps are plain GET forms; the building is created by the third, which is guarded by an invisible Cloudflare
+  Turnstile check and a limit of 3 buildings per network per day. The limit counts a salted, daily-rotating hash
+  of the IPv4 address or IPv6 /64, never the address itself. The later steps are admin pages under
+  `/<slug>/admin/kom-i-gang`.
+- **Recovery code**: there is no email, so the only way to reset a forgotten admin password is the recovery code
+  shown once at the end of signup (copy or download it). Only its SHA-256 hash is stored. It resets the password at
+  `/<slug>/admin/nullstill` (linked from the admin login) and is then replaced by a new one; admins can also make a
+  new one under Innstillinger → Tilgang. A freshly made code rides along for an hour in an encrypted, httpOnly
+  cookie, so the page showing it survives a reload. Making a new code and resetting the password are logged in the
+  activity log.
+- **Unused buildings**: a building created through `/ny` that has no bookings 30 days after signup is closed by the
+  daily cron, through the same 7-day close-and-delete grace period as closing it by hand (logged in the activity
+  log). This happens at most once: a building its admin reopens is left alone.
 
 ## Local development
 
@@ -99,13 +116,16 @@ One-time dashboard setup (connecting the repo, build token permissions, creating
 
 ### Configuration
 
-- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact) and
-  `DEFAULT_TENANT` (where `/` redirects; empty means no redirect).
-- Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`.
-  They are already set. Don't rotate the VAPID keys: existing push subscriptions stop working. To set one
-  again, use `npx wrangler secret put NAME`, which prompts for the value without echoing it.
-- New building: `node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote` (prompts for the admin
-  password).
+- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact),
+  `DEFAULT_TENANT` (where `/` redirects; empty means no redirect), and `TURNSTILE_SITE_KEY` (the public key of
+  the signup bot check).
+- Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+  (already set) and `TURNSTILE_SECRET_KEY`. Signup at `/ny` stays closed until both Turnstile keys are set; the
+  steps are in [docs/deploy.md](docs/deploy.md#turn-on-signup-turnstile). Don't rotate the VAPID keys: existing
+  push subscriptions stop working. To set one again, use `npx wrangler secret put NAME`, which prompts for the
+  value without echoing it.
+- New building: through `/ny`, or `node scripts/create-tenant.ts --slug <slug> --name "<navn>" --remote` (prompts
+  for the admin password; such a building has no recovery code until an admin makes one).
 
 The production D1 database `vaskekjeller` is created with EU jurisdiction
 (`wrangler d1 create vaskekjeller --jurisdiction eu`) and pinned by `database_id` in `wrangler.jsonc`, so deploy
@@ -138,7 +158,8 @@ work as ordinary page requests. Notification setup appears after joining a waitl
 The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
 reservations after an administrator changes the schedule. Migration `0003_resident_password_readable.sql`
-adds the encrypted resident password column.
+adds the encrypted resident password column. Migration `0007_signup_and_recovery.sql` adds the recovery code hash,
+the unused-building cleanup mark and the per-network signup counts.
 
 ## Verification
 
@@ -149,8 +170,10 @@ calendar-week date strip, the read-only past-day view, apartment selection, wait
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
 toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
-closing/deleting a building (`tests/audit-danger.test.mjs`), and the settings table of contents and inline
-machine updates in `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
+closing/deleting a building (`tests/audit-danger.test.mjs`), signup, onboarding, Turnstile, the signup limit,
+recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
+(`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
+`client/admin.ts` against a simulated page. It also compiles the service worker and runs it
 as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
 CI (`.github/workflows/ci.yml`) runs both on every pull request and push to `main`.
 

@@ -3,7 +3,7 @@ import type { Tenant } from "./db.ts";
 import { addDays, localNow } from "./time.ts";
 
 /** What an audit entry is about; the admin page picks an icon from it. */
-export type AuditAction = "settings" | "machine" | "access-password" | "admin-password" | "booking" | "building";
+export type AuditAction = "settings" | "machine" | "access-password" | "admin-password" | "recovery-code" | "booking" | "building";
 
 export type AuditEntry = { id: number; created_at: string; action: AuditAction; detail: string; device: string };
 

@@ -69,6 +69,44 @@ depend on them.
      the `100::` placeholder and get a 522 error. Check with `curl -I http://vaskekjeller.no/`, which should
      return a 301 to `https://www.vaskekjeller.no/`.
 
+## Turn on signup (Turnstile)
+
+New buildings sign themselves up at `/ny`. An invisible [Turnstile](https://developers.cloudflare.com/turnstile/)
+check keeps bots out, on top of a limit of 3 new buildings per network per day. Signup stays closed
+("Registreringen er ikke åpen ennå") until both keys below are in place and deployed.
+
+1. **Create the widget.** Cloudflare dashboard → **Turnstile** → **Add widget**:
+   - Widget name: `Vaskekjeller signup`
+   - Hostnames: `www.vaskekjeller.no` (the only hostname the app is served on). Hostnames only, no
+     `https://` or path. The server also rejects tokens issued for any other hostname than the one the
+     request came to.
+   - Widget mode: **Invisible**
+   - Pre-clearance: **No**
+
+   Leave the page open; it shows the **site key** and the **secret key**.
+2. **Site key:** it is public. Put it in `vars.TURNSTILE_SITE_KEY` in `wrangler.jsonc` and merge that
+   through a PR like any other change.
+3. **Secret key:** never in git. From your own machine (after `npx wrangler login`):
+
+   ```sh
+   npx wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+
+   It prompts for the value without echoing it; paste the secret key from the widget page.
+4. **Check it.** After the deploy, open `/ny` and create a building. There is nothing to click for the
+   bot check. If a real visitor is ever rejected, the page says "Vi fikk ikke sjekket at du ikke er en
+   robot" and they can try again.
+
+Local development skips the check when `TURNSTILE_SECRET_KEY` is unset and the browser runs on the same
+machine as `wrangler dev` (a loopback client address; requests through Cloudflare never count). To try signup from a phone on the LAN or Tailscale, add Cloudflare's
+[test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) (always pass,
+invisible) to `.dev.vars`:
+
+```sh
+TURNSTILE_SITE_KEY=1x00000000000000000000BB
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+```
+
 ## If a build fails
 
 - **Migration step fails** (for example, an authorization error): the deploy never runs, so the live

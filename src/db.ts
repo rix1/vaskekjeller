@@ -15,6 +15,11 @@ export type Tenant = {
   admin_password_hash: string;
   /** When an admin closed the building (UTC); the booking page is offline and the data is deleted 7 days later. */
   closed_at: string | null;
+  /** SHA-256 of the admin recovery code; see recovery.ts. */
+  recovery_code_hash: string | null;
+  /** 1 for buildings created through /ny until the daily cron has closed one nobody booked (see UNUSED_DAYS). */
+  close_if_unused: number;
+  created_at: string;
 };
 
 export type MachineKind = "washer" | "dryer";

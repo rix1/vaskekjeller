@@ -1193,3 +1193,96 @@ dialog.sheet:focus-visible {
     transform: none;
   }
 }
+
+/* Primary link buttons (the last signup step) */
+.admin-main a.button:not(.secondary, .ghost) {
+  background: var(--green);
+  color: #fff;
+}
+
+/* Recovery code: settings dialog and signup step 7 */
+.recovery {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.recovery-code {
+  display: block;
+  padding: 18px 12px;
+  border: 1px dashed #c9d2c3;
+  border-radius: 12px;
+  background: #fafbf8;
+  font:
+    600 clamp(17px, 4.6vw, 22px) / 1.3 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.recovery-warning {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: #5b4516;
+  font-size: 13px;
+  font-weight: 550;
+}
+.recovery-warning svg {
+  margin-top: 1px;
+  color: var(--warn);
+}
+/* `form` outranks the `.sheet form { margin: 0 }` reset. */
+form.recovery-saved {
+  margin-top: 20px;
+}
+.check {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.check input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+
+/* Copy / share / download rows */
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.share-actions .button {
+  gap: 8px;
+}
+.button.copied {
+  color: var(--green);
+}
+.button.copied svg {
+  animation: copied 300ms var(--ease-out);
+}
+@keyframes copied {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .button.copied svg {
+    animation: none;
+  }
+}

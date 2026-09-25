@@ -256,26 +256,52 @@ document.addEventListener("input", (event) => {
 });
 
 // ---------------------------------------------------------------------------
-// Resident password: copy to clipboard
+// Copy and share: the resident password, the recovery code and the ready-made messages
 // ---------------------------------------------------------------------------
+
+// `data-copy` / `data-share` name the element holding the text.
+const textOf = (selector: string | undefined) => {
+  const source = document.querySelector(selector!);
+  return source instanceof HTMLTextAreaElement ? source.value : (source?.textContent ?? "");
+};
 
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
   if (!navigator.clipboard) continue;
   button.hidden = false;
+  const label = button.querySelector("[data-copy-label]")!;
+  const idle = label.textContent;
   let reset: number | undefined;
   button.addEventListener("click", async () => {
-    const label = button.querySelector("[data-copy-label]")!;
     try {
-      await navigator.clipboard.writeText(document.querySelector(".secret-plain")?.textContent ?? "");
+      await navigator.clipboard.writeText(textOf(button.dataset.copy));
       label.textContent = "Kopiert";
+      button.classList.add("copied");
     } catch {
       label.textContent = "Kunne ikke kopiere";
     }
     live.textContent = label.textContent;
     clearTimeout(reset);
-    reset = setTimeout(() => (label.textContent = "Kopier"), 2000);
+    reset = setTimeout(() => {
+      label.textContent = idle;
+      button.classList.remove("copied");
+    }, 2000);
   });
 }
+
+// "Del" opens the phone's share sheet (Messenger, SMS, mail, …) where the browser has one.
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-share]")) {
+  if (!navigator.share) continue;
+  button.hidden = false;
+  button.addEventListener("click", () => {
+    // Closing the share sheet without choosing rejects the promise; that is not an error.
+    navigator.share({ text: textOf(button.dataset.share) }).catch(() => {});
+  });
+}
+
+// A tap in a message selects all of it, for copying by hand where the buttons can't.
+document.addEventListener("focusin", (event) => {
+  if (event.target instanceof HTMLTextAreaElement && event.target.readOnly) event.target.select();
+});
 
 // ---------------------------------------------------------------------------
 // Table of contents: mark the section in view

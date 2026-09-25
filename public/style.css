@@ -2145,3 +2145,10 @@ summary.reserve-button:active {
     visibility: hidden;
   }
 }
+
+/* Admin login: "Glemt adminpassordet?" */
+.login-footer {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+}
