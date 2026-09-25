@@ -46,6 +46,10 @@ Already done, don't redo:
    `/lofotgata/admin`.
    `/` is the landing page; its preview and "Prøv demoen" use the demo buildings `/visning` and `/demo`, which
    are created on first visit and reset every night.
+8. **Route the contact address.** `hjelp@vaskekjeller.no` is the contact address on `/om` and the push
+   contact in `VAPID_SUBJECT`. The domain's MX records already point to Cloudflare Email Routing: in
+   **Email** → **Email Routing** → **Routing rules**, make sure `hjelp@vaskekjeller.no` has a rule forwarding
+   to an inbox someone reads.
 
 ## Domain
 
