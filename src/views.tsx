@@ -1118,11 +1118,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
       {!p.embed && (
         <footer class="foot resident-foot">
           <span>Felles vaskerom, færre løse tråder.</span>
-          {!p.demo && (
-            <a href={`${base}/admin`}>
-              Administrasjon <span aria-hidden="true">↗</span>
-            </a>
-          )}
+          <span class="foot-links">
+            <a href="/om">Om Vaskekjeller</a>
+            {!p.demo && (
+              <a href={`${base}/admin`}>
+                Administrasjon <span aria-hidden="true">↗</span>
+              </a>
+            )}
+          </span>
         </footer>
       )}
     </Layout>

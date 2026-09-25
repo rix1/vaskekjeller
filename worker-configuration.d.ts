@@ -4,7 +4,7 @@
 interface __BaseEnv_Env {
 	DB: D1Database;
 	ASSETS: Fetcher;
-	VAPID_SUBJECT: "mailto:rikardeide+vask@gmail.com";
+	VAPID_SUBJECT: "mailto:hjelp@vaskekjeller.no";
 	TURNSTILE_SITE_KEY: "";
 	SESSION_SECRET: string;
 	VAPID_PUBLIC_KEY: string;

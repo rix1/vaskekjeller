@@ -30,7 +30,7 @@
   // ago. The time is mirrored in src/audit.ts (CRON_UTC_MINUTE).
   "triggers": { "crons": ["17 2 * * *"] },
   "vars": {
-    "VAPID_SUBJECT": "mailto:rikardeide+vask@gmail.com",
+    "VAPID_SUBJECT": "mailto:hjelp@vaskekjeller.no",
     // Public site key of the invisible Turnstile widget that guards signup at /ny (docs/deploy.md).
     // Signup stays closed until both this and the TURNSTILE_SECRET_KEY secret are set.
     "TURNSTILE_SITE_KEY": ""

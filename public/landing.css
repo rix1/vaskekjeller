@@ -1,7 +1,9 @@
 /* Landing page ("/"): what this is, a live preview of the showcase, and where to go next.
+   The about page ("/om") shares its header, footer and type.
    Builds on style.css (tokens, .brand, .button, .eyebrow). */
 .landing-top,
 .landing,
+.about,
 .landing-foot {
   max-width: 1080px;
   margin: 0 auto;
@@ -210,7 +212,150 @@
   color: var(--muted);
 }
 
+/* About page ("/om"): short sections of questions that open in place. */
+.about,
+.about-narrow {
+  max-width: 720px;
+}
+.about {
+  padding-bottom: 48px;
+}
+.about-intro {
+  padding: 32px 0 20px;
+}
+.about h1 {
+  font-size: clamp(32px, 5vw, 46px);
+  font-weight: 550;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0;
+}
+.about-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+.about-toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #dedfd7;
+  border-radius: 999px;
+  background: #fafbf7;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 140ms ease;
+}
+.about-toc a:active {
+  transform: scale(0.97);
+}
+.about-section {
+  padding: 24px 0 0;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+.about-section + .about-section {
+  margin-top: 16px;
+}
+.about-section-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.about-section h2 {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+.about-faq details {
+  border-bottom: 1px solid var(--line);
+}
+.about-faq details:last-child {
+  border-bottom: 0;
+}
+.about-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.about-faq summary::-webkit-details-marker {
+  display: none;
+}
+.about-faq summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-right: 1.6px solid var(--muted);
+  border-bottom: 1.6px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 180ms var(--ease-out);
+}
+.about-faq details[open] > summary::after {
+  transform: translateY(2px) rotate(-135deg);
+}
+.about-answer {
+  padding: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #4a524c;
+}
+.about-answer p,
+.about-answer ul {
+  margin: 0 0 10px;
+  text-wrap: pretty;
+}
+.about-answer > :last-child {
+  margin-bottom: 0;
+}
+.about-answer ul {
+  padding-left: 20px;
+}
+.about-answer li + li {
+  margin-top: 6px;
+}
+.about-answer strong {
+  color: var(--ink);
+}
+.about-answer code {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.about-contact {
+  margin: 36px 0 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--green-soft);
+  font-size: 15px;
+}
+.about-contact a {
+  color: var(--green);
+  font-weight: 600;
+}
+
 @media (hover: hover) and (pointer: fine) {
+  .about-toc a:hover {
+    background: #eaf0e3;
+  }
+  .about-faq summary:hover {
+    color: var(--green);
+  }
   .go-last:hover,
   .landing-demo:hover {
     background: #eaf0e3;
@@ -265,6 +410,9 @@
     flex-direction: column;
     gap: 6px;
   }
+  .about-intro {
+    padding-top: 16px;
+  }
 }
 @media (max-width: 360px) {
   .landing-preview {
@@ -274,5 +422,8 @@
 @media (prefers-reduced-motion: reduce) {
   .phone {
     animation: none;
+  }
+  .about-faq summary::after {
+    transition: none;
   }
 }
