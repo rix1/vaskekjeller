@@ -105,7 +105,10 @@ export const LandingPage: FC<{
     </main>
     <footer class="landing-foot">
       <span>Felles vaskerom, færre løse tråder.</span>
-      <a href="https://github.com/rix1/vaskekjeller">Åpen kildekode</a>
+      <span class="foot-links">
+        <a href="/om">Om Vaskekjeller</a>
+        <a href="https://github.com/rix1/vaskekjeller">Åpen kildekode</a>
+      </span>
     </footer>
   </Layout>
 );

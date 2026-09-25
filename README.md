@@ -58,6 +58,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Landing page** (`/`): what this is, a live preview, "Prøv demoen" and "Opprett vaskekjeller" (`/ny`), plus a hint
   to use the link from the board. Opening a building sets a root cookie `vk_last` (the slug only), so the landing
   page shows "Gå til <navn> →" for the last building used on the device while it exists and is not closed.
+- **About page** (`/om`, `src/about.tsx`): a shared, Norwegian-only FAQ linked from the landing page footer and every
+  building's footer: getting started, when each notification fires, the Apple-only calendar, and what data is
+  stored and for how long. Its contact address is hjelp@vaskekjeller.no. `om` is in signup's `RESERVED_SLUGS`, and
+  the route is registered before `/:slug`. Keep its copy in step with the behavior it describes.
 - **Demo buildings** (`src/demo.ts`): `/visning` is a read-only showcase (tenant flag `read_only`: every write route
   answers 403 and the board hides its actions), seen as apartment B2 and shown in the landing page's phone frame
   through a non-interactive iframe (`?embed=1` drops the banner and footer). `/demo` is the playground behind
@@ -97,6 +101,10 @@ npm run dev                                # also applies any new migrations fir
 npm run typecheck
 ```
 
+Local D1 data lives under `.wrangler/state`, keyed by the `database_id` in `wrangler.jsonc`. Pinning that id to the
+EU database gave local dev a fresh, empty D1 file, so buildings created locally before that change no longer show up.
+Recreate them with `node scripts/create-tenant.ts` (after `npm run db:migrate:local`).
+
 Open `/visning` or `/demo` locally to create the demo buildings; run `wrangler dev --test-scheduled` and open
 `/__scheduled` to trigger the nightly reset.
 
@@ -131,7 +139,8 @@ One-time dashboard setup (connecting the repo, build token permissions, creating
 
 ### Configuration
 
-- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact) and
+- `vars` in `wrangler.jsonc`: `VAPID_SUBJECT` (a `mailto:` address push services can contact,
+  `mailto:hjelp@vaskekjeller.no`) and
   `TURNSTILE_SITE_KEY` (the public key of the signup bot check).
 - Secrets live only in Cloudflare, never in git: `SESSION_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
   (already set) and `TURNSTILE_SECRET_KEY`. Signup at `/ny` stays closed until both Turnstile keys are set; the
@@ -187,6 +196,7 @@ toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.tes
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
 closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only
 showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),
+the about page, its footer links and the reserved `om` address (`tests/about.test.mjs`),
 signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it

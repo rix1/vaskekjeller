@@ -1376,6 +1376,11 @@ footer.resident-foot {
 .resident-foot a {
   text-decoration: none;
 }
+.foot-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
 .empty-state {
   text-align: center;
   padding: 36px 12px;

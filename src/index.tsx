@@ -10,6 +10,7 @@ import {
   type SettingsState,
   type Stats,
 } from "./admin-views.tsx";
+import { AboutPage } from "./about.tsx";
 import { audit, AUDIT_RETENTION, auditEntries, auditStatement, CLOSED_GRACE_DAYS, deviceLabel, purgeDate, sameName } from "./audit.ts";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
@@ -75,6 +76,9 @@ app.get("/", async (c) => {
   // A closed building (danger zone, or unused) gets no shortcut.
   return c.html(<LandingPage last={last && !last.closed_at ? last : undefined} previewDate={addDays(demoToday(), 1)} />);
 });
+
+// About and FAQ, shared by every building. "om" is a reserved slug, so no building can shadow it.
+app.get("/om", (c) => c.html(<AboutPage />));
 
 // Self-service signup for new buildings. "ny" is a reserved slug, so no building can shadow it.
 app.route("/ny", signup);
