@@ -178,10 +178,17 @@ export const AboutPage: FC = () => (
               lagres bare som hash.
             </li>
           </ul>
-          <p>
-            På enheten din huskes leiligheten, hvilket vaskerom du brukte sist og om du er logget inn. Det er alt
-            informasjonskapslene brukes til.
-          </p>
+          <p>Informasjonskapslene på enheten din husker:</p>
+          <ul>
+            <li>Leiligheten din og hvilket vaskerom du brukte sist.</li>
+            <li>Om du er logget inn.</li>
+            <li>Om du har booket før, så tipset om første booking kan skjules.</li>
+            <li>
+              For styret: en ny gjenopprettingskode, kryptert, i opptil en time og bare på adminsidene, så den kan vises til
+              den er lagret.
+            </li>
+          </ul>
+          <p>Det er alt de brukes til.</p>
         </Q>
         <Q q="Hva lagres ikke?">
           <p>
@@ -195,8 +202,8 @@ export const AboutPage: FC = () => (
         </Q>
         <Q q="Hvor lenge lagres de?">
           <ul>
-            <li>Ventelister og meldingstellere: slettes dagen etter.</li>
-            <li>Koden som teller besøkende: slettes dagen etter.</li>
+            <li>Ventelister og meldingstellere: slettes etter et par dager.</li>
+            <li>Koden som teller besøkende: slettes etter et par dager.</li>
             <li>Aktivitetsloggen: 12 måneder.</li>
             <li>Varseladresser: til du skrur av varsler, eller varseltjenesten sier at adressen er utløpt.</li>
             <li>
