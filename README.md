@@ -64,10 +64,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   "Prøv demoen": anyone can book and cancel, but apartments come from a list and comments and messages are limited
   to ready-made choices (tenant flag `presets_only`, enforced by the routes). Both are created on first visit and
   reset by the nightly cron with a month of bookings, comments and waitlists placed around today; their admin pages
-  can't be logged in to, and the unused-building cleanup never closes them. Neither offers notifications: a browser has
-  one push subscription for the whole site, so `/push/subscribe` refuses a demo rather than take it from a real building. Both slugs are in signup's
-  `RESERVED_SLUGS`. Pages may only be framed by the site itself (`X-Frame-Options: SAMEORIGIN`,
-  `frame-ancestors 'self'`).
+  can't be logged in to, and the unused-building cleanup never closes them. Neither offers notifications: a browser
+  has one push subscription for the whole site, so `/push/subscribe` refuses a demo rather than take it from a real
+  building. Both slugs are in signup's `RESERVED_SLUGS`. Pages may only be framed by the site itself
+  (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`).
 - **Signup** (`/ny`): anyone can create a building in eight steps: name, web address, admin password, opening
   hours and slot length, machines (one washer and one dryer to start with), an optional resident password, the
   recovery code, and ready-made messages to share. The address is made from the name (æ→ae, ø→o, å→a), checked
@@ -185,9 +185,9 @@ calendar-week date strip, the read-only past-day view, apartment selection, wait
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
 toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
-closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only showcase on every write
-route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`), signup, onboarding, Turnstile, the signup limit,
-recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
+closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only
+showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),
+signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
 as a classic script, since `/sw.js` is registered without `{ type: "module" }`.

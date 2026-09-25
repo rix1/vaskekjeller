@@ -26,8 +26,8 @@
     }
   ],
   // Daily housekeeping: drop expired waitlist entries, yesterday's visitor hashes and signup counts, prune the
-  // activity log, close unused self-signup buildings, reset the demo buildings, delete buildings closed 7+ days ago. The time is
-  // mirrored in src/audit.ts (CRON_UTC_MINUTE).
+  // activity log, close unused self-signup buildings, reset the demo buildings, delete buildings closed 7+ days
+  // ago. The time is mirrored in src/audit.ts (CRON_UTC_MINUTE).
   "triggers": { "crons": ["17 2 * * *"] },
   "vars": {
     "VAPID_SUBJECT": "mailto:rikardeide+vask@gmail.com",
