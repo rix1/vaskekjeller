@@ -558,6 +558,8 @@ const vapid = (env: Env): VapidKeys => ({
 });
 
 t.post("/push/subscribe", async (c) => {
+  // A browser has one subscription for the whole site, so a demo must never take it over from a real building.
+  if (isDemoSlug(c.var.tenant.slug)) return c.json({ error: "demo" }, 403);
   const apt = currentApartment(c);
   if (!apt) return c.json({ error: "no-apt" }, 400);
   const sub = await c.req.json<{
@@ -1243,3 +1245,6 @@ async function seedDemos(db: D1Database, slugs: readonly DemoSlug[] = DEMO_SLUGS
 }
 
 export default { fetch: app.fetch, scheduled } satisfies ExportedHandler<Env>;
+
+/** The router itself, so tests can list its routes. */
+export { app };

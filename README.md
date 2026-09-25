@@ -64,7 +64,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   "Prøv demoen": anyone can book and cancel, but apartments come from a list and comments and messages are limited
   to ready-made choices (tenant flag `presets_only`, enforced by the routes). Both are created on first visit and
   reset by the nightly cron with a month of bookings, comments and waitlists placed around today; their admin pages
-  can't be logged in to, and the unused-building cleanup never closes them. Both slugs are in signup's
+  can't be logged in to, and the unused-building cleanup never closes them. Neither offers notifications: a browser has
+  one push subscription for the whole site, so `/push/subscribe` refuses a demo rather than take it from a real building. Both slugs are in signup's
   `RESERVED_SLUGS`. Pages may only be framed by the site itself (`X-Frame-Options: SAMEORIGIN`,
   `frame-ancestors 'self'`).
 - **Signup** (`/ny`): anyone can create a building in eight steps: name, web address, admin password, opening
@@ -92,10 +93,12 @@ npm install
 node scripts/gen-vapid.ts --dev-vars      # writes .dev.vars (secrets)
 npm run db:migrate:local
 node scripts/create-tenant.ts --slug hjem --name "Borettslaget"   # prompts for admin password
-node scripts/seed-demo.ts                  # (re)creates /visning and /demo around today
 npm run dev                                # also applies any new migrations first
 npm run typecheck
 ```
+
+Open `/visning` or `/demo` locally to create the demo buildings; run `wrangler dev --test-scheduled` and open
+`/__scheduled` to trigger the nightly reset.
 
 ## Deploy
 

@@ -12,7 +12,6 @@
     "db:migrate:remote": "wrangler d1 migrations apply vaskekjeller --remote",
     "vapid": "node scripts/gen-vapid.ts",
     "tenant:create": "node scripts/create-tenant.ts",
-    "demo:seed": "node scripts/seed-demo.ts",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {

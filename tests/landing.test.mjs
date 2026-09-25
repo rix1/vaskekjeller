@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 // Landing page and demo buildings: "/" is the landing page, the last-building cookie, the read-only
 // showcase (/visning), the presets-only playground (/demo), and the nightly reset.
 // Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
-let worker, bindings, demo, db, temp, sqlite;
+let worker, app, bindings, demo, db, temp, sqlite;
 const pending = [];
 function statement(sql) {
   let bindings = [];
@@ -114,7 +114,7 @@ before(async () => {
       }
     },
   };
-  worker = (await import(pathToFileURL(join(temp, "worker.mjs")).href)).default;
+  ({ default: worker, app } = await import(pathToFileURL(join(temp, "worker.mjs")).href));
   demo = await import(pathToFileURL(join(temp, "demo.mjs")).href);
   bindings = { DB: db, SESSION_SECRET: "isolated-test-only", VAPID_PUBLIC_KEY: "", VAPID_PRIVATE_KEY: "", VAPID_SUBJECT: "" };
   for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
@@ -184,29 +184,16 @@ test("visiting a building remembers it for the landing page's Gå til link; demo
     assert.doesNotMatch(await (await get("/", `vk_last=${value}`)).text(), /Gå til/, value);
 });
 
-// Every POST route under /<slug>: those of the building router `t` and of every router mounted below it
-// (admin, onboarding, ...), across src/, so a new write route is covered without editing this test.
-const writeRoutes = async () => {
-  const files = (await readdir("src")).filter((f) => /\.tsx?$/.test(f));
-  const source = (await Promise.all(files.map((f) => readFile(join("src", f), "utf8")))).join("\n");
-  const prefixes = new Map([["t", ""]]);
-  for (let grew = true; grew; ) {
-    grew = false;
-    for (const [, parent, path, child] of source.matchAll(/\b(\w+)\.route\("([^"]+)", (\w+)\)/g))
-      if (prefixes.has(parent) && !prefixes.has(child)) {
-        prefixes.set(child, prefixes.get(parent) + path);
-        grew = true;
-      }
-  }
-  return [...source.matchAll(/\b(\w+)\.post\("([^"]+)"/g)].filter(([, r]) => prefixes.has(r)).map(([, r, path]) => prefixes.get(r) + path);
-};
+// Every POST route under /<slug>, from the app's own route table: those of the building router and of every
+// router mounted below it (admin, onboarding, ...), so a new write route is covered without editing this test.
+const writeRoutes = () => app.routes.filter((r) => r.method === "POST" && r.path.startsWith("/:slug/")).map((r) => r.path.slice("/:slug".length));
 
 test("the showcase refuses every write route, before any other check", async () => {
   await reset();
   const id = tenantId("visning");
   const booking = rows("SELECT id FROM bookings WHERE tenant_id = ? AND apartment = 'B2' LIMIT 1", id)[0].id;
   const machine = rows("SELECT id FROM machines WHERE tenant_id = ? LIMIT 1", id)[0].id;
-  const routes = await writeRoutes();
+  const routes = [...new Set(writeRoutes())];
   assert.ok(routes.length >= 20, `found ${routes.length} write routes`);
   for (const route of ["/book", "/admin/settings", "/admin/close", "/admin/delete", "/admin/kom-i-gang/maskiner"])
     assert.ok(routes.includes(route), `${route} in ${routes}`);
@@ -291,6 +278,37 @@ test("the playground books and cancels, but comments and messages are ready-made
 
   assert.equal(flash(await post("/demo/cancel", { booking_ids: ids }, cookie)), "cancelled");
   await settle();
+});
+
+test("a demo never takes over a device's notifications from a real building", async () => {
+  await reset();
+  const endpoint = "https://push.example/device-1";
+  const keys = { p256dh: "key", auth: "auth" };
+  const subscribe = (slug, apartment) =>
+    worker.fetch(
+      new Request(`http://localhost/${slug}/push/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost", Cookie: `vk_apt=${apartment}` },
+        body: JSON.stringify({ endpoint, keys }),
+      }),
+      bindings,
+      ctx,
+    );
+  assert.equal((await subscribe("lofotgata", "3B")).status, 200);
+  const mapping = () => rows("SELECT t.slug, p.apartment FROM push_subscriptions p JOIN tenants t ON t.id = p.tenant_id WHERE p.endpoint = ?", endpoint);
+  assert.deepEqual(mapping().map((r) => ({ ...r })), [{ slug: "lofotgata", apartment: "3B" }]);
+  for (const slug of ["demo", "visning"]) assert.equal((await subscribe(slug, "D1")).status, 403, slug);
+  assert.deepEqual(mapping().map((r) => ({ ...r })), [{ slug: "lofotgata", apartment: "3B" }]);
+
+  // The playground's board offers no notifications, even on a waitlist; the neighbours can still get a message.
+  const id = tenantId("demo");
+  const taken = rows("SELECT machine_id, date, start_min FROM bookings WHERE tenant_id = ? AND date > ? AND apartment != 'D1' LIMIT 1", id, osloToday())[0];
+  assert.equal(flash(await post("/demo/wait", { machine_id: String(taken.machine_id), date: taken.date, start: String(taken.start_min) }, "vk_apt=D1")), "waiting");
+  const board = await (await get(`/demo?date=${taken.date}`, "vk_apt=D1")).text();
+  assert.match(board, /Forlat venteliste/);
+  assert.doesNotMatch(board, /push-banner/);
+  assert.match(board, /Send melding til leil\./);
+  sqlite.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
 });
 
 test("free text still works in an ordinary building", async () => {

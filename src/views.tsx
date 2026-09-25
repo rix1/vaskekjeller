@@ -1052,12 +1052,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     )}
                   </div>
                 ))}
-                <div id="push-banner" class="push-banner" hidden>
-                  <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
-                  <button type="button" id="push-toggle">
-                    Slå på varsler
-                  </button>
-                </div>
+                {!p.demo && (
+                  <div id="push-banner" class="push-banner" hidden>
+                    <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
+                    <button type="button" id="push-toggle">
+                      Slå på varsler
+                    </button>
+                  </div>
+                )}
                 <p class="muted">Ventelisten reserverer ikke automatisk. Først til mølla når tiden blir ledig.</p>
               </section>
             )}

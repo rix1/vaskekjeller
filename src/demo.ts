@@ -5,7 +5,7 @@
 // - /demo: the playground behind "Prøv demoen". Anyone can book and cancel, but comments and messages are
 //   limited to ready-made choices and apartments to a fixed list, so nothing offensive can be typed.
 // Neither has a usable admin password or recovery code, and neither is ever closed as unused. Their slugs are in
-// signup's RESERVED_SLUGS. `scripts/seed-demo.ts` runs the same statements against local D1.
+// signup's RESERVED_SLUGS.
 import { addDays, localNow } from "./time.ts";
 
 /** Ready-made comments: the only ones allowed in a presets-only building (tenants.presets_only). */
