@@ -170,6 +170,9 @@ export const AboutPage: FC = () => (
             <li>Kalenderlenken for hver leilighet som har laget en.</li>
             <li>Daglige totaler: sidevisninger, antall besøkende og antall varsler.</li>
             <li>
+              Koder som byttes hver dag, for å telle besøkende og nye vaskerom per nettverk (aldri selve IP-adressen).
+            </li>
+            <li>
               En aktivitetslogg over styrets endringer, med en grov enhetstype som «iPhone · Safari». Beboeres egne bookinger
               logges ikke der.
             </li>
@@ -203,7 +206,9 @@ export const AboutPage: FC = () => (
         <Q q="Hvor lenge lagres de?">
           <ul>
             <li>Ventelister og meldingstellere: slettes etter et par dager.</li>
-            <li>Koden som teller besøkende: slettes etter et par dager.</li>
+            <li>
+              Kodene som teller besøkende og nye vaskerom per nettverk (aldri selve IP-adressen): slettes etter et par dager.
+            </li>
             <li>Aktivitetsloggen: 12 måneder.</li>
             <li>Varseladresser: til du skrur av varsler, eller varseltjenesten sier at adressen er utløpt.</li>
             <li>
