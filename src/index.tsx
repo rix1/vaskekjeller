@@ -47,6 +47,7 @@ import {
   recoveryFile,
   rememberRecoveryCode,
 } from "./recovery.ts";
+import { PUBLIC_PATHS, robotsTxt, sitemapXml } from "./seo.tsx";
 import { onboarding, signup } from "./signup-routes.tsx";
 import { RecoveryResetPage } from "./signup-views.tsx";
 import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, slotIsOver, slotsFor } from "./time.ts";
@@ -65,6 +66,17 @@ app.use(async (c, next) => {
   c.res.headers.set("X-Frame-Options", "SAMEORIGIN");
   c.res.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
 });
+
+// Only the public pages in src/seo.tsx may be indexed. Everything else the Worker serves (buildings, admin,
+// onboarding, the demo buildings, calendar feeds) is noindex, on top of the robots meta tag in Layout.
+app.use(async (c, next) => {
+  await next();
+  if (!PUBLIC_PATHS.has(c.req.path) && c.req.path !== "/robots.txt" && c.req.path !== "/sitemap.xml")
+    c.res.headers.set("X-Robots-Tag", "noindex");
+});
+
+app.get("/robots.txt", (c) => c.text(robotsTxt()));
+app.get("/sitemap.xml", (c) => c.body(sitemapXml(), 200, { "Content-Type": "application/xml; charset=utf-8" }));
 
 // The last building opened on this device, for the landing page's "Gå til <navn>" link. Slug only.
 const lastCookie = "vk_last";

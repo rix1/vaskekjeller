@@ -1,6 +1,7 @@
 import type { Child, FC } from "hono/jsx";
 import { AdminIcon, described, FieldError, RecoveryCodeBlock, schedulePreview, SLOT_LENGTHS, slotLengthLabel } from "./admin-views.tsx";
 import { KIND_LABEL, type MachineKind, type Tenant } from "./db.ts";
+import { PUBLIC_PAGES, type PublicPage } from "./seo.tsx";
 import { SLUG_MAX, TURNSTILE_ACTION } from "./signup.ts";
 import { fmtMinute, parseHHMM } from "./time.ts";
 import { Icon, Layout, Toast, Toaster } from "./views.tsx";
@@ -19,11 +20,13 @@ const FlowPage: FC<{
   alert?: Child;
   dismissHref?: string;
   scripts?: ("admin" | "signup" | "turnstile")[];
+  seo?: PublicPage;
   children: Child;
 }> = (p) => (
   <Layout
     title={p.tenant ? `${p.title} · ${p.tenant.name}` : `${p.title} · Vaskekjeller`}
     tenant={p.tenant}
+    seo={p.seo}
     head={
       <>
         <link rel="stylesheet" href="/admin.css" />
@@ -118,7 +121,8 @@ export const SignupClosed: FC = () => (
 );
 
 export const SignupName: FC<{ name?: string; error?: string }> = ({ name = "", error }) => (
-  <FlowPage title="Kom i gang" step={1} alert={error && fixAlert} dismissHref="/ny">
+  // Only the clean first step at /ny is indexed; the same form with an error is rendered by later steps.
+  <FlowPage title="Kom i gang" step={1} alert={error && fixAlert} dismissHref="/ny" seo={error ? undefined : PUBLIC_PAGES.signup}>
     <section class="card signup-card">
       <Intro title="Hva heter borettslaget eller bygget?">
         Du setter opp booking av vaskekjelleren på et par minutter. Ingen e-post, ingen app å laste ned.
