@@ -55,7 +55,8 @@ const turnstileForm = document.querySelector<HTMLFormElement>("form[data-turnsti
 const turnstileStatus = document.querySelector<HTMLElement>("[data-turnstile-status]");
 const TOKEN_WAIT_MS = 20_000;
 
-// The widget (Turnstile's own script, loaded async) fills this hidden field. Polling it avoids
+// The widget (Turnstile's own script, loaded async) fills this hidden field, on its own or after a click
+// if it asks for one. Polling it avoids
 // depending on which of the two scripts runs first, as a named callback would.
 function submitWhenToken(form: HTMLFormElement, button: HTMLButtonElement | null) {
   const started = Date.now();
@@ -65,7 +66,7 @@ function submitWhenToken(form: HTMLFormElement, button: HTMLButtonElement | null
       form.requestSubmit();
     } else if (Date.now() - started > TOKEN_WAIT_MS) {
       button?.removeAttribute("aria-disabled");
-      if (turnstileStatus) turnstileStatus.textContent = "Vi fikk ikke sjekket at du ikke er en robot. Last inn siden på nytt og prøv igjen.";
+      if (turnstileStatus) turnstileStatus.textContent = "Vi fikk ikke sjekket at du ikke er en robot. Fullfør sjekken over knappen, eller last inn siden på nytt.";
     } else setTimeout(tick, 150);
   };
   tick();

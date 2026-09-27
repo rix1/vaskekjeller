@@ -40,6 +40,7 @@
 
 ## Log
 
+- 2026-09-27: Turnstile switched to Managed mode (Invisible would require citing Cloudflare's Turnstile Privacy Addendum on /om). Site key `0x4AAAAAAFFi0W20tv3SHwiV` in wrangler.jsonc; copy/docs updated for a visible widget (dev test key now 1x…AA). Signup opens once `TURNSTILE_SECRET_KEY` is set with `wrangler secret put` and this is deployed; then do a real signup on www to validate end-to-end.
 - 2026-09-27: Closed-signup page (`SignupClosed`, shown when Turnstile keys are missing) now links hjelp@vaskekjeller.no via `CONTACT_EMAIL` instead of "den som drifter siden". Confirmed the contact address is used everywhere (/om, VAPID_SUBJECT).
 - 2026-09-27: Booking holders get a "Noen venter på tiden din" push when a household joins their slot's waitlist via Venteliste (not via messages); `/wait` redirects without waiting for it. Admin push test page at `/<slug>/admin/debug` runs both flows against the `TEST (varsler)` household; cleanup deletes the test household's rows and the admin's test booking, cancelling it first if it hasn't ended so real waiters are told (README "Push test").
 - 2026-09-27: SEO basics (`src/seo.tsx`, README "Search engines"): only `/`, `/om` and `/ny` are indexable, everything else is noindex (header + meta); robots.txt, sitemap.xml, canonical/OG/Twitter tags with `public/share.png`, WebApplication JSON-LD on the landing, `lang="no"`. Search Console / Bing verification not done (out of scope).

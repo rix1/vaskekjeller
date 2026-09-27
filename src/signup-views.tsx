@@ -262,7 +262,7 @@ export const SignupPassword: FC<{
         <Actions back={`/ny/adresse?${q({ navn: name, adresse: slug })}`} submit="Opprett vaskekjelleren" />
         {siteKey && (
           <p class="hint signup-fineprint" data-turnstile-status aria-live="polite">
-            Beskyttet av Cloudflare Turnstile, som sjekker at du ikke er en robot uten at du trenger å gjøre noe.
+            Beskyttet av Cloudflare Turnstile, som sjekker at du ikke er en robot. Som regel trenger du ikke gjøre noe.
           </p>
         )}
       </form>

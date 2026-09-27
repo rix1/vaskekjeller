@@ -63,7 +63,7 @@ export async function suggestSlug(db: D1Database, name: string): Promise<string>
 }
 
 // ---------------------------------------------------------------------------
-// Turnstile (invisible bot check)
+// Turnstile (managed bot check)
 // ---------------------------------------------------------------------------
 
 export const TURNSTILE_ACTION = "signup";

@@ -91,7 +91,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   hours and slot length, machines (one washer and one dryer to start with), an optional resident password, the
   recovery code, and ready-made messages to share. The address is made from the name (æ→ae, ø→o, å→a), checked
   live against taken and reserved words (`RESERVED_SLUGS` in `src/signup.ts`), and can be edited. The first three
-  steps are plain GET forms; the building is created by the third, which is guarded by an invisible Cloudflare
+  steps are plain GET forms; the building is created by the third, which is guarded by a managed Cloudflare
   Turnstile check and a limit of 3 buildings per network per day. The limit counts a salted, daily-rotating hash
   of the IPv4 address or IPv6 /64, never the address itself. The later steps are admin pages under
   `/<slug>/admin/kom-i-gang`.

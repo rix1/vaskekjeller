@@ -33,7 +33,7 @@
     "VAPID_SUBJECT": "mailto:hjelp@vaskekjeller.no",
     // Public site key of the invisible Turnstile widget that guards signup at /ny (docs/deploy.md).
     // Signup stays closed until both this and the TURNSTILE_SECRET_KEY secret are set.
-    "TURNSTILE_SITE_KEY": ""
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFFi0W20tv3SHwiV"
   }
   // Secrets (wrangler secret put): SESSION_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, TURNSTILE_SECRET_KEY
 }
