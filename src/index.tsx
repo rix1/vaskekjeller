@@ -16,6 +16,7 @@ import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
 import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
 import { decryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
+import { DebugPushPage, pickTestSlot, TEST_APARTMENT, TEST_NOTE, type DebugResult, type DebugTest, type TestSlot } from "./debug-push.tsx";
 import { DEMO_SLUGS, demoSeed, demoToday, isDemoSlug, NOTE_PRESETS, SHOWCASE_VIEWER, type DemoSlug } from "./demo.ts";
 import { LandingPage } from "./landing.tsx";
 import {
@@ -37,7 +38,7 @@ import {
   type Tenant,
 } from "./db.ts";
 import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
-import { sendPush, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
+import { sendPush, type PushOutcome, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
 import {
   forgetRecoveryCode,
   issueRecoveryCode,
@@ -420,16 +421,7 @@ t.post("/cancel", async (c) => {
   if (!bookings.length) return back(c, "invalid");
   const now = localNow(c.var.tenant.timezone);
   if (bookings.some((b) => slotIsOver(b.date, b.end_min, now))) return back(c, "over");
-  const result = await c.env.DB.batch(
-    bookings.map((b) =>
-      c.env.DB.prepare(
-        "UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = 'resident' WHERE id = ? AND cancelled_at IS NULL",
-      ).bind(b.id),
-    ),
-  );
-  for (const [i, b] of bookings.entries()) {
-    if (result[i]!.meta.changes) c.executionCtx.waitUntil(notifyWaitlist(c.env, c.var.tenant, b));
-  }
+  await cancelBookings(c, bookings, "resident");
   return back(c, "cancelled", `d-${bookings[0]!.date}`);
 });
 
@@ -451,9 +443,7 @@ t.post("/wait", async (c) => {
   if (!apt) return back(c, "no-apt");
   const s = await parseSlot(c, await form(c));
   if (!s || s.over) return back(c, "invalid");
-  await c.env.DB.prepare("INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (?, ?, ?, ?, ?)")
-    .bind(c.var.tenant.id, s.machine.id, s.date, s.slot.start, apt)
-    .run();
+  await joinWaitlist(c, [s.machine.id], s.date, s.slot.start, apt);
   return back(c, "waiting", `d-${s.date}`);
 });
 
@@ -541,13 +531,12 @@ t.post("/message", async (c) => {
   }
   // Wait for every machine in the holder's reservation (/wait adds one), so the sender hears the reply.
   if (!over) {
-    await c.env.DB.prepare(
-      `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
-       SELECT tenant_id, machine_id, date, start_min, ? FROM bookings
-       WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL`,
+    const { results: reservation } = await c.env.DB.prepare(
+      "SELECT machine_id FROM bookings WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL",
     )
-      .bind(apt, tenant.id, b.apartment, b.date, b.start_min)
-      .run();
+      .bind(tenant.id, b.apartment, b.date, b.start_min)
+      .all<{ machine_id: number }>();
+    await joinWaitlist(c, reservation.map((r) => r.machine_id), b.date, b.start_min, apt);
   }
   c.executionCtx.waitUntil(
     pushAll(c.env, tenant, subs, {
@@ -576,6 +565,11 @@ const vapid = (env: Env): VapidKeys => ({
 t.post("/push/subscribe", async (c) => {
   // A browser has one subscription for the whole site, so a demo must never take it over from a real building.
   if (isDemoSlug(c.var.tenant.slug)) return c.json({ error: "demo" }, 403);
+  return saveSubscription(c);
+});
+
+/** Stores this device's push subscription for the current apartment (the board, and the push test page). */
+async function saveSubscription(c: Ctx) {
   const apt = currentApartment(c);
   if (!apt) return c.json({ error: "no-apt" }, 400);
   const sub = await c.req.json<{
@@ -591,7 +585,7 @@ t.post("/push/subscribe", async (c) => {
     .bind(c.var.tenant.id, apt, sub.endpoint, sub.keys.p256dh, sub.keys.auth)
     .run();
   return c.json({ ok: true });
-});
+}
 
 t.post("/push/unsubscribe", async (c) => {
   const { endpoint } = await c.req.json<{ endpoint?: string }>();
@@ -611,7 +605,7 @@ t.post("/push/test", async (c) => {
     sub,
     {
       title: "Varsler er på ✅",
-      body: "Du får beskjed når en tid du venter på blir ledig eller får en ny kommentar.",
+      body: "Du får beskjed når en tid du venter på blir ledig eller får en ny kommentar, og når noen venter på tiden din.",
       url: base(c),
     },
     vapid(c.env),
@@ -619,18 +613,43 @@ t.post("/push/test", async (c) => {
   return c.json({ result });
 });
 
-async function cancelBooking(c: Ctx, b: Booking, by: "resident" | "admin") {
-  const res = await c.env.DB.prepare(
-    "UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = ? WHERE id = ? AND cancelled_at IS NULL",
-  )
-    .bind(by, b.id)
-    .run();
-  if (res.meta.changes) c.executionCtx.waitUntil(notifyWaitlist(c.env, c.var.tenant, b));
-  return res.meta.changes > 0;
+/** Hands work to waitUntil so the response need not wait for it, and returns it for a caller that does. */
+function background<T>(c: Ctx, work: Promise<T>): Promise<T> {
+  c.executionCtx.waitUntil(work);
+  return work;
 }
 
+/** Cancels bookings in one batch and tells each freed slot's waitlist. Resolves to the waitlist push of every
+ * booking this call cancelled; a booking that was already cancelled is skipped. */
+async function cancelBookings(c: Ctx, bookings: Booking[], by: "resident" | "admin") {
+  const result = await c.env.DB.batch(
+    bookings.map((b) =>
+      c.env.DB.prepare(
+        "UPDATE bookings SET cancelled_at = datetime('now'), cancelled_by = ? WHERE id = ? AND cancelled_at IS NULL",
+      ).bind(by, b.id),
+    ),
+  );
+  return bookings.filter((_, i) => result[i]!.meta.changes).map((b) => background(c, notifyWaitlist(c.env, c.var.tenant, b)));
+}
+
+/** Puts an apartment on the waitlist for these machines in one slot. When that adds an entry, the slot's holder
+ * hears that someone is waiting; resolves to that push, or undefined when the apartment was already waiting. */
+async function joinWaitlist(c: Ctx, machineIds: number[], date: string, start: number, apt: string) {
+  const tenant = c.var.tenant;
+  const res = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
+     SELECT ?, value, ?, ?, ? FROM json_each(?)`,
+  )
+    .bind(tenant.id, date, start, apt, JSON.stringify(machineIds))
+    .run();
+  if (!res.meta.changes) return undefined;
+  return background(c, notifyHolder(c.env, tenant, machineIds, date, start, apt));
+}
+
+const NO_DEVICES: PushOutcome = { devices: 0, sent: 0, gone: 0, failed: 0 };
+
 /** Tell everyone waiting for this slot that it's free. First to book it wins. */
-async function notifyWaitlist(env: Env, tenant: Tenant, b: Booking) {
+async function notifyWaitlist(env: Env, tenant: Tenant, b: Booking): Promise<PushOutcome> {
   const { results: subs } = await env.DB.prepare(
     `SELECT p.id, p.endpoint, p.p256dh, p.auth FROM waitlist w
      JOIN push_subscriptions p ON p.tenant_id = w.tenant_id AND p.apartment = w.apartment
@@ -638,9 +657,9 @@ async function notifyWaitlist(env: Env, tenant: Tenant, b: Booking) {
   )
     .bind(b.machine_id, b.date, b.start_min, b.apartment)
     .all<PushSubscriptionRow & { id: number }>();
-  if (!subs.length) return;
+  if (!subs.length) return NO_DEVICES;
   const machine = await env.DB.prepare("SELECT name FROM machines WHERE id = ?").bind(b.machine_id).first<string>("name");
-  await pushAll(env, tenant, subs, {
+  return pushAll(env, tenant, subs, {
     title: `${machine} er ledig!`,
     body: `${fmtDay(b.date, "short")} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)} ble nettopp ledig. Først til mølla.`,
     url: `/${tenant.slug}?date=${b.date}&mode=${b.machine_id}`,
@@ -670,8 +689,53 @@ async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: s
   });
 }
 
+/** Tell the holder of a slot that another household joined its waitlist, so they can free it or leave a comment. */
+async function notifyHolder(env: Env, tenant: Tenant, machineIds: number[], date: string, start: number, joiner: string) {
+  const { results: held } = await env.DB.prepare(
+    `SELECT b.id, b.machine_id, b.end_min, b.apartment, m.name FROM bookings b JOIN machines m ON m.id = b.machine_id
+     WHERE b.tenant_id = ? AND b.machine_id IN (SELECT value FROM json_each(?)) AND b.date = ? AND b.start_min = ?
+       AND b.cancelled_at IS NULL AND b.apartment != ?
+     ORDER BY m.sort_order, m.kind DESC, m.id`,
+  )
+    .bind(tenant.id, JSON.stringify(machineIds), date, start, joiner)
+    .all<{ id: number; machine_id: number; end_min: number; apartment: string; name: string }>();
+  // Both callers wait for one reservation, so one holder.
+  const holder = held[0]?.apartment;
+  if (!holder) return NO_DEVICES;
+  const reservation = held.filter((h) => h.apartment === holder);
+  const [{ results: subs }, waiting] = await Promise.all([
+    env.DB.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND apartment = ?")
+      .bind(tenant.id, holder)
+      .all<PushSubscriptionRow & { id: number }>(),
+    env.DB.prepare(
+      `SELECT COUNT(DISTINCT apartment) AS n FROM waitlist
+       WHERE tenant_id = ? AND machine_id IN (SELECT value FROM json_each(?)) AND date = ? AND start_min = ? AND apartment != ?`,
+    )
+      .bind(tenant.id, JSON.stringify(reservation.map((h) => h.machine_id)), date, start, holder)
+      .first<number>("n"),
+  ]);
+  if (!subs.length) return NO_DEVICES;
+  const first = reservation[0]!;
+  const mode = reservation.length === 1 ? `&mode=${first.machine_id}` : "";
+  return pushAll(env, tenant, subs, {
+    title: (waiting ?? 0) > 1 ? `${waiting} venter på tiden din` : "Noen venter på tiden din",
+    body:
+      `${reservation.map((h) => h.name).join(" og ")} ${fmtDay(date, "short")} ${fmtMinute(start)}–${fmtMinute(first.end_min)}. ` +
+      "Trenger du den ikke, avbestill så de får beskjed. En kommentar når dem også.",
+    url: `/${tenant.slug}?date=${date}${mode}#reservation-${first.id}`,
+    // Stable per reservation, so the next household to join replaces this one with the new count.
+    tag: `waiting-${date}-${start}-${holder}`,
+    renotify: true,
+  });
+}
+
 /** Sends one message to each subscription, drops expired ones and counts deliveries. */
-async function pushAll(env: Env, tenant: Tenant, subs: (PushSubscriptionRow & { id: number })[], message: unknown) {
+async function pushAll(
+  env: Env,
+  tenant: Tenant,
+  subs: (PushSubscriptionRow & { id: number })[],
+  message: unknown,
+): Promise<PushOutcome> {
   const results = await Promise.all(subs.map((s) => sendPush(s, message, vapid(env)).catch(() => "error" as const)));
   const gone = subs.filter((_, i) => results[i] === "gone").map((s) => s.id);
   const sent = results.filter((r) => r === "ok").length;
@@ -684,6 +748,7 @@ async function pushAll(env: Env, tenant: Tenant, subs: (PushSubscriptionRow & { 
       ).bind(tenant.id, localNow(tenant.timezone).date, sent),
     );
   if (stmts.length) await env.DB.batch(stmts);
+  return { devices: subs.length, sent, gone: gone.length, failed: results.filter((r) => r === "error").length };
 }
 
 // ---------------------------------------------------------------------------
@@ -866,7 +931,7 @@ admin.post("/bookings/:id/cancel", async (c) => {
     .first<Booking>();
   if (b) {
     const machine = await c.env.DB.prepare("SELECT name FROM machines WHERE id = ?").bind(b.machine_id).first<string>("name");
-    if (await cancelBooking(c, b, "admin"))
+    if ((await cancelBookings(c, [b], "admin")).length)
       await audit(
         c,
         "booking",
@@ -875,6 +940,154 @@ admin.post("/bookings/:id/cancel", async (c) => {
   }
   return c.redirect(`${adminBase(c)}?m=cancelled`, 303);
 });
+
+// ---------------------------------------------------------------------------
+// Push test page: both notification flows through the real routes' code, against TEST_APARTMENT
+// ---------------------------------------------------------------------------
+
+admin.get("/debug", async (c) => {
+  const tenant = c.var.tenant;
+  const apt = currentApartment(c);
+  const devices = apt
+    ? await c.env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE tenant_id = ? AND apartment = ?")
+        .bind(tenant.id, apt)
+        .first<number>("n")
+    : 0;
+  c.header("Cache-Control", "no-store");
+  return c.html(
+    <DebugPushPage
+      tenant={tenant}
+      apartment={apt}
+      devices={devices ?? 0}
+      vapidKey={c.env.VAPID_PUBLIC_KEY}
+      result={await debugResult(c)}
+    />,
+  );
+});
+
+/** Which apartment of this building, if any, a device's push subscription belongs to. */
+admin.post("/debug/device", async (c) => {
+  const { endpoint } = await c.req.json<{ endpoint?: string }>();
+  const apartment = await c.env.DB.prepare("SELECT apartment FROM push_subscriptions WHERE endpoint = ? AND tenant_id = ?")
+    .bind(endpoint ?? "", c.var.tenant.id)
+    .first<string>("apartment");
+  return c.json({ apartment });
+});
+
+admin.post("/debug/subscribe", saveSubscription);
+
+// Test 1: the test household holds a slot the admin waits for, then cancels it like a resident would.
+admin.post("/debug/freed", async (c) => {
+  const apt = currentApartment(c);
+  if (!apt) return debugBack(c, "freed", { error: "no-apt" });
+  await cleanupPushTest(c);
+  const slot = await testSlot(c);
+  const booking = slot && (await insertTestBooking(c, slot, TEST_APARTMENT, null));
+  if (!slot || !booking) return debugBack(c, "freed", { error: "no-slot" });
+  // The holder is the test household, which has no devices, so joining sends nothing.
+  await joinWaitlist(c, [slot.machine.id], slot.date, slot.start, apt);
+  const [outcome] = await Promise.all(await cancelBookings(c, [booking], "resident"));
+  // The slot had no waitlist before, so the admin's entry is the test's own.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?").bind(
+      c.var.tenant.id,
+      slot.machine.id,
+      slot.date,
+      slot.start,
+      apt,
+    ),
+    ...cleanupStatements(c),
+  ]);
+  return debugBack(c, "freed", { slot, outcome });
+});
+
+// Test 2: the admin holds a slot and the test household joins its waitlist. Both stay until "Rydd opp",
+// so the notification opens a day that still shows them.
+admin.post("/debug/waiting", async (c) => {
+  const apt = currentApartment(c);
+  if (!apt) return debugBack(c, "waiting", { error: "no-apt" });
+  await cleanupPushTest(c);
+  const slot = await testSlot(c);
+  const booking = slot && (await insertTestBooking(c, slot, apt, TEST_NOTE));
+  if (!slot || !booking) return debugBack(c, "waiting", { error: "no-slot" });
+  const outcome = (await joinWaitlist(c, [slot.machine.id], slot.date, slot.start, TEST_APARTMENT)) ?? NO_DEVICES;
+  return debugBack(c, "waiting", { slot, outcome: await outcome });
+});
+
+admin.post("/debug/cleanup", async (c) => {
+  await cleanupPushTest(c);
+  return debugBack(c, "cleanup", {});
+});
+
+/** A free slot for a test, from now to the booking horizon. */
+async function testSlot(c: Ctx) {
+  const tenant = c.var.tenant;
+  const now = localNow(tenant.timezone);
+  const last = addDays(now.date, tenant.booking_horizon_days - 1);
+  const [machines, bookings, waitlist] = await Promise.all([
+    getMachines(c.env.DB, tenant.id),
+    getBookings(c.env.DB, tenant.id, now.date, last),
+    getWaitlist(c.env.DB, tenant.id, now.date, last),
+  ]);
+  const days = Array.from({ length: tenant.booking_horizon_days }, (_, i) => addDays(now.date, i));
+  return pickTestSlot(machines, days, slotsFor(tenant), now, bookings, waitlist);
+}
+
+/** Books a test slot directly (no household limit), or undefined if someone took it meanwhile. */
+async function insertTestBooking(c: Ctx, slot: TestSlot, apartment: string, note: string | null) {
+  try {
+    return (
+      (await c.env.DB.prepare(
+        `INSERT INTO bookings (tenant_id, machine_id, date, start_min, end_min, apartment, note) VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id, machine_id, date, start_min, end_min, apartment, note`,
+      )
+        .bind(c.var.tenant.id, slot.machine.id, slot.date, slot.start, slot.end, apartment, note)
+        .first<Booking>()) ?? undefined
+    );
+  } catch (e) {
+    if (/UNIQUE|booking_overlap/.test(String(e))) return undefined;
+    throw e;
+  }
+}
+
+/** Removes everything the tests made: the test household's bookings (cancelled too) and waitlist entries,
+ * and the admin's own test booking, found by its comment. Deleted, not cancelled, so nobody is notified. */
+function cleanupStatements(c: Ctx) {
+  const id = c.var.tenant.id;
+  return [
+    c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND apartment = ?").bind(id, TEST_APARTMENT),
+    c.env.DB.prepare("DELETE FROM bookings WHERE tenant_id = ? AND (apartment = ? OR note = ?)").bind(id, TEST_APARTMENT, TEST_NOTE),
+  ];
+}
+
+const cleanupPushTest = (c: Ctx) => c.env.DB.batch(cleanupStatements(c));
+
+/** Back to the test page with the result in the query, so a reload shows it again without rerunning the test. */
+function debugBack(c: Ctx, test: DebugTest, r: Omit<DebugResult, "test">) {
+  const params = new URLSearchParams({ test });
+  if (r.error) params.set("error", r.error);
+  if (r.slot) params.set("slot", [r.slot.date, r.slot.start, r.slot.end, r.slot.machine.id].join("."));
+  if (r.outcome) params.set("push", [r.outcome.devices, r.outcome.sent, r.outcome.gone, r.outcome.failed].join("."));
+  return c.redirect(`${adminBase(c)}/debug?${params}`, 303);
+}
+
+async function debugResult(c: Ctx): Promise<DebugResult | undefined> {
+  const test = c.req.query("test");
+  if (test !== "freed" && test !== "waiting" && test !== "cleanup") return undefined;
+  const error = c.req.query("error");
+  if (error === "no-apt" || error === "no-slot") return { test, error };
+  const slot = /^(\d{4}-\d{2}-\d{2})\.(\d+)\.(\d+)\.(\d+)$/.exec(c.req.query("slot") ?? "");
+  const push = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(c.req.query("push") ?? "");
+  if (!slot || !push || !isValidDate(slot[1]!)) return { test };
+  const machine = await machineById(c, Number(slot[4]));
+  if (!machine) return { test };
+  const [devices, sent, gone, failed] = push.slice(1).map(Number) as [number, number, number, number];
+  return {
+    test,
+    slot: { machine, date: slot[1]!, start: Number(slot[2]), end: Number(slot[3]) },
+    outcome: { devices, sent, gone, failed },
+  };
+}
 
 const settingsSections = new Set<string>(SECTIONS.map(([id]) => id));
 

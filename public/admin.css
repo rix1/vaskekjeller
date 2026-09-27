@@ -1286,3 +1286,63 @@ form.recovery-saved {
     animation: none;
   }
 }
+
+/* Push test page */
+.debug-stack {
+  max-width: 640px;
+}
+.debug-stack .card-head {
+  margin-bottom: 14px;
+}
+.debug-stack .card > p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.debug-stack .button {
+  width: 100%;
+  justify-content: center;
+}
+.device-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fafbf8;
+  border: 1px solid var(--line);
+}
+.device-status p {
+  margin: 0;
+  font-size: 14px;
+}
+.device-status[data-tone="ok"] {
+  background: var(--green-soft);
+  border-color: #cfe0d2;
+}
+.device-status[data-tone="warn"] {
+  background: var(--warn-bg);
+  border-color: #f0dfbd;
+}
+.debug-result h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+.debug-result .card-head h2 {
+  margin: 0;
+}
+.debug-result.ok {
+  border-color: #cfe0d2;
+  background: var(--green-soft);
+}
+.debug-result.error {
+  border-color: #f3c7c1;
+  background: var(--err-bg);
+}
+.debug-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -98,3 +98,6 @@ export async function sendPush(sub: PushSubscriptionRow, message: unknown, keys:
   }
   return "ok";
 }
+
+/** What one notification fan-out did: how many devices it went to, and how many took it, had expired or failed. */
+export type PushOutcome = { devices: number; sent: number; gone: number; failed: number };

@@ -15,6 +15,9 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   waitlist gets a push notification. First to book wins.
   The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
   everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
+  When another household joins the waitlist for a holder's slot (with "Venteliste" or by sending a message), the
+  holder gets "Noen venter på tiden din" (or "N venter …"), linking to that day and machine. Joining again, or
+  waiting on your own or a free slot, sends nothing; each new household replaces the previous notification.
 - **Messages**: under "Se detaljer" on someone else's booking, "Send melding" pushes a ready-made question (plus an
   optional 140-character note) to the holder's devices. It is only offered when the holder has notifications on.
   The holder answers by updating their comment; the sender is put on that slot's waitlist to hear it, and can leave it
@@ -34,6 +37,16 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
   cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,
   a bottom drawer on phones) that falls back to an in-page `#anchor` target without JavaScript.
+- **Push test** (`/<slug>/admin/debug`, linked from the admin overview): an admin-only page for checking on a phone
+  that notifications arrive. It runs as the apartment chosen on the booking page on that device, shows whether the
+  device has notifications on for that apartment (and can turn them on), and has two tests that go through the
+  real cancel and waitlist code: "En tid blir ledig" (the test household `TEST (varsler)` books a free slot, you
+  join its waitlist, and it cancels) and "Noen venter på tiden din" (you book a free slot with the comment
+  "Test av varsler – slettes ved opprydding", and the test household joins its waitlist). The page reports how
+  many devices got the push, and how many had expired or failed. The test household can never be a real
+  apartment, since real numbers are stored without spaces. Test 1 cleans up right away; test 2 is left until
+  "Rydd opp" (or the next test), which deletes the test household's rows and bookings with that comment, in this
+  building only (`src/debug-push.tsx`).
 - **Activity log**: the "Aktivitet" section of the admin settings lists admin changes, newest first, in a
   scrollable box: resident and admin passwords turned on, changed or off; schedule and rule changes as
   before → after (e.g. "Lengde per tid: 120 → 90 min"); machines added, changed, moved or switched off;
@@ -205,7 +218,8 @@ closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, l
 showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),
 the about page, its footer links and the reserved `om` address (`tests/about.test.mjs`),
 indexable versus noindex pages, link-preview tags, JSON-LD, robots.txt and the sitemap (`tests/seo.test.mjs`),
-signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
+signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`),
+the holder's "someone is waiting" push and the admin push test page (`tests/debug-push.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
 as a classic script, since `/sw.js` is registered without `{ type: "module" }`.

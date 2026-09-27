@@ -79,6 +79,7 @@ const reset = async () => {
   await settle();
   devices.clear();
   pushed = [];
+  waitingPushes = [];
 };
 const settle = async () => {
   while (pending.length) await pending.shift();
@@ -89,6 +90,7 @@ const b64url = (bytes) => Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Ar
 // sent by the worker can be decrypted (RFC 8291) and inspected.
 const devices = new Map();
 let pushed = [];
+let waitingPushes = [];
 async function subscribe(apartment, name = apartment) {
   const keys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const device = {
@@ -123,7 +125,9 @@ async function decrypt(device, body) {
 globalThis.fetch = async (url, init) => {
   const device = devices.get(String(url));
   if (!device) throw new Error(`unexpected fetch ${url}`);
-  pushed.push({ endpoint: String(url), message: await decrypt(device, new Uint8Array(init.body)) });
+  const message = await decrypt(device, new Uint8Array(init.body));
+  // Joining a waitlist also tells the holder someone is waiting (tests/waiting-holder.test.mjs); kept apart here.
+  (/venter på tiden din$/.test(message.title) ? waitingPushes : pushed).push({ endpoint: String(url), message });
   return new Response(null, { status: 201 });
 };
 const flash = (response) => new URL(response.headers.get("location"), "http://localhost").searchParams.get("m");
@@ -240,7 +244,9 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
     assert.equal(m.tag, `message-${tomorrow}-600-B2`);
     assert.equal(m.renotify, true);
   }
-  assert.equal(await db.prepare("SELECT notifications FROM daily_stats").first("notifications"), 2);
+  // The sender joined the waitlist, so both holder devices also heard that someone is waiting.
+  assert.deepEqual(waitingPushes.map((p) => p.endpoint.split("/").pop()).sort(), ["a3-laptop", "a3-phone"]);
+  assert.equal(await db.prepare("SELECT notifications FROM daily_stats").first("notifications"), 4);
   const waits = db.prepare("SELECT machine_id, apartment FROM waitlist ORDER BY machine_id").all();
   assert.deepEqual(
     (await waits).results.map((w) => [w.machine_id, w.apartment]),
