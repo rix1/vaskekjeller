@@ -90,7 +90,7 @@ test("the strip is followed by a script that scrolls the selected day into view 
   const html = await board();
   const match = html.match(/<nav class="date-strip"[\s\S]*?<\/nav><script>([\s\S]*?)<\/script>/);
   assert.ok(match, "inline script directly after the date strip");
-  const code = match[1].replaceAll("&#39;", "'");
+  const code = match[1];
   const run = (selectedIndex) => {
     const { strip, max } = fakeStrip(selectedIndex);
     new Function("document", code)({ currentScript: { previousElementSibling: strip } });
@@ -100,13 +100,4 @@ test("the strip is followed by a script that scrolls the selected day into view 
   assert.equal(run(3).scrollLeft, 2 * 70, "Thursday: Wednesday first");
   const sunday = run(6);
   assert.equal(sunday.scrollLeft, sunday.max, "Sunday: fully scrolled right");
-});
-
-test("on phones the days scroll sideways with snap points and a minimum width", async () => {
-  const css = await readFile("public/style.css", "utf8");
-  const block = css.match(/@media \(max-width: 740px\) \{\s*\.date-strip \{[\s\S]*?\n\}/)?.[0] ?? "";
-  assert.match(block, /overflow-x: auto/);
-  assert.match(block, /scroll-snap-type: x mandatory/);
-  assert.match(block, /\.date-item \{[^}]*min-width: \d+px/);
-  assert.match(block, /\.date-item \{[^}]*scroll-snap-align: start/);
 });

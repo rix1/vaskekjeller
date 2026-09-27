@@ -1851,9 +1851,9 @@ button.cancel-link,
    The strip starts on the selected day's neighbour (inline script in src/views.tsx, client/app.ts). */
 @media (max-width: 740px) {
   .date-strip {
-    --visible-days: 4.5;
+    --day-gap: 6px;
     display: flex;
-    gap: 6px;
+    gap: var(--day-gap);
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
@@ -1861,7 +1861,8 @@ button.cancel-link,
     scrollbar-width: thin;
   }
   .date-item {
-    flex: 0 0 calc((100% - 4 * 6px) / var(--visible-days));
+    /* Four and a half days and the four gaps between them fill the strip. */
+    flex: 0 0 calc((100% - 4 * var(--day-gap)) / 4.5);
     min-width: 64px;
     scroll-snap-align: start;
   }
