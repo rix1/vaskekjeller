@@ -58,7 +58,7 @@ const ResultCard: FC<{ result: DebugResult; apartment?: string; horizon: number 
     return (
       <section class="card debug-result ok" role="status">
         <h2>Ryddet opp</h2>
-        <p>Alle bookinger og ventelisteplasser fra testene er fjernet.</p>
+        <p>Bookingene og ventelisteplassene til {TEST_APARTMENT} er fjernet, og testbookingen din er avbestilt.</p>
       </section>
     );
   const heading = test === "freed" ? "Test 1: tiden ble ledig" : "Test 2: noen venter på tiden din";
@@ -191,8 +191,8 @@ export const DebugPushPage: FC<{
           <div class="card-head">
             <h2 id="rydd-opp">Rydd opp</h2>
             <p>
-              Fjerner alle bookinger og ventelisteplasser til {TEST_APARTMENT}, og testbookingen din fra test 2. Hver test rydder
-              også opp etter forrige test før den starter.
+              Fjerner alle bookinger og ventelisteplasser til {TEST_APARTMENT}, og avbestiller testbookingen din fra test 2, så
+              naboer som har satt seg på ventelisten får beskjed. Hver test rydder også opp etter forrige test før den starter.
             </p>
           </div>
           <form method="post" action={action("cleanup")}>

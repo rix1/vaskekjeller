@@ -635,14 +635,15 @@ async function cancelBookings(c: Ctx, bookings: Booking[], by: "resident" | "adm
 }
 
 /** Puts an apartment on one machine's waitlist for a slot. When that adds an entry, the slot's holder hears that
- * someone is waiting; resolves to that push, or undefined when the apartment was already waiting. */
+ * someone is waiting; resolves to that push (wrapped, so awaiting the join doesn't wait for it), or undefined when
+ * the apartment was already waiting. */
 async function joinWaitlist(c: Ctx, machineId: number, date: string, start: number, apt: string) {
   const tenant = c.var.tenant;
   const res = await c.env.DB.prepare("INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (?, ?, ?, ?, ?)")
     .bind(tenant.id, machineId, date, start, apt)
     .run();
   if (!res.meta.changes) return undefined;
-  return background(c, notifyHolder(c.env, tenant, machineId, date, start, apt));
+  return { push: background(c, notifyHolder(c.env, tenant, machineId, date, start, apt)) };
 }
 
 const NO_DEVICES: PushOutcome = { devices: 0, sent: 0, gone: 0, failed: 0 };
@@ -1004,8 +1005,8 @@ admin.post("/debug/waiting", async (c) => {
   const slot = await testSlot(c);
   const booking = slot && (await insertTestBooking(c, slot, apt, TEST_NOTE));
   if (!slot || !booking) return debugBack(c, "waiting", { error: "no-slot" });
-  const outcome = (await joinWaitlist(c, slot.machine.id, slot.date, slot.start, TEST_APARTMENT)) ?? NO_DEVICES;
-  return debugBack(c, "waiting", { slot, outcome: await outcome });
+  const joined = await joinWaitlist(c, slot.machine.id, slot.date, slot.start, TEST_APARTMENT);
+  return debugBack(c, "waiting", { slot, outcome: joined ? await joined.push : NO_DEVICES });
 });
 
 admin.post("/debug/cleanup", async (c) => {
@@ -1044,17 +1045,25 @@ async function insertTestBooking(c: Ctx, slot: TestSlot, apartment: string, note
   }
 }
 
-/** Removes everything the tests made: the test household's bookings (cancelled too) and waitlist entries,
- * and the admin's own test booking, found by its comment. Deleted, not cancelled, so nobody is notified. */
+/** Removes the test household's bookings (cancelled too) and waitlist entries. Deleted, not cancelled, so nobody
+ * is notified. */
 function cleanupStatements(c: Ctx) {
   const id = c.var.tenant.id;
   return [
     c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND apartment = ?").bind(id, TEST_APARTMENT),
-    c.env.DB.prepare("DELETE FROM bookings WHERE tenant_id = ? AND (apartment = ? OR note = ?)").bind(id, TEST_APARTMENT, TEST_NOTE),
+    c.env.DB.prepare("DELETE FROM bookings WHERE tenant_id = ? AND apartment = ?").bind(id, TEST_APARTMENT),
   ];
 }
 
-const cleanupPushTest = (c: Ctx) => c.env.DB.batch(cleanupStatements(c));
+/** Removes the test household's rows, then cancels the admin's own test booking (found by its comment) like any
+ * other, so a real neighbour who joined its waitlist hears the slot is free. */
+async function cleanupPushTest(c: Ctx) {
+  await c.env.DB.batch(cleanupStatements(c));
+  const { results } = await c.env.DB.prepare("SELECT * FROM bookings WHERE tenant_id = ? AND note = ? AND cancelled_at IS NULL")
+    .bind(c.var.tenant.id, TEST_NOTE)
+    .all<Booking>();
+  if (results.length) await cancelBookings(c, results, "admin");
+}
 
 /** Back to the test page with the result in the query, so a reload shows it again without rerunning the test. */
 function debugBack(c: Ctx, test: DebugTest, r: Omit<DebugResult, "test">) {

@@ -88,7 +88,7 @@ const shortDay = (date) => {
 };
 
 // A fake push service: each subscription is a real P-256 key pair, so payloads can be decrypted (RFC 8291).
-// `status` lets a test make the push service answer with an error or "gone".
+// `status` lets a test make the push service answer with an error or "gone", and `gate` holds its answer back.
 const devices = new Map();
 let pushed = [];
 async function subscribe(apartment, name = apartment, tenant = 1) {
@@ -126,6 +126,7 @@ async function decrypt(device, body) {
 globalThis.fetch = async (url, init) => {
   const device = devices.get(String(url));
   if (!device) throw new Error(`unexpected fetch ${url}`);
+  await device.gate;
   pushed.push({ endpoint: String(url).split("/").pop(), message: await decrypt(device, new Uint8Array(init.body)) });
   return new Response(device.status === 201 ? null : "nope", { status: device.status });
 };
@@ -237,6 +238,28 @@ test("joining the waitlist for someone's slot pushes to the holder's devices, on
   assert.deepEqual(pushed.map((p) => p.endpoint).sort(), ["a3-laptop", "a3-phone"]);
   assert.equal(pushed[0].message.title, "2 venter på tiden din");
   assert.equal(pushed[0].message.tag, `waiting-${tomorrow}-600-A3`);
+});
+
+test("joining the waitlist answers before the holder's push is delivered", async () => {
+  reset();
+  book(tomorrow, 600, 1, "A3");
+  const device = await subscribe("A3", "a3-slow");
+  let release;
+  device.gate = new Promise((resolve) => (release = resolve));
+  const background = [];
+  const request = new Request("http://localhost/bygg/wait", {
+    method: "POST",
+    redirect: "manual",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "http://localhost", Cookie: cookies("B2") },
+    body: new URLSearchParams({ machine_id: 1, date: tomorrow, start: 600 }),
+  });
+  const response = worker.fetch(request, bindings, { waitUntil: (promise) => background.push(promise) });
+  const first = await Promise.race([response, new Promise((resolve) => setTimeout(() => resolve("still waiting"), 1000))]);
+  release();
+  await Promise.all(background);
+  assert.notEqual(first, "still waiting", "the redirect does not wait for the push service");
+  assert.equal(first.status, 303);
+  assert.deepEqual(pushed.map((p) => p.endpoint), ["a3-slow"]);
 });
 
 test("no holder push for your own slot, a free slot, or a holder without notifications", async () => {
@@ -406,12 +429,37 @@ test("test 2: the admin books, the test household joins, the holder push fires; 
 
   const cleanup = await post("admin/debug/cleanup", {}, "A3", true);
   assert.equal(location(cleanup).search, "?test=cleanup");
-  assert.equal(rows("SELECT * FROM bookings WHERE note = ? OR apartment = ?", TEST_NOTE, TEST_APARTMENT).length, 0);
+  assert.equal(rows("SELECT * FROM bookings WHERE apartment = ?", TEST_APARTMENT).length, 0);
+  assert.deepEqual(rows("SELECT cancelled_by FROM bookings WHERE note = ?", TEST_NOTE), [{ cancelled_by: "admin" }]);
   assert.equal(rows("SELECT * FROM waitlist WHERE apartment = ?", TEST_APARTMENT).length, 0);
   assert.equal(rows("SELECT * FROM bookings WHERE apartment = 'C1'").length, 12);
   assert.equal(rows("SELECT * FROM bookings WHERE id = ?", own).length, 1);
   assert.equal(rows("SELECT * FROM waitlist WHERE apartment = 'B2'").length, 1);
-  assert.match(await (await get("admin/debug?test=cleanup")).text(), /Alle bookinger og ventelisteplasser fra testene er fjernet\./);
+  assert.match(
+    await (await get("admin/debug?test=cleanup")).text(),
+    /Bookingene og ventelisteplassene til TEST \(varsler\) er fjernet, og testbookingen din er avbestilt\./,
+  );
+});
+
+test("cleanup cancels the admin's test booking, so a real neighbour waiting for it is told it's free", async () => {
+  reset();
+  const response = await post("admin/debug/waiting", {}, "A3", true);
+  const [date, start, , machine] = location(response).searchParams.get("slot").split(".");
+  await subscribe("B7", "b7-phone");
+  await post("wait", { machine_id: machine, date, start }, "B7");
+
+  pushed = [];
+  await post("admin/debug/cleanup", {}, "A3", true);
+  assert.deepEqual(
+    pushed.map((p) => [p.endpoint, p.message.tag]),
+    [["b7-phone", `slot-${machine}-${date}-${start}`]],
+  );
+  assert.deepEqual(rows("SELECT apartment FROM waitlist"), [{ apartment: "B7" }]);
+  assert.equal(rows("SELECT * FROM bookings WHERE cancelled_at IS NULL").length, 0);
+
+  pushed = [];
+  await post("admin/debug/cleanup", {}, "A3", true);
+  assert.equal(pushed.length, 0, "a second cleanup has nothing left to cancel");
 });
 
 test("each test clears the previous one, and cleanup stays inside the building", async () => {
@@ -422,10 +470,11 @@ test("each test clears the previous one, and cleanup stays inside the building",
     .run(tomorrow, TEST_APARTMENT, TEST_NOTE);
   await post("admin/debug/waiting", {}, "A3", true);
   await post("admin/debug/waiting", {}, "A3", true);
-  assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 1").length, 1, "the second run replaced the first");
+  const active = "SELECT * FROM bookings WHERE tenant_id = 1 AND cancelled_at IS NULL";
+  assert.equal(rows(active).length, 1, "the second run replaced the first");
   assert.equal(rows("SELECT * FROM waitlist WHERE tenant_id = 1").length, 1);
   await post("admin/debug/freed", {}, "A3", true);
-  assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 1").length, 0);
+  assert.equal(rows(active).length, 0);
   assert.equal(rows("SELECT * FROM waitlist WHERE tenant_id = 1").length, 0);
   assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 2").length, 1);
 });
