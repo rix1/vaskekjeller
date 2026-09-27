@@ -429,8 +429,7 @@ test("test 2: the admin books, the test household joins, the holder push fires; 
 
   const cleanup = await post("admin/debug/cleanup", {}, "A3", true);
   assert.equal(location(cleanup).search, "?test=cleanup");
-  assert.equal(rows("SELECT * FROM bookings WHERE apartment = ?", TEST_APARTMENT).length, 0);
-  assert.deepEqual(rows("SELECT cancelled_by FROM bookings WHERE note = ?", TEST_NOTE), [{ cancelled_by: "admin" }]);
+  assert.equal(rows("SELECT * FROM bookings WHERE note = ? OR apartment = ?", TEST_NOTE, TEST_APARTMENT).length, 0);
   assert.equal(rows("SELECT * FROM waitlist WHERE apartment = ?", TEST_APARTMENT).length, 0);
   assert.equal(rows("SELECT * FROM bookings WHERE apartment = 'C1'").length, 12);
   assert.equal(rows("SELECT * FROM bookings WHERE id = ?", own).length, 1);
@@ -455,11 +454,23 @@ test("cleanup cancels the admin's test booking, so a real neighbour waiting for 
     [["b7-phone", `slot-${machine}-${date}-${start}`]],
   );
   assert.deepEqual(rows("SELECT apartment FROM waitlist"), [{ apartment: "B7" }]);
-  assert.equal(rows("SELECT * FROM bookings WHERE cancelled_at IS NULL").length, 0);
+  assert.equal(rows("SELECT * FROM bookings").length, 0, "and then deletes it, so it isn't counted as a cancellation");
 
   pushed = [];
   await post("admin/debug/cleanup", {}, "A3", true);
   assert.equal(pushed.length, 0, "a second cleanup has nothing left to cancel");
+});
+
+test("cleanup deletes an ended test booking without telling its waiters it's free", async () => {
+  reset();
+  const yesterday = localDate(-1);
+  book(yesterday, 600, 1, "A3", TEST_NOTE);
+  await subscribe("B7", "b7-phone");
+  sqlite.prepare("INSERT INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (1, 1, ?, 600, 'B7')").run(yesterday);
+
+  await post("admin/debug/cleanup", {}, "A3", true);
+  assert.equal(pushed.length, 0);
+  assert.equal(rows("SELECT * FROM bookings").length, 0);
 });
 
 test("each test clears the previous one, and cleanup stays inside the building", async () => {
@@ -470,11 +481,10 @@ test("each test clears the previous one, and cleanup stays inside the building",
     .run(tomorrow, TEST_APARTMENT, TEST_NOTE);
   await post("admin/debug/waiting", {}, "A3", true);
   await post("admin/debug/waiting", {}, "A3", true);
-  const active = "SELECT * FROM bookings WHERE tenant_id = 1 AND cancelled_at IS NULL";
-  assert.equal(rows(active).length, 1, "the second run replaced the first");
+  assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 1").length, 1, "the second run replaced the first");
   assert.equal(rows("SELECT * FROM waitlist WHERE tenant_id = 1").length, 1);
   await post("admin/debug/freed", {}, "A3", true);
-  assert.equal(rows(active).length, 0);
+  assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 1").length, 0);
   assert.equal(rows("SELECT * FROM waitlist WHERE tenant_id = 1").length, 0);
   assert.equal(rows("SELECT * FROM bookings WHERE tenant_id = 2").length, 1);
 });

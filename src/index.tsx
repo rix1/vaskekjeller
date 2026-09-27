@@ -1055,14 +1055,18 @@ function cleanupStatements(c: Ctx) {
   ];
 }
 
-/** Removes the test household's rows, then cancels the admin's own test booking (found by its comment) like any
- * other, so a real neighbour who joined its waitlist hears the slot is free. */
+/** Removes the test household's rows, then the admin's own test booking (found by its comment). One that hasn't ended
+ * is cancelled first like any other, so a real neighbour who joined its waitlist hears the slot is free. */
 async function cleanupPushTest(c: Ctx) {
+  const tenant = c.var.tenant;
   await c.env.DB.batch(cleanupStatements(c));
   const { results } = await c.env.DB.prepare("SELECT * FROM bookings WHERE tenant_id = ? AND note = ? AND cancelled_at IS NULL")
-    .bind(c.var.tenant.id, TEST_NOTE)
+    .bind(tenant.id, TEST_NOTE)
     .all<Booking>();
-  if (results.length) await cancelBookings(c, results, "admin");
+  const now = localNow(tenant.timezone);
+  const open = results.filter((b) => !slotIsOver(b.date, b.end_min, now));
+  if (open.length) await cancelBookings(c, open, "admin");
+  await c.env.DB.prepare("DELETE FROM bookings WHERE tenant_id = ? AND note = ?").bind(tenant.id, TEST_NOTE).run();
 }
 
 /** Back to the test page with the result in the query, so a reload shows it again without rerunning the test. */

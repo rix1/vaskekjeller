@@ -46,9 +46,9 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   "Test av varsler – slettes ved opprydding", and the test household joins its waitlist). The page reports how
   many devices got the push, and how many had expired or failed. The test household can never be a real
   apartment, since real numbers are stored without spaces. Test 1 cleans up right away; test 2 is left until
-  "Rydd opp" (or the next test), which deletes the test household's rows and cancels your booking with that comment
-  like any other cancellation, so a neighbour who joined its waitlist meanwhile is told it's free. It touches this
-  building only (`src/debug-push.tsx`).
+  "Rydd opp" (or the next test), which deletes the test household's rows and your booking with that comment. If that
+  booking hasn't ended, it is cancelled first like any other, so a neighbour who joined its waitlist meanwhile is told
+  it's free. It touches this building only (`src/debug-push.tsx`).
 - **Activity log**: the "Aktivitet" section of the admin settings lists admin changes, newest first, in a
   scrollable box: resident and admin passwords turned on, changed or off; schedule and rule changes as
   before → after (e.g. "Lengde per tid: 120 → 90 min"); machines added, changed, moved or switched off;
