@@ -195,6 +195,8 @@ marks a fully booked day. The "Ett trykk reserverer" hint disappears after a dev
 The date strip shows Monday-to-Sunday weeks and opens on today. It reaches back 14 days and forward to the
 booking horizon. Past days are read-only: each slot shows who had each machine and any comment, including
 machines deactivated since then. Cancelled bookings are not shown.
+On phones the week scrolls sideways with snap points, and the strip opens scrolled to the selected day
+(Sunday: fully right), both on page load and after in-page date changes (`tests/day-strip-scroll.test.mjs`).
 
 Date/machine navigation and resident forms update in place with JavaScript. URLs, browser back/forward,
 keyboard focus, and server-side validation are preserved. Without JavaScript, the same links and forms

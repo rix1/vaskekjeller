@@ -97,6 +97,20 @@ function cleanUrl(raw: string) {
   return url;
 }
 
+// On phones the Monday-first week scrolls sideways (public/style.css). Put the selected day's
+// neighbour at the start, so Sunday leaves the strip fully scrolled right. Mirrors SHOW_SELECTED_DAY
+// in src/views.tsx, which does the same before the first paint.
+function showSelectedDay(strip: HTMLElement, onlyIfHidden: boolean) {
+  const selected = strip.querySelector<HTMLElement>(".selected");
+  if (!selected) return;
+  const stripBounds = strip.getBoundingClientRect();
+  const dayBounds = selected.getBoundingClientRect();
+  if (onlyIfHidden && dayBounds.left >= stripBounds.left - 1 && dayBounds.right <= stripBounds.right + 1) return;
+  const start = (selected.previousElementSibling ?? selected).getBoundingClientRect().left;
+  const smooth = onlyIfHidden && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  strip.scrollTo({ left: strip.scrollLeft + start - stripBounds.left, behavior: smooth ? "smooth" : "instant" });
+}
+
 async function updateBoard(
   url: string,
   options: {
@@ -141,16 +155,17 @@ async function updateBoard(
     if (historyMode === "replace") history.replaceState(null, "", finalUrl);
     document.title = doc.title;
     document.querySelector(".resident-top")!.replaceWith(nextHeader);
-    const dateScroll = main.querySelector(".date-strip")?.scrollLeft ?? 0;
+    const oldStrip = main.querySelector<HTMLElement>(".date-strip");
+    const oldWeek = oldStrip?.querySelector("[data-date]")?.getAttribute("data-date");
+    const dateScroll = oldStrip?.scrollLeft ?? 0;
     main.replaceWith(nextMain);
     const dateStrip = nextMain.querySelector<HTMLElement>(".date-strip");
-    const selectedDay = dateStrip?.querySelector<HTMLElement>(".selected");
-    if (dateStrip && selectedDay) {
-      dateStrip.scrollLeft = dateScroll;
-      const stripBounds = dateStrip.getBoundingClientRect();
-      const dayBounds = selectedDay.getBoundingClientRect();
-      if (dayBounds.right > stripBounds.right) dateStrip.scrollLeft += dayBounds.right - stripBounds.right;
-      if (dayBounds.left < stripBounds.left) dateStrip.scrollLeft -= stripBounds.left - dayBounds.left;
+    if (dateStrip) {
+      // Same week: stay put and only move when the selected day is not fully in view.
+      if (dateStrip.querySelector("[data-date]")?.getAttribute("data-date") === oldWeek) {
+        dateStrip.scrollLeft = dateScroll;
+        showSelectedDay(dateStrip, true);
+      } else showSelectedDay(dateStrip, false);
     }
     document.querySelectorAll(".toast.network-error").forEach(dismissToast);
     // A toast's own action (Forlat venteliste after a message) is done once it has gone through.
