@@ -105,6 +105,11 @@ export const AboutPage: FC = () => (
               kommentaren sin. En ny endring erstatter det forrige varselet. Fjernes kommentaren, kommer det ikke noe varsel.
             </li>
             <li>
+              <strong>Noen venter på tiden din.</strong> En nabo setter seg på ventelisten for en tid du har reservert. Trenger
+              du ikke tiden, kan du avbestille den, eller svare med en kommentar. Setter flere seg på, erstatter det nye
+              varselet det forrige.
+            </li>
+            <li>
               <strong>Du får en melding.</strong> En nabo trykker «Send melding» på en av dine tider. Det går bare når du har
               varsler på, og det er høyst 3 meldinger per leilighet og 10 totalt per tid. Svar ved å endre kommentaren din: da får
               alle som venter beskjed, også den som sendte meldingen.

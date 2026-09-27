@@ -156,11 +156,14 @@ export const RecoveryCodeBlock: FC<{ tenant: Tenant; code: string }> = ({ tenant
   </div>
 );
 
-const AdminPage: FC<{
+export const AdminPage: FC<{
   tenant: Tenant;
   title: string;
-  /** "closed": the building is closed and only the reopen/delete panel is available, so no tabs. */
-  active: "overview" | "settings" | "closed";
+  /** "closed": the building is closed and only the reopen/delete panel is available, so no tabs.
+   * "debug": the push test page, reached from the overview, so neither tab is current. */
+  active: "overview" | "settings" | "closed" | "debug";
+  /** Extra tags for the page head, such as a page's own script. */
+  head?: Child;
   flash?: string;
   /** Error toast shown instead of the flash message, e.g. after a failed validation. */
   alert?: Child;
@@ -168,7 +171,7 @@ const AdminPage: FC<{
 }> = (p) => {
   const base = `/${p.tenant.slug}`;
   const message = p.flash && ADMIN_FLASH[p.flash];
-  const here = p.active === "overview" ? `${base}/admin` : `${base}/admin/settings`;
+  const here = p.active === "settings" ? `${base}/admin/settings` : p.active === "debug" ? `${base}/admin/debug` : `${base}/admin`;
   return (
     <Layout
       title={`${p.title} · ${p.tenant.name}`}
@@ -177,6 +180,7 @@ const AdminPage: FC<{
         <>
           <link rel="stylesheet" href="/admin.css" />
           <script type="module" src="/admin.js" defer></script>
+          {p.head}
         </>
       }
     >
@@ -365,6 +369,16 @@ export const AdminOverview: FC<{ tenant: Tenant; stats: Stats; upcoming: (Bookin
               ))}
             </ul>
           )}
+        </section>
+
+        <section class="card" aria-labelledby="varseltest">
+          <div class="card-head">
+            <h2 id="varseltest">Test varsler</h2>
+            <p>Sjekk på telefonen at varsler kommer fram når en tid blir ledig, og når noen venter på tiden din.</p>
+          </div>
+          <a class="button secondary" href={`/${tenant.slug}/admin/debug`}>
+            Åpne varseltesten
+          </a>
         </section>
       </div>
     </AdminPage>
