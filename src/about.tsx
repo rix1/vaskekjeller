@@ -105,9 +105,9 @@ export const AboutPage: FC = () => (
               kommentaren sin. En ny endring erstatter det forrige varselet. Fjernes kommentaren, kommer det ikke noe varsel.
             </li>
             <li>
-              <strong>Noen venter på tiden din.</strong> En nabo setter seg på ventelisten for en tid du har reservert, også når
-              de sender deg en melding. Trenger du ikke tiden, kan du avbestille den, eller svare med en kommentar. Setter flere
-              seg på, erstatter det nye varselet det forrige.
+              <strong>Noen venter på tiden din.</strong> En nabo setter seg på ventelisten for en tid du har reservert. Trenger
+              du ikke tiden, kan du avbestille den, eller svare med en kommentar. Setter flere seg på, erstatter det nye
+              varselet det forrige.
             </li>
             <li>
               <strong>Du får en melding.</strong> En nabo trykker «Send melding» på en av dine tider. Det går bare når du har

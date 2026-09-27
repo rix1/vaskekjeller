@@ -253,25 +253,37 @@ test("no holder push for your own slot, a free slot, or a holder without notific
   assert.equal(rows("SELECT * FROM waitlist").length, 3, "every join is still stored");
 });
 
-test("a message joins every machine of the reservation and the holder hears it once", async () => {
+test("the count covers every machine of the holder's reservation", async () => {
+  reset();
+  book(tomorrow, 600, 1, "A3");
+  book(tomorrow, 600, 2, "A3");
+  await subscribe("A3");
+  await post("wait", { machine_id: 1, date: tomorrow, start: 600 }, "B2");
+  await post("wait", { machine_id: 2, date: tomorrow, start: 600 }, "C1");
+  assert.deepEqual(
+    pushed.map((p) => [p.message.title, p.message.tag]),
+    [
+      ["Noen venter på tiden din", `waiting-${tomorrow}-600-A3`],
+      ["2 venter på tiden din", `waiting-${tomorrow}-600-A3`],
+    ],
+  );
+  assert.match(pushed[1].message.body, new RegExp(`^Tørketrommel ${shortDay(tomorrow)} 10:00–12:00\\.`));
+  assert.match(pushed[1].message.url, new RegExp(`^/bygg\\?date=${tomorrow}&mode=2#reservation-`));
+});
+
+test("a message puts the sender on the waitlist without a separate waiting push", async () => {
   reset();
   const washer = book(tomorrow, 600, 1, "A3");
   book(tomorrow, 600, 2, "A3");
   await subscribe("A3");
 
   await post("message", { booking_id: washer, preset: "done-soon" }, "B2");
-  const waiting = pushed.filter((p) => p.message.tag.startsWith("waiting-"));
-  assert.equal(waiting.length, 1);
-  assert.match(waiting[0].message.body, new RegExp(`^Vaskemaskin og Tørketrommel ${shortDay(tomorrow)} 10:00–12:00\\.`));
-  assert.equal(waiting[0].message.url, `/bygg?date=${tomorrow}#reservation-${washer}`, "a pair links to the day, not one machine");
-
-  pushed = [];
-  await post("message", { booking_id: washer, preset: "done-soon" }, "B2");
   assert.deepEqual(
     pushed.map((p) => p.message.tag),
     [`message-${tomorrow}-600-B2`],
-    "a follow-up message is not a new join",
+    "the message itself tells the holder",
   );
+  assert.equal(rows("SELECT * FROM waitlist WHERE apartment = 'B2'").length, 2);
 });
 
 // ---------------------------------------------------------------------------

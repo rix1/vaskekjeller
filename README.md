@@ -15,9 +15,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   waitlist gets a push notification. First to book wins.
   The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
   everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
-  When another household joins the waitlist for a holder's slot (with "Venteliste" or by sending a message), the
-  holder gets "Noen venter på tiden din" (or "N venter …"), linking to that day and machine. Joining again, or
+  When another household taps "Venteliste" on a holder's slot, the holder gets "Noen venter på tiden din" (or
+  "N venter …", counting every machine in the reservation), linking to that day and machine. Joining again, or
   waiting on your own or a free slot, sends nothing; each new household replaces the previous notification.
+  Sending a message also joins the waitlist but sends no extra push, since the message already reaches the holder.
 - **Messages**: under "Se detaljer" on someone else's booking, "Send melding" pushes a ready-made question (plus an
   optional 140-character note) to the holder's devices. It is only offered when the holder has notifications on.
   The holder answers by updating their comment; the sender is put on that slot's waitlist to hear it, and can leave it

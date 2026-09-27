@@ -443,7 +443,7 @@ t.post("/wait", async (c) => {
   if (!apt) return back(c, "no-apt");
   const s = await parseSlot(c, await form(c));
   if (!s || s.over) return back(c, "invalid");
-  await joinWaitlist(c, [s.machine.id], s.date, s.slot.start, apt);
+  await joinWaitlist(c, s.machine.id, s.date, s.slot.start, apt);
   return back(c, "waiting", `d-${s.date}`);
 });
 
@@ -531,12 +531,14 @@ t.post("/message", async (c) => {
   }
   // Wait for every machine in the holder's reservation (/wait adds one), so the sender hears the reply.
   if (!over) {
-    const { results: reservation } = await c.env.DB.prepare(
-      "SELECT machine_id FROM bookings WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL",
+    // Not joinWaitlist: the holder hears about this from the message itself, so no "someone is waiting" push.
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
+       SELECT tenant_id, machine_id, date, start_min, ? FROM bookings
+       WHERE tenant_id = ? AND apartment = ? AND date = ? AND start_min = ? AND cancelled_at IS NULL`,
     )
-      .bind(tenant.id, b.apartment, b.date, b.start_min)
-      .all<{ machine_id: number }>();
-    await joinWaitlist(c, reservation.map((r) => r.machine_id), b.date, b.start_min, apt);
+      .bind(apt, tenant.id, b.apartment, b.date, b.start_min)
+      .run();
   }
   c.executionCtx.waitUntil(
     pushAll(c.env, tenant, subs, {
@@ -632,18 +634,15 @@ async function cancelBookings(c: Ctx, bookings: Booking[], by: "resident" | "adm
   return bookings.filter((_, i) => result[i]!.meta.changes).map((b) => background(c, notifyWaitlist(c.env, c.var.tenant, b)));
 }
 
-/** Puts an apartment on the waitlist for these machines in one slot. When that adds an entry, the slot's holder
- * hears that someone is waiting; resolves to that push, or undefined when the apartment was already waiting. */
-async function joinWaitlist(c: Ctx, machineIds: number[], date: string, start: number, apt: string) {
+/** Puts an apartment on one machine's waitlist for a slot. When that adds an entry, the slot's holder hears that
+ * someone is waiting; resolves to that push, or undefined when the apartment was already waiting. */
+async function joinWaitlist(c: Ctx, machineId: number, date: string, start: number, apt: string) {
   const tenant = c.var.tenant;
-  const res = await c.env.DB.prepare(
-    `INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment)
-     SELECT ?, value, ?, ?, ? FROM json_each(?)`,
-  )
-    .bind(tenant.id, date, start, apt, JSON.stringify(machineIds))
+  const res = await c.env.DB.prepare("INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (?, ?, ?, ?, ?)")
+    .bind(tenant.id, machineId, date, start, apt)
     .run();
   if (!res.meta.changes) return undefined;
-  return background(c, notifyHolder(c.env, tenant, machineIds, date, start, apt));
+  return background(c, notifyHolder(c.env, tenant, machineId, date, start, apt));
 }
 
 const NO_DEVICES: PushOutcome = { devices: 0, sent: 0, gone: 0, failed: 0 };
@@ -690,41 +689,36 @@ async function notifyNote(env: Env, tenant: Tenant, bookings: Booking[], note: s
 }
 
 /** Tell the holder of a slot that another household joined its waitlist, so they can free it or leave a comment. */
-async function notifyHolder(env: Env, tenant: Tenant, machineIds: number[], date: string, start: number, joiner: string) {
-  const { results: held } = await env.DB.prepare(
-    `SELECT b.id, b.machine_id, b.end_min, b.apartment, m.name FROM bookings b JOIN machines m ON m.id = b.machine_id
-     WHERE b.tenant_id = ? AND b.machine_id IN (SELECT value FROM json_each(?)) AND b.date = ? AND b.start_min = ?
-       AND b.cancelled_at IS NULL AND b.apartment != ?
-     ORDER BY m.sort_order, m.kind DESC, m.id`,
+async function notifyHolder(env: Env, tenant: Tenant, machineId: number, date: string, start: number, joiner: string) {
+  const held = await env.DB.prepare(
+    `SELECT b.id, b.end_min, b.apartment, m.name FROM bookings b JOIN machines m ON m.id = b.machine_id
+     WHERE b.tenant_id = ? AND b.machine_id = ? AND b.date = ? AND b.start_min = ? AND b.cancelled_at IS NULL AND b.apartment != ?`,
   )
-    .bind(tenant.id, JSON.stringify(machineIds), date, start, joiner)
-    .all<{ id: number; machine_id: number; end_min: number; apartment: string; name: string }>();
-  // Both callers wait for one reservation, so one holder.
-  const holder = held[0]?.apartment;
-  if (!holder) return NO_DEVICES;
-  const reservation = held.filter((h) => h.apartment === holder);
+    .bind(tenant.id, machineId, date, start, joiner)
+    .first<{ id: number; end_min: number; apartment: string; name: string }>();
+  if (!held) return NO_DEVICES;
   const [{ results: subs }, waiting] = await Promise.all([
     env.DB.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND apartment = ?")
-      .bind(tenant.id, holder)
+      .bind(tenant.id, held.apartment)
       .all<PushSubscriptionRow & { id: number }>(),
+    // Households waiting for any machine in the holder's reservation, as the holder's card counts them.
     env.DB.prepare(
-      `SELECT COUNT(DISTINCT apartment) AS n FROM waitlist
-       WHERE tenant_id = ? AND machine_id IN (SELECT value FROM json_each(?)) AND date = ? AND start_min = ? AND apartment != ?`,
+      `SELECT COUNT(DISTINCT w.apartment) AS n FROM waitlist w JOIN bookings b ON b.machine_id = w.machine_id
+         AND b.date = w.date AND b.start_min = w.start_min AND b.cancelled_at IS NULL
+       WHERE w.tenant_id = ? AND w.date = ? AND w.start_min = ? AND b.apartment = ? AND w.apartment != ?`,
     )
-      .bind(tenant.id, JSON.stringify(reservation.map((h) => h.machine_id)), date, start, holder)
+      .bind(tenant.id, date, start, held.apartment, held.apartment)
       .first<number>("n"),
   ]);
   if (!subs.length) return NO_DEVICES;
-  const first = reservation[0]!;
-  const mode = reservation.length === 1 ? `&mode=${first.machine_id}` : "";
   return pushAll(env, tenant, subs, {
     title: (waiting ?? 0) > 1 ? `${waiting} venter på tiden din` : "Noen venter på tiden din",
     body:
-      `${reservation.map((h) => h.name).join(" og ")} ${fmtDay(date, "short")} ${fmtMinute(start)}–${fmtMinute(first.end_min)}. ` +
+      `${held.name} ${fmtDay(date, "short")} ${fmtMinute(start)}–${fmtMinute(held.end_min)}. ` +
       "Trenger du den ikke, avbestill så de får beskjed. En kommentar når dem også.",
-    url: `/${tenant.slug}?date=${date}${mode}#reservation-${first.id}`,
+    url: `/${tenant.slug}?date=${date}&mode=${machineId}#reservation-${held.id}`,
     // Stable per reservation, so the next household to join replaces this one with the new count.
-    tag: `waiting-${date}-${start}-${holder}`,
+    tag: `waiting-${date}-${start}-${held.apartment}`,
     renotify: true,
   });
 }
@@ -985,7 +979,7 @@ admin.post("/debug/freed", async (c) => {
   const booking = slot && (await insertTestBooking(c, slot, TEST_APARTMENT, null));
   if (!slot || !booking) return debugBack(c, "freed", { error: "no-slot" });
   // The holder is the test household, which has no devices, so joining sends nothing.
-  await joinWaitlist(c, [slot.machine.id], slot.date, slot.start, apt);
+  await joinWaitlist(c, slot.machine.id, slot.date, slot.start, apt);
   const [outcome] = await Promise.all(await cancelBookings(c, [booking], "resident"));
   // The slot had no waitlist before, so the admin's entry is the test's own.
   await c.env.DB.batch([
@@ -1010,7 +1004,7 @@ admin.post("/debug/waiting", async (c) => {
   const slot = await testSlot(c);
   const booking = slot && (await insertTestBooking(c, slot, apt, TEST_NOTE));
   if (!slot || !booking) return debugBack(c, "waiting", { error: "no-slot" });
-  const outcome = (await joinWaitlist(c, [slot.machine.id], slot.date, slot.start, TEST_APARTMENT)) ?? NO_DEVICES;
+  const outcome = (await joinWaitlist(c, slot.machine.id, slot.date, slot.start, TEST_APARTMENT)) ?? NO_DEVICES;
   return debugBack(c, "waiting", { slot, outcome: await outcome });
 });
 
