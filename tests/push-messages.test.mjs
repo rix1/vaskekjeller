@@ -278,6 +278,7 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
   );
 
   // Leaving after the message leaves the messaged reservation's machines, not other waits at that time.
+  pushed = [];
   await book(600, "C1", "3");
   await post("wait", { machine_id: 3, date: tomorrow, start: 600 }, "B2");
   assert.equal(flash(await post("unwait-reservation", { booking_id: washer.id }, "B2")), "unwaited");
@@ -287,6 +288,12 @@ test("a message pushes to the holder's devices and puts the sender on the waitli
       .all()
       .map((w) => w.machine_id),
     [3],
+  );
+  await settle();
+  assert.deepEqual(
+    pushed.map((p) => p.endpoint.split("/").pop()),
+    ["C1"],
+    "joining C1's waitlist tells C1 someone is waiting",
   );
   pushed = [];
   await post("note", { booking_ids: await holderIds(), note: "Ferdig nå" });
