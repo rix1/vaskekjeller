@@ -15,6 +15,7 @@ import {
   type WaitEntry,
 } from "./db.ts";
 import { NOTE_PRESETS, PLAYGROUND_SLUG } from "./demo.ts";
+import { SeoMeta, type PublicPage } from "./seo.tsx";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
 export const FLASH: Record<string, string> = {
@@ -48,13 +49,16 @@ export const Layout: FC<{
   tenant?: Tenant;
   vapidKey?: string;
   head?: Child;
+  /** Public pages (src/seo.tsx) are indexed and get canonical and link-preview tags; every other page is noindex. */
+  seo?: PublicPage;
 }> = (p) => (
-  <html lang="nb">
+  <html lang="no">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       <meta name="theme-color" content="#f6f5f0" />
-      <title>{p.title}</title>
+      <title>{p.seo?.title ?? p.title}</title>
+      {p.seo ? <SeoMeta page={p.seo} /> : <meta name="robots" content="noindex" />}
       <link rel="stylesheet" href="/style.css" />
       <link rel="manifest" href="/manifest.webmanifest" />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />

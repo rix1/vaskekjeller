@@ -86,7 +86,7 @@ test("/om renders the about page with every section and the contact address", as
   const response = await get("/om");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<html lang="nb">/);
+  assert.match(html, /<html lang="no">/);
   assert.match(html, /<link rel="stylesheet" href="\/landing.css"/);
   assert.match(html, /<h1>Spørsmål og svar<\/h1>/);
   for (const id of ["kom-i-gang", "varsler", "kalender", "data"]) {

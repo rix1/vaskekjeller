@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { Tenant } from "./db.ts";
 import { PLAYGROUND_SLUG, SHOWCASE_SLUG } from "./demo.ts";
+import { LandingStructuredData, PUBLIC_PAGES } from "./seo.tsx";
 import { Icon, Layout } from "./views.tsx";
 
 const POINTS = [
@@ -33,7 +34,7 @@ export const LandingPage: FC<{
   /** The showcase opens on this day, which is always nearly full. */
   previewDate: string;
 }> = (p) => (
-  <Layout title="Vaskekjeller – booking av felles vaskerom" head={<LandingHead />}>
+  <Layout title={PUBLIC_PAGES.landing.title} seo={PUBLIC_PAGES.landing} head={<LandingHead />}>
     <header class="landing-top">
       <a class="brand" href="/" aria-label="Vaskekjeller, forsiden">
         <span class="brand-icon">
@@ -115,10 +116,7 @@ export const LandingPage: FC<{
 
 const LandingHead: FC = () => (
   <>
-    <meta
-      name="description"
-      content="Enkel booking av felles vaskerom for borettslag og sameier. Ett trykk, venteliste med varsel, ingen app og ingen personopplysninger."
-    />
     <link rel="stylesheet" href="/landing.css" />
+    <LandingStructuredData />
   </>
 );

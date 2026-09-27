@@ -80,6 +80,13 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   Turnstile check and a limit of 3 buildings per network per day. The limit counts a salted, daily-rotating hash
   of the IPv4 address or IPv6 /64, never the address itself. The later steps are admin pages under
   `/<slug>/admin/kom-i-gang`.
+- **Search engines** (`src/seo.tsx`): only `/`, `/om` and `/ny` are indexable. They get their own Norwegian title
+  and description, a canonical URL on https://www.vaskekjeller.no, Open Graph and Twitter card tags with
+  `public/share.png` (1200×630, a screenshot of the landing page), and the landing page has `WebApplication`
+  JSON-LD. Every other page the Worker serves (buildings, admin, onboarding, later signup steps, `/visning`,
+  `/demo`) is noindex twice: an `X-Robots-Tag: noindex` header and a robots meta tag. The Worker serves
+  `/robots.txt`, which blocks nothing so crawlers can see the noindex, and `/sitemap.xml` with the three public
+  pages. A new public page needs an entry in `PUBLIC_PAGES` and a `seo` prop on its `Layout`.
 - **Recovery code**: there is no email, so the only way to reset a forgotten admin password is the recovery code
   shown once at the end of signup (copy or download it). Only its SHA-256 hash is stored. It resets the password at
   `/<slug>/admin/nullstill` (linked from the admin login) and is then replaced by a new one; admins can also make a
@@ -197,6 +204,7 @@ holders (`tests/push-messages.test.mjs`), the admin settings, machine, and passw
 closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only
 showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),
 the about page, its footer links and the reserved `om` address (`tests/about.test.mjs`),
+indexable versus noindex pages, link-preview tags, JSON-LD, robots.txt and the sitemap (`tests/seo.test.mjs`),
 signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it

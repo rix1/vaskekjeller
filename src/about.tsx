@@ -1,4 +1,5 @@
 import type { Child, FC } from "hono/jsx";
+import { PUBLIC_PAGES } from "./seo.tsx";
 import { Icon, Layout } from "./views.tsx";
 
 export const CONTACT_EMAIL = "hjelp@vaskekjeller.no";
@@ -34,7 +35,7 @@ const Q: FC<{ q: string; children: Child }> = (p) => (
 
 /** /om: what Vaskekjeller is and how it works, for residents and boards. Shared by every building. */
 export const AboutPage: FC = () => (
-  <Layout title="Om Vaskekjeller – spørsmål og svar" head={<link rel="stylesheet" href="/landing.css" />}>
+  <Layout title={PUBLIC_PAGES.about.title} seo={PUBLIC_PAGES.about} head={<link rel="stylesheet" href="/landing.css" />}>
     <header class="landing-top about-narrow">
       <a class="brand" href="/" aria-label="Vaskekjeller, forsiden">
         <span class="brand-icon">
