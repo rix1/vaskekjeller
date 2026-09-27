@@ -2189,3 +2189,237 @@ summary.reserve-button:active {
 span.apartment-chip:hover {
   background: #fafbf7;
 }
+
+/* Onboarding (/velkommen) and the board's notification card */
+.onboard-main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 40px 0 48px;
+}
+.onboard-main h1 {
+  font-size: clamp(26px, 6vw, 34px);
+  letter-spacing: -1.2px;
+  font-weight: 550;
+  line-height: 1.15;
+  margin: 0;
+}
+.onboard-steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 28px 0 20px;
+  display: grid;
+  gap: 12px;
+}
+.onboard-steps > li {
+  counter-increment: step;
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 18px 20px 18px 62px;
+  font-size: 13px;
+}
+.onboard-steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 18px;
+  top: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--green-soft);
+  color: var(--green);
+  font-weight: 650;
+  font-size: 13px;
+}
+.onboard-steps > li.done::before {
+  content: "✓";
+  background: var(--green);
+  color: #fff;
+}
+.onboard-steps > li.current {
+  border-color: #c9d4be;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+.onboard-steps > li.upcoming,
+.onboard-steps > li.skipped {
+  background: transparent;
+}
+.onboard-steps > li.upcoming > :not(h2),
+.onboard-steps > li.skipped > :not(h2) {
+  display: none;
+}
+.onboard-steps > li.upcoming h2,
+.onboard-steps > li.skipped h2 {
+  color: var(--muted);
+}
+.onboard-steps h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 3px 0 8px;
+}
+.onboard-steps > li > :last-child,
+.onboard-steps [data-device] > :last-child {
+  margin-bottom: 0;
+}
+.onboard-steps p {
+  margin: 0 0 10px;
+}
+.onboard-steps .apt-picker {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.onboard-apartment summary {
+  cursor: pointer;
+  list-style: none;
+}
+.onboard-apartment summary::-webkit-details-marker {
+  display: none;
+}
+.onboard-apartment summary .link {
+  margin-left: 6px;
+  color: var(--green);
+  text-decoration: underline;
+  font-size: 12px;
+}
+.guide {
+  margin: 12px 0 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 10px;
+  line-height: 1.9;
+}
+.ui-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px;
+  margin: 0 1px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f7f7f3;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: nowrap;
+  color: #2f6fd6;
+}
+.onboard-list {
+  margin: 0 0 14px;
+  padding-left: 1.2rem;
+}
+.onboard-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-weight: 600;
+}
+.onboard-steps [data-install] {
+  margin-top: 4px;
+}
+.onboard-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px !important;
+}
+.onboard-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.onboard-main a.button,
+.nudge a.button {
+  background: var(--green);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+}
+.skip-link {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 10px;
+}
+.onboard-more {
+  margin-top: 28px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid #c9d4be;
+  border-radius: 13px;
+  padding: 14px 14px 14px 18px;
+  margin-bottom: 24px;
+}
+.nudge-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--green-soft);
+  color: var(--green);
+  flex-shrink: 0;
+}
+.nudge-text {
+  flex: 1;
+  font-size: 13px;
+}
+.nudge-text p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nudge-actions > :not(.nudge-close) {
+  white-space: nowrap;
+}
+button.nudge-close {
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 400;
+  padding: 0;
+  width: 40px;
+}
+@media (max-width: 600px) {
+  .onboard-main {
+    padding-top: 28px;
+  }
+  .onboard-steps > li {
+    padding: 16px 16px 16px 54px;
+  }
+  .onboard-steps > li::before {
+    left: 14px;
+  }
+  .nudge {
+    flex-wrap: wrap;
+  }
+  .nudge-text {
+    flex-basis: calc(100% - 100px);
+  }
+  .nudge-actions {
+    width: 100%;
+    padding-left: 50px;
+  }
+  .nudge-actions > :not(.nudge-close) {
+    flex: 1;
+  }
+}

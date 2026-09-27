@@ -302,7 +302,20 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Web push is offered when a resident has joined a waitlist.
+// Web push: the waitlist banner, the board's reminder card and the onboarding guide (/velkommen) share one switch.
+const ua = navigator.userAgent;
+// iPadOS reports itself as a Mac; the touch points give it away.
+const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/.test(ua);
+// Links opened inside Facebook, Messenger, Instagram and the like can't be added to the Home Screen from there.
+const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Snapchat|Line\/|LinkedInApp|MicroMessenger|GSA\//.test(ua);
+const standalone =
+  matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+// iOS only exposes push to web apps opened from the Home Screen.
+const needsInstall = isIOS && !standalone;
+const canPush = !needsInstall && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const NUDGE_KEY = "vk-nudge-dismissed";
+
 function keyToBytes(b64url: string): Uint8Array<ArrayBuffer> {
   const b = atob(b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
@@ -318,67 +331,186 @@ async function api(path: string, body: unknown) {
   return res.json();
 }
 
-async function setupPush() {
-  const banner = document.querySelector<HTMLElement>("#push-banner");
-  const toggle = document.querySelector<HTMLButtonElement>("#push-toggle");
-  const text = document.querySelector<HTMLElement>("#push-text");
-  if (!banner || !toggle || !text || !slug || !vapidKey) return;
-  if (!("serviceWorker" in navigator)) return;
-  const reg = await navigator.serviceWorker.register("/sw.js");
+let registration: Promise<ServiceWorkerRegistration> | undefined;
+const pushRegistration = () => (registration ??= navigator.serviceWorker.register("/sw.js"));
 
-  if (!("PushManager" in window)) {
-    // iOS only exposes push to web apps added to the home screen.
-    if (/iPhone|iPad/.test(navigator.userAgent)) {
-      text.textContent = "For varsler på iPhone: trykk Del → «Legg til på Hjem-skjerm», og åpne appen derfra.";
+/** This device's subscription, or null when notifications are off or impossible here. */
+async function currentSubscription() {
+  if (!canPush) return null;
+  const sub = await (await pushRegistration()).pushManager.getSubscription();
+  return sub && Notification.permission === "granted" ? sub : null;
+}
+
+// Runs from a click: iOS only shows the permission prompt during a user gesture, so nothing is awaited first.
+async function enablePush() {
+  if ((await Notification.requestPermission()) !== "granted") {
+    showToast(clientToast("error", "Varsler er blokkert i nettleseren. Endre det i nettleserinnstillingene."));
+    return;
+  }
+  const reg = await pushRegistration();
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(vapidKey!) });
+  await api("subscribe", sub.toJSON());
+  await api("test", { endpoint: sub.endpoint });
+  showToast(clientToast("success", "Varsler er på for denne enheten."));
+}
+
+async function disablePush() {
+  const sub = canPush ? await (await pushRegistration()).pushManager.getSubscription() : null;
+  if (!sub) return;
+  await api("unsubscribe", { endpoint: sub.endpoint });
+  await sub.unsubscribe();
+}
+
+function nudgeDismissed() {
+  try {
+    return localStorage.getItem(NUDGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function showOnly(root: ParentNode, attribute: string, value: string | undefined) {
+  root.querySelectorAll<HTMLElement>(`[data-${attribute}]`).forEach((el) => {
+    el.hidden = el.getAttribute(`data-${attribute}`) !== value;
+  });
+}
+
+/** Brings every push control on the page in line with this device; runs on load and after each board update. */
+async function setupPush(initial = false) {
+  const banner = document.querySelector<HTMLElement>("#push-banner");
+  const nudge = document.querySelector<HTMLElement>("#home-nudge");
+  const onboarding = document.querySelector<HTMLElement>("#onboarding[data-ready]");
+  if (!slug || !vapidKey || !(banner || nudge || onboarding)) return;
+  if ("serviceWorker" in navigator) void pushRegistration();
+  const sub = await currentSubscription();
+  if (sub) await api("subscribe", sub.toJSON()).catch(() => {}); // keep apartment mapping fresh
+
+  if (onboarding) {
+    // Opened from the Home Screen with notifications already on: nothing left to set up.
+    if (initial && standalone && sub) {
+      location.replace(`/${slug}`);
+      return;
+    }
+    const device = standalone ? "installed" : inAppBrowser ? "inapp" : isIOS ? "ios" : isAndroid ? "android" : "desktop";
+    const state = sub
+      ? "on"
+      : needsInstall
+        ? "needs-install"
+        : !canPush
+          ? "unsupported"
+          : Notification.permission === "denied"
+          ? "blocked"
+          : "ready";
+    showOnly(onboarding, "device", device);
+    showOnly(onboarding, "push-state", state);
+    const install = onboarding.querySelector<HTMLElement>('[data-step="install"]');
+    const push = onboarding.querySelector<HTMLElement>('[data-step="push"]');
+    if (install) install.className = device === "installed" ? "done" : device === "desktop" ? "skipped" : "current";
+    if (push) push.className = state === "on" ? "done" : state === "needs-install" ? "upcoming" : "current";
+    // Until notifications are on (or can't be), the way out is a quiet skip link.
+    const done = state === "on" || state === "unsupported" || state === "blocked";
+    showOnly(onboarding, "when", done ? "done" : "pending");
+  }
+
+  if (nudge) {
+    let kind: "install" | "push" | undefined;
+    // The waitlist banner already asks, so the card stays away while it is shown.
+    if (!nudgeDismissed() && !banner) {
+      if (needsInstall) kind = "install";
+      else if (canPush && !sub && Notification.permission === "default") kind = "push";
+    }
+    nudge.hidden = !kind;
+    showOnly(nudge, "nudge", kind);
+  }
+
+  const toggle = banner?.querySelector<HTMLButtonElement>("#push-toggle");
+  const text = banner?.querySelector<HTMLElement>("#push-text");
+  if (!banner || !toggle || !text) return;
+  if (!canPush) {
+    if (needsInstall) {
+      text.textContent = "For varsler på iPhone må Vaskekjeller ligge på Hjem-skjermen. ";
+      const link = document.createElement("a");
+      link.href = `/${slug}/velkommen`;
+      link.textContent = "Vis meg hvordan";
+      text.append(link);
       toggle.hidden = true;
       banner.hidden = false;
     }
     return;
   }
-
-  const render = (on: boolean) => {
-    banner.hidden = false;
-    banner.classList.toggle("on", on);
-    text.textContent = on ? "Varsler er på." : "Få varsel når en tid du venter på blir ledig eller får en ny kommentar.";
-    toggle.textContent = on ? "Skru av" : "Slå på varsler";
-  };
-
-  let sub = await reg.pushManager.getSubscription();
-  if (sub) await api("subscribe", sub.toJSON()).catch(() => {}); // keep apartment mapping fresh
-  render(!!sub && Notification.permission === "granted");
-
-  toggle.addEventListener("click", async () => {
-    toggle.disabled = true;
-    try {
-      if (sub) {
-        await api("unsubscribe", { endpoint: sub.endpoint });
-        await sub.unsubscribe();
-        sub = null;
-        render(false);
-      } else {
-        if ((await Notification.requestPermission()) !== "granted") {
-          showToast(clientToast("error", "Varsler er blokkert i nettleseren. Endre det i nettleserinnstillingene."));
-          return;
-        }
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: keyToBytes(vapidKey),
-        });
-        await api("subscribe", sub.toJSON());
-        await api("test", { endpoint: sub.endpoint });
-        render(true);
-        showToast(clientToast("success", "Varsler er på for denne enheten."));
-      }
-    } catch (err) {
-      console.error(err);
-      showToast(clientToast("error", "Noe gikk galt med varsler. Prøv igjen senere."));
-    } finally {
-      toggle.disabled = false;
-    }
-  });
+  banner.hidden = false;
+  banner.classList.toggle("on", !!sub);
+  text.textContent = sub ? "Varsler er på." : "Få varsel når en tid du venter på blir ledig eller får en ny kommentar.";
+  toggle.textContent = sub ? "Skru av" : "Slå på varsler";
+  toggle.dataset.pushAction = sub ? "off" : "on";
 }
 
-void setupPush().catch(() => {});
+document.addEventListener("click", async (event) => {
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-push-action]") : null;
+  if (!target) return;
+  if (target.dataset.pushAction === "dismiss") {
+    try {
+      localStorage.setItem(NUDGE_KEY, "1");
+    } catch {
+      // Private mode or blocked storage: the card just comes back next time.
+    }
+    target.closest<HTMLElement>("#home-nudge")?.setAttribute("hidden", "");
+    return;
+  }
+  if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+  target.disabled = true;
+  try {
+    if (target.dataset.pushAction === "off") await disablePush();
+    else await enablePush();
+    await setupPush();
+  } catch (err) {
+    console.error(err);
+    showToast(clientToast("error", "Noe gikk galt med varsler. Prøv igjen senere."));
+  } finally {
+    target.disabled = false;
+  }
+});
+
+// Android: Chrome's own install prompt behind a button in the guide, instead of its banner.
+type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> };
+let installPrompt: InstallPrompt | undefined;
+addEventListener("beforeinstallprompt", (event) => {
+  const onboarding = document.querySelector("#onboarding");
+  if (!onboarding) return;
+  event.preventDefault();
+  installPrompt = event as InstallPrompt;
+  onboarding.querySelector<HTMLElement>("[data-install]")?.removeAttribute("hidden");
+  onboarding.querySelector<HTMLElement>("[data-install-manual]")?.setAttribute("hidden", "");
+});
+addEventListener("appinstalled", () => {
+  const onboarding = document.querySelector("#onboarding");
+  if (!onboarding) return;
+  onboarding.querySelector('[data-step="install"]')?.setAttribute("class", "done");
+  onboarding.querySelector("[data-install]")?.setAttribute("hidden", "");
+});
+document.addEventListener("click", async (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const install = target?.closest<HTMLButtonElement>("[data-install]");
+  if (install && installPrompt) {
+    const pending = installPrompt;
+    installPrompt = undefined;
+    await pending.prompt();
+    if ((await pending.userChoice).outcome !== "accepted") {
+      install.hidden = true;
+      document.querySelector<HTMLElement>("[data-install-manual]")?.removeAttribute("hidden");
+    }
+  }
+  const copy = target?.closest<HTMLButtonElement>("[data-copy-link]");
+  if (copy) {
+    const url = `${location.origin}${location.pathname}`;
+    navigator.clipboard.writeText(url).then(
+      () => (copy.textContent = "Kopiert"),
+      () => (copy.textContent = "Kunne ikke kopiere"),
+    );
+  }
+});
+
+void setupPush(true).catch(() => {});
 if (isBoard()) history.replaceState(null, "", cleanUrl(location.href));
 
 // Calendar link: a copy button when JS runs; without it the read-only field is still selectable.

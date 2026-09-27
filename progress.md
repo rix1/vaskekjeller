@@ -12,6 +12,8 @@
 
 ## Features
 
+- [] Resident PIN (4–6 digits) instead of the free-text resident password.
+- [] Push reminder 5–10 minutes before your own booking starts (keep the calendar feed for now).
 - [x] Add a Google calendar subscription feature, similar to how I did it for ~/Development/family-cal - so you can check bookings straight from your calendar. Event should contain useful info and a link to the tenant page. (2026-09-24: shipped as an Apple Calendar-only feed per apartment in the header-chip popover; Google refreshes too slowly. See README "Calendar".)
 - [] Add the option for people to set name/contact details (phone number) along with their apartment and add a directory where admins can see this and a way for users to reach out to people with existing bookings to ask questions. Adding this info is optional per resident. (2026-09-23, #18: residents can reach a booking holder with a one-way push message; names, contact details and the directory are not built.)
 
@@ -40,6 +42,7 @@
 
 ## Log
 
+- 2026-09-27: Resident onboarding at `/<slug>/velkommen` (branch `feat/resident-onboarding`): apartment → Home Screen guide per device → notifications; share message links there; per-building manifest with PNG icons so the Home Screen icon opens the building; board card nudges until push is on (dismissible). Push code in client/app.ts now shared by banner, card and guide (delegated `data-push-action` clicks). Checked in headless Chrome with iPhone/Android/desktop user agents; not yet on a real iPhone (install, first launch from the icon, permission prompt). Open question: whether iOS carries Safari cookies (apartment, resident login) into the Home Screen app; if not, the icon opens the login/apartment picker once.
 - 2026-09-27: Turnstile switched to Managed mode (Invisible would require citing Cloudflare's Turnstile Privacy Addendum on /om). Site key `0x4AAAAAAFFi0W20tv3SHwiV` in wrangler.jsonc; copy/docs updated for a visible widget (dev test key now 1x…AA). Signup opens once `TURNSTILE_SECRET_KEY` is set with `wrangler secret put` and this is deployed; then do a real signup on www to validate end-to-end.
 - 2026-09-27: Closed-signup page (`SignupClosed`, shown when Turnstile keys are missing) now links hjelp@vaskekjeller.no via `CONTACT_EMAIL` instead of "den som drifter siden". Confirmed the contact address is used everywhere (/om, VAPID_SUBJECT).
 - 2026-09-27: Booking holders get a "Noen venter på tiden din" push when a household joins their slot's waitlist via Venteliste (not via messages); `/wait` redirects without waiting for it. Admin push test page at `/<slug>/admin/debug` runs both flows against the `TEST (varsler)` household; cleanup deletes the test household's rows and the admin's test booking, cancelling it first if it hasn't ended so real waiters are told (README "Push test").
