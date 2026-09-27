@@ -33,12 +33,14 @@
 ## Devops
 
 - [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill). (2026-09-23: repo is public at https://github.com/rix1/vaskekjeller; rix1.dev project list not yet updated.)
-- [] Connect the repo to Workers Builds in the Cloudflare dashboard and create the Lofotgata building (captain; checklist in docs/deploy.md).
+- [x] Connect the repo to Workers Builds in the Cloudflare dashboard (2026-09-27: confirmed working; push to main deploys).
+- [] Create the Lofotgata building (captain; checklist in docs/deploy.md).
 - [x] Find suitable domain name candidates, e.g. vask.now. (2026-09-25, #22: served only at www.vaskekjeller.no; the bare domain redirects.)
-- [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; not yet deployed or migrated remotely.)
+- [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; 2026-09-27: confirmed live in EU.)
 
 ## Log
 
+- 2026-09-27: Closed-signup page (`SignupClosed`, shown when Turnstile keys are missing) now links hjelp@vaskekjeller.no via `CONTACT_EMAIL` instead of "den som drifter siden". Confirmed the contact address is used everywhere (/om, VAPID_SUBJECT).
 - 2026-09-27: Booking holders get a "Noen venter på tiden din" push when a household joins their slot's waitlist via Venteliste (not via messages); `/wait` redirects without waiting for it. Admin push test page at `/<slug>/admin/debug` runs both flows against the `TEST (varsler)` household; cleanup deletes the test household's rows and the admin's test booking, cancelling it first if it hasn't ended so real waiters are told (README "Push test").
 - 2026-09-27: SEO basics (`src/seo.tsx`, README "Search engines"): only `/`, `/om` and `/ny` are indexable, everything else is noindex (header + meta); robots.txt, sitemap.xml, canonical/OG/Twitter tags with `public/share.png`, WebApplication JSON-LD on the landing, `lang="no"`. Search Console / Bing verification not done (out of scope).
 - 2026-09-25: About/FAQ page at `/om` (`src/about.tsx`, styles in public/landing.css), linked from the landing and resident footers; `om` was already reserved. `VAPID_SUBJECT` is now `mailto:hjelp@vaskekjeller.no`. README notes that pinning the EU `database_id` gave local dev an empty D1 file. Consolidated this file: feature PRs #14–#25 left it untouched, so their items are checked off above. The /om cookie list covers every cookie the app sets (incl. `vk_booked` and the admin recovery-code cookie); keep it in step when adding one. Its data section also lists the daily signup-limit network hash (`signup_counts`). docs/deploy.md step 8: route hjelp@ in Cloudflare Email Routing (not yet confirmed).

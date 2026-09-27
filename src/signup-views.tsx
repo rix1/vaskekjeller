@@ -1,4 +1,5 @@
 import type { Child, FC } from "hono/jsx";
+import { CONTACT_EMAIL } from "./about.tsx";
 import { AdminIcon, described, FieldError, RecoveryCodeBlock, schedulePreview, SLOT_LENGTHS, slotLengthLabel } from "./admin-views.tsx";
 import { KIND_LABEL, type MachineKind, type Tenant } from "./db.ts";
 import { PUBLIC_PAGES, type PublicPage } from "./seo.tsx";
@@ -114,7 +115,8 @@ export const SignupClosed: FC = () => (
   <FlowPage title="Registrering">
     <section class="card signup-card">
       <Intro title="Registreringen er ikke åpen ennå">
-        Nye vaskekjellere kan ikke opprettes akkurat nå. Prøv igjen senere, eller ta kontakt med den som drifter siden.
+        Nye vaskekjellere kan ikke opprettes akkurat nå. Prøv igjen senere, eller skriv til{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
       </Intro>
     </section>
   </FlowPage>

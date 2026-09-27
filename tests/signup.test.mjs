@@ -296,7 +296,9 @@ test("a deployment without Turnstile keys keeps signup closed", async () => {
   const b = browser({ origin: "https://vask.example" });
   const page = await b.get("/ny");
   assert.equal(page.status, 503);
-  assert.match(await page.text(), /Registreringen er ikke åpen ennå/);
+  const closed = await page.text();
+  assert.match(closed, /Registreringen er ikke åpen ennå/);
+  assert.match(closed, /<a href="mailto:hjelp@vaskekjeller.no">hjelp@vaskekjeller.no<\/a>/);
   assert.equal((await b.post("/ny/passord", signupBody())).status, 503);
   env.TURNSTILE_SECRET_KEY = "secret";
   assert.equal((await b.get("/ny")).status, 503, "the site key is missing");
