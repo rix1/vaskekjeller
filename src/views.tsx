@@ -71,6 +71,12 @@ export const Layout: FC<{
   </html>
 );
 
+// The week starts on Monday, so on phones the strip opens with the selected day's neighbour first
+// (Sunday: scrolled fully right). Mirrors showSelectedDay in client/app.ts.
+const SHOW_SELECTED_DAY =
+  "(function(s){var d=s.querySelector('.selected');if(!d)return;d=d.previousElementSibling||d;" +
+  "s.scrollLeft+=d.getBoundingClientRect().left-s.getBoundingClientRect().left})(document.currentScript.previousElementSibling)";
+
 // Codes that explain why something did not happen stay until closed.
 const ERROR_CODES = ["taken", "limit", "invalid", "over", "no-apt", "bad-apt", "wrong-password", "message-limit", "message-full", "no-push"];
 
@@ -628,6 +634,8 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 );
               })}
             </nav>
+            {/* Before first paint, scroll a phone-width strip to the selected day (client/app.ts after in-page updates). */}
+            <script dangerouslySetInnerHTML={{ __html: SHOW_SELECTED_DAY }} />
             <div class="day-heading">
               <h3>
                 {dayLabel(selected) === "I dag" || dayLabel(selected) === "I morgen" ? `${dayLabel(selected)}, ` : ""}

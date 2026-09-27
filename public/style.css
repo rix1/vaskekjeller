@@ -1847,19 +1847,25 @@ button.cancel-link,
 .time-dash {
   color: #737b6c;
 }
+/* Phones: days are at least 64px wide; when the week does not fit, it scrolls sideways, snapping day by day.
+   The strip starts on the selected day's neighbour (inline script in src/views.tsx, client/app.ts). */
 @media (max-width: 740px) {
   .date-strip {
     display: flex;
+    gap: 6px;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
     padding-bottom: 3px;
     scrollbar-width: thin;
   }
   .date-item {
-    flex: 1 0 46px;
+    flex: 1 0 64px;
+    scroll-snap-align: start;
   }
   .date-item > span,
   .date-item small {
-    font-size: 10px;
+    font-size: 11px;
   }
 }
 /* Board rows: equal side padding everywhere; tinted rows are separate rounded rows. */
