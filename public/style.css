@@ -1056,12 +1056,6 @@ label.message-choice:has(:checked) {
   font-size: 12px;
   min-height: 36px;
 }
-@media (pointer: coarse) {
-  /* Below 16px, iOS zooms the page when the field gets focus. */
-  .message-form input[name="note"] {
-    font-size: 16px;
-  }
-}
 .schedule-note {
   display: flex;
   gap: 8px;
@@ -2421,5 +2415,15 @@ button.nudge-close {
   }
   .nudge-actions > :not(.nudge-close) {
     flex: 1;
+  }
+}
+
+/* Below 16px, iOS zooms the page when a field gets focus and stays zoomed. The important flag beats the
+   smaller sizes set on individual forms (here, admin.css and signup.css) on touch screens only. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
   }
 }
