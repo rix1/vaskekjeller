@@ -405,7 +405,12 @@ async function setupPush(initial = false) {
     showOnly(onboarding, "push-state", state);
     const install = onboarding.querySelector<HTMLElement>('[data-step="install"]');
     const push = onboarding.querySelector<HTMLElement>('[data-step="push"]');
-    if (install) install.className = device === "installed" ? "done" : device === "desktop" ? "skipped" : "current";
+    // A step that can't apply on this device is left out, not shown disabled; the numbering follows.
+    if (install) {
+      install.hidden = device === "installed" || device === "desktop";
+      install.className = "current";
+    }
+    if (push) push.hidden = state === "unsupported";
     if (push) push.className = state === "on" ? "done" : state === "needs-install" ? "upcoming" : "current";
     // Until notifications are on (or can't be), the way out is a quiet skip link.
     const done = state === "on" || state === "unsupported" || state === "blocked";

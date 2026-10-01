@@ -1229,7 +1229,7 @@ export const WelcomePage: FC<{
         <p class="eyebrow">KOM I GANG</p>
         <h1>Velkommen til vaskekjelleren</h1>
         <p class="intro-copy">
-          Her booker du vaskemaskin og tørketrommel i {p.tenant.name}. Tre raske steg, så får du beskjed når en tid blir ledig.
+          Her booker du vaskemaskin og tørketrommel i {p.tenant.name}. Noen raske steg, så får du beskjed når en tid blir ledig.
         </p>
         <ol class="onboard-steps">
           <li class={ready ? "done" : "current"}>
