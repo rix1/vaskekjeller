@@ -233,11 +233,12 @@ async function updateBoard(
 
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
-  for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open], .apartment-menu[open]")) {
-    if (!details.contains(event.target)) details.open = false;
+  for (const details of document.querySelectorAll<HTMLDetailsElement>(".slot-details[open], .apartment-menu[open], .cancel-confirm[open]")) {
+    // On phones the sheet's backdrop is the open <details> itself, so a tap on it closes the sheet.
+    if (!details.contains(event.target) || event.target === details) details.open = false;
   }
   // "Nei" in a confirmation popover reloads the page without JS; here it just closes.
-  const close = event.target.closest<HTMLElement>(".slot-details [data-close]");
+  const close = event.target.closest<HTMLElement>(".slot-details [data-close], .cancel-confirm [data-close]");
   if (close) {
     event.preventDefault();
     const details = close.closest("details")!;
@@ -292,7 +293,7 @@ window.addEventListener("popstate", () => {
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !(event.target instanceof Element)) return;
   const details =
-    event.target.closest<HTMLDetailsElement>(".slot-details, .apartment-menu") ??
+    event.target.closest<HTMLDetailsElement>(".slot-details, .apartment-menu, .cancel-confirm") ??
     document.querySelector<HTMLDetailsElement>(".apartment-menu[open]");
   if (details) {
     details.open = false;

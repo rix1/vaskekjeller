@@ -300,7 +300,7 @@ const MachineIcons: FC<{ machines: Machine[]; size?: number }> = ({ machines, si
   </span>
 );
 
-/** "Send melding" to another apartment's reservation, inside the slot's "Se detaljer" popover. */
+/** "Send melding" to another apartment's reservation, inside the slot's "Venteliste" sheet. */
 const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; late: boolean; presetsOnly: boolean }> = ({
   booking: b,
   action,
@@ -309,9 +309,7 @@ const MessageForm: FC<{ booking: Booking; action: string; notifiable: boolean; l
   presetsOnly,
 }) => (
   <div class="slot-message">
-    {!notifiable ? (
-      <small>Leil. {b.apartment} har ikke varsler på.</small>
-    ) : (
+    {notifiable && (
       <details>
         <summary>
           Send melding til leil. {b.apartment} <span aria-hidden="true">⌄</span>
@@ -700,6 +698,10 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const paired = option.machines.length > 1;
                   const partial = !over && partlyFree(selected, s);
                   const freeMachines = option.machines.filter((m) => !occupied.some((b) => b.machine_id === m.id));
+                  // One "Si fra" joins every machine of the row that a neighbour holds.
+                  const waitable = option.machines.filter((m) => other.some((b) => b.machine_id === m.id));
+                  const waitingFor = (id: number) => myWaits.some((w) => slotKey(w.machine_id, w.date, w.start_min) === slotKey(id, selected, s.start));
+                  const waitingAll = waitable.length > 0 && waitable.every((m) => waitingFor(m.id));
                   const holder = (b: Booking) => (b.apartment === p.apartment ? "Deg" : `Leil. ${b.apartment}`);
                   const late = over && !!p.apartment && !readOnly && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
                   const time = `${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
@@ -822,54 +824,35 @@ export const BoardPage: FC<BoardProps> = (p) => {
                         {((!over && occupied.length > 0 && !ownAll) || late) && (
                           <details class="slot-details">
                             <summary>
-                              Se detaljer <span aria-hidden="true">⌄</span>
+                              {over ? "Send melding" : "Venteliste"} <span aria-hidden="true">⌄</span>
                             </summary>
                             <div class="slot-popover">
-                              <strong>
-                                {fmtMinute(s.start)}–{fmtMinute(s.end)}
-                              </strong>
-                              {option.machines.map((m) => {
-                                const bookings = occupied.filter((b) => b.machine_id === m.id);
-                                const waiting = myWaits.some(
-                                  (w) => slotKey(w.machine_id, w.date, w.start_min) === slotKey(m.id, selected, s.start),
-                                );
-                                return (
-                                  <div>
-                                    <span>{m.name}</span>
-                                    {bookings.length ? (
-                                      bookings.map((b) => (
-                                        <small>
-                                          Leil. {b.apartment}
-                                          {b.note ? ` · ${b.note}` : ""}
-                                        </small>
-                                      ))
-                                    ) : (
-                                      <small>Ledig</small>
-                                    )}
-                                    {p.apartment &&
-                                      !over &&
-                                      !readOnly &&
-                                      (bookings.length ? (
-                                        bookings.every((b) => b.apartment === p.apartment) ? (
-                                          <a href={`#reservation-${bookings[0]!.id}`}>Din reservasjon ↗</a>
-                                        ) : (
-                                          <form method="post" action={action(waiting ? "unwait" : "wait")}>
-                                            <Hidden
-                                              fields={{
-                                                machine_id: m.id,
-                                                date: selected,
-                                                start: s.start,
-                                              }}
-                                            />
-                                            <button class="link">{waiting ? "Forlat venteliste" : "Sett meg på venteliste"}</button>
-                                          </form>
-                                        )
-                                      ) : (
-                                        <a href={url(selected, String(m.id))}>Reserver bare denne ↗</a>
-                                      ))}
-                                  </div>
-                                );
-                              })}
+                              {p.apartment && !over && !readOnly && waitable.length > 0 && (
+                                <div class="slot-wait">
+                                  <form method="post" action={action(waitingAll ? "unwait" : "wait")}>
+                                    <Hidden
+                                      fields={{
+                                        machine_ids: (waitingAll ? waitable : waitable.filter((m) => !waitingFor(m.id)))
+                                          .map((m) => m.id)
+                                          .join(","),
+                                        date: selected,
+                                        start: s.start,
+                                      }}
+                                    />
+                                    <button class={waitingAll ? "link" : "small-button"}>
+                                      {waitingAll ? "Forlat ventelisten" : "Si fra når den blir ledig"}
+                                    </button>
+                                  </form>
+                                  <small>Ventelisten reserverer ikke automatisk. Først til mølla.</small>
+                                </div>
+                              )}
+                              {other
+                                .filter((b, i) => b.note && other.findIndex((x) => x.apartment === b.apartment && x.note === b.note) === i)
+                                .map((b) => (
+                                  <small class="slot-note">
+                                    Leil. {b.apartment}: «{b.note}»
+                                  </small>
+                                ))}
                               {p.apartment &&
                                 !readOnly &&
                                 other
@@ -883,6 +866,9 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                       presetsOnly={presetsOnly}
                                     />
                                   ))}
+                              <a class="sheet-close" href={url()} data-close>
+                                Lukk
+                              </a>
                             </div>
                           </details>
                         )}
@@ -1017,14 +1003,22 @@ export const BoardPage: FC<BoardProps> = (p) => {
                             <button class="small-button">Lagre</button>
                           </form>
                         </details>
-                        <form
-                          method="post"
-                          action={`${base}/cancel${query(b.date)}`}
-                          data-confirm={`Avbestille ${groupLabel(bookings)}, ${fmtDay(b.date)} ${fmtMinute(b.start_min)}–${fmtMinute(b.end_min)}?`}
-                        >
-                          <Hidden fields={{ booking_ids: ids }} />
-                          <button class="link cancel-link">Avbestill</button>
-                        </form>
+                        <details class="cancel-confirm">
+                          <summary class="link cancel-link">Avbestill</summary>
+                          <p>
+                            Sikker? Tiden blir ledig
+                            {waiting > 0 ? ` og ${waiting} ${waiting === 1 ? "nabo" : "naboer"} på ventelisten får beskjed.` : "."}
+                          </p>
+                          <div class="confirm-actions">
+                            <form method="post" action={`${base}/cancel${query(b.date)}`}>
+                              <Hidden fields={{ booking_ids: ids }} />
+                              <button class="small-button">Ja, avbestill</button>
+                            </form>
+                            <a class="button secondary" href={url(b.date)} data-close>
+                              Nei
+                            </a>
+                          </div>
+                        </details>
                         <AddToCalendar tenant={p.tenant} bookings={bookings} class="small-button" />
                       </div>
                     )}
@@ -1040,26 +1034,30 @@ export const BoardPage: FC<BoardProps> = (p) => {
             {myWaits.length > 0 && (
               <section class="waitlist-section">
                 <h2>På venteliste</h2>
-                {myWaits.map((w) => (
-                  <div class="wait-entry">
-                    <strong>
-                      {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
-                    </strong>
-                    <small>{machineName(w.machine_id)}</small>
-                    {!readOnly && (
-                      <form method="post" action={`${base}/unwait${query(w.date)}`}>
-                        <Hidden
-                          fields={{
-                            machine_id: w.machine_id,
-                            date: w.date,
-                            start: w.start_min,
-                          }}
-                        />
-                        <button class="link">Forlat venteliste</button>
-                      </form>
-                    )}
-                  </div>
-                ))}
+                {[...new Set(myWaits.map((w) => `${w.date}|${w.start_min}`))].map((key) => {
+                  const entries = myWaits.filter((w) => `${w.date}|${w.start_min}` === key);
+                  const w = entries[0]!;
+                  return (
+                    <div class="wait-entry">
+                      <strong>
+                        {fmtDay(w.date, "short")} · {fmtMinute(w.start_min)}
+                      </strong>
+                      <small>{entries.map((e) => machineName(e.machine_id)).join(" + ")}</small>
+                      {!readOnly && (
+                        <form method="post" action={`${base}/unwait${query(w.date)}`}>
+                          <Hidden
+                            fields={{
+                              machine_ids: entries.map((e) => e.machine_id).join(","),
+                              date: w.date,
+                              start: w.start_min,
+                            }}
+                          />
+                          <button class="link">Forlat venteliste</button>
+                        </form>
+                      )}
+                    </div>
+                  );
+                })}
                 {!p.demo && (
                   <div id="push-banner" class="push-banner" hidden>
                     <span id="push-text">Få varsel når en tid du venter på blir ledig eller får en ny kommentar.</span>
@@ -1068,7 +1066,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     </button>
                   </div>
                 )}
-                <p class="muted">Ventelisten reserverer ikke automatisk. Først til mølla når tiden blir ledig.</p>
               </section>
             )}
           </aside>

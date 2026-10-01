@@ -11,7 +11,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Residents** pick their apartment number once per device (cookie). The honor system is the same as the
   spreadsheet: you can only cancel bookings made under your own apartment number, but nothing proves who you are.
   Admins can set a list of valid apartment numbers and an optional shared resident password.
-- **Waitlist**: on a booked slot, tap "Venteliste". When the booking is cancelled, everyone on that slot's
+- **Waitlist**: on a booked slot, tap "Venteliste" (a bottom sheet on phones), then "Si fra når den blir ledig",
+  which joins every machine of that row in one tap. When the booking is cancelled, everyone on that slot's
   waitlist gets a push notification. First to book wins.
   The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
   everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
@@ -19,7 +20,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   "N venter …", counting every machine in the reservation), linking to that day and machine. Joining again, or
   waiting on your own or a free slot, sends nothing; each new household replaces the previous notification.
   Sending a message also joins the waitlist but sends no extra push, since the message already reaches the holder.
-- **Messages**: under "Se detaljer" on someone else's booking, "Send melding" pushes a ready-made question (plus an
+- **Messages**: in the "Venteliste" sheet on someone else's booking, "Send melding" pushes a ready-made question (plus an
   optional 140-character note) to the holder's devices. It is only offered when the holder has notifications on.
   The holder answers by updating their comment; the sender is put on that slot's waitlist to hear it, and can leave it
   again right after sending. For 2 hours after a slot ends, only "Du har glemt klær i maskinen" can be sent, without
@@ -195,6 +196,8 @@ machines with a quiet **Angre** action and a thin line that runs out with its ti
 status messages are toasts too: success toasts close after about 4 seconds, errors stay until closed. Without
 JavaScript the same toasts are server-rendered and the timed ones fade out with CSS.
 Machine-only reservations, partial availability, and waitlists remain available.
+Cancelling is a two-step confirm in place ("Avbestill", then "Ja, avbestill" or "Nei") that says the slot becomes
+free and how many neighbours on its waitlist are told.
 In the paired view a partly taken slot shows who holds each machine and offers the free machine in one tap,
 behind a small in-place confirmation; the day strip reads "Delvis" when only single machines are left and
 marks a fully booked day. The "Ett trykk reserverer" hint disappears after a device's first booking (`vk_booked` cookie).

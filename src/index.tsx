@@ -464,22 +464,53 @@ t.post("/note", async (c) => {
   return back(c, "note", `d-${bookings[0]!.date}`);
 });
 
+/** The machines a waitlist form names: `machine_ids` (comma-separated, one request for a whole row) or a single `machine_id`. */
+const machineIds = (f: Record<string, string>) =>
+  [...new Set((f.machine_ids ?? f.machine_id ?? "").split(",").map(Number))].filter(Number.isInteger).slice(0, 10);
+
 t.post("/wait", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
-  const s = await parseSlot(c, await form(c));
-  if (!s || s.over) return back(c, "invalid");
-  await joinWaitlist(c, s.machine.id, s.date, s.slot.start, apt);
-  return back(c, "waiting", `d-${s.date}`);
+  const f = await form(c);
+  const ids = machineIds(f);
+  if (!ids.length) return back(c, "invalid");
+  const slots = await Promise.all(ids.map((id) => parseSlot(c, { ...f, machine_id: String(id) })));
+  if (slots.some((s) => !s || s.over)) return back(c, "invalid");
+  const { date } = slots[0]!;
+  const start = slots[0]!.slot.start;
+  const added: number[] = [];
+  for (const s of slots) if (await addToWaitlist(c, s!.machine.id, s!.date, s!.slot.start, apt)) added.push(s!.machine.id);
+  // One push per holding apartment, even when it holds several of the machines just joined.
+  const { results: held } = added.length
+    ? await c.env.DB.prepare(
+        "SELECT machine_id, apartment FROM bookings WHERE tenant_id = ? AND machine_id IN (SELECT value FROM json_each(?)) AND date = ? AND start_min = ? AND cancelled_at IS NULL AND apartment != ?",
+      )
+        .bind(c.var.tenant.id, JSON.stringify(added), date, start, apt)
+        .all<{ machine_id: number; apartment: string }>()
+    : { results: [] };
+  const firstPerHolder = new Map<string, number>();
+  for (const h of held) if (!firstPerHolder.has(h.apartment)) firstPerHolder.set(h.apartment, h.machine_id);
+  for (const machineId of firstPerHolder.values()) background(c, notifyHolder(c.env, c.var.tenant, machineId, date, start, apt));
+  return back(c, "waiting", `d-${slots[0]!.date}`);
 });
 
 t.post("/unwait", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
   const f = await form(c);
-  await c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?")
-    .bind(c.var.tenant.id, Number(f.machine_id), f.date ?? "", Number(f.start), apt)
-    .run();
+  const ids = machineIds(f);
+  if (!ids.length) return back(c, "invalid");
+  await c.env.DB.batch(
+    ids.map((id) =>
+      c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?").bind(
+        c.var.tenant.id,
+        id,
+        f.date ?? "",
+        Number(f.start),
+        apt,
+      ),
+    ),
+  );
   return back(c, "unwaited", `d-${f.date}`);
 });
 
@@ -660,15 +691,19 @@ async function cancelBookings(c: Ctx, bookings: Booking[], by: "resident" | "adm
   return bookings.filter((_, i) => result[i]!.meta.changes).map((b) => background(c, notifyWaitlist(c.env, c.var.tenant, b)));
 }
 
+async function addToWaitlist(c: Ctx, machineId: number, date: string, start: number, apt: string) {
+  const res = await c.env.DB.prepare("INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (?, ?, ?, ?, ?)")
+    .bind(c.var.tenant.id, machineId, date, start, apt)
+    .run();
+  return res.meta.changes > 0;
+}
+
 /** Puts an apartment on one machine's waitlist for a slot. When that adds an entry, the slot's holder hears that
  * someone is waiting; resolves to that push (wrapped, so awaiting the join doesn't wait for it), or undefined when
  * the apartment was already waiting. */
 async function joinWaitlist(c: Ctx, machineId: number, date: string, start: number, apt: string) {
   const tenant = c.var.tenant;
-  const res = await c.env.DB.prepare("INSERT OR IGNORE INTO waitlist (tenant_id, machine_id, date, start_min, apartment) VALUES (?, ?, ?, ?, ?)")
-    .bind(tenant.id, machineId, date, start, apt)
-    .run();
-  if (!res.meta.changes) return undefined;
+  if (!(await addToWaitlist(c, machineId, date, start, apt))) return undefined;
   return { push: background(c, notifyHolder(c.env, tenant, machineId, date, start, apt)) };
 }
 
