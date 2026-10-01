@@ -1154,6 +1154,9 @@ label.message-choice:has(:checked) {
   font-variant-numeric: tabular-nums;
 }
 .reservation-machines {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-size: 11px;
   margin: 9px 0 16px;

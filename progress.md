@@ -4,7 +4,7 @@
 - [ ] I got some feedback from a alpha-tester and we should change the calendar subscription: after booking, it felt more natural for them to have a "add to calendar" button on the booking event (below the booking-selector). In addition, they didn't like the "show other" feature, so I'm thinking maybe we should change this model from a subscription to a single event thing where you add individual events if you want and no subscription to other events.
   - [ ] Related to this: after booking the confirmation toast stays on for a tad too long (or it's not indicative that it will auto-hide) and the "Angre"-button gets too much attention (I want to click it, but 90% of the cases I shouldn't).
 - [ ] The toasts are not stacking in a natural way... Instead of hand-rolling this - let's just use Sonner; which have all the niceties (stacking, timing) I expect built-in.
-- [ ] "Dine tider" section: We are not using the icons for washer and dryer.
+- [x] "Dine tider" section: We are not using the icons for washer and dryer.
 
 ## Features
 
@@ -18,6 +18,7 @@
 
 ## Log
 
+- 2026-10-01: "Dine tider" reservation cards now show the washer/dryer icons (`MachineIcons`, 14px) before the machine label in `.reservation-machines` (src/views.tsx, public/style.css); covered by tests/dine-tider-icons.test.mjs.
 - 2026-09-29: iOS focus zoom: fields were 11–15px (inherit 0.9rem from `label`, plus per-form 12/14px), so iOS zoomed in on focus and stayed zoomed. One `@media (pointer: coarse)` rule at the end of public/style.css forces fields to at least 16px on touch screens (replaces the one-off `.message-form` fix); desktop sizes unchanged. Checked with touch emulation, not yet on a real iPhone.
 - 2026-09-29: Local dev on a second machine: reverted a hardcoded Tailscale IP in `isLocalDev`; use the Turnstile test keys in `.dev.vars` instead (docs/deploy.md), which exercises the real widget + Siteverify path from any device.
 - 2026-09-27: Resident onboarding at `/<slug>/velkommen` (branch `feat/resident-onboarding`): apartment → Home Screen guide per device → notifications; share message links there; per-building manifest with PNG icons so the Home Screen icon opens the building; board card nudges until push is on (dismissible). Push code in client/app.ts now shared by banner, card and guide (delegated `data-push-action` clicks). Checked in headless Chrome with iPhone/Android/desktop user agents; not yet on a real iPhone (install, first launch from the icon, permission prompt). Open question: whether iOS carries Safari cookies (apartment, resident login) into the Home Screen app; if not, the icon opens the login/apartment picker once.
