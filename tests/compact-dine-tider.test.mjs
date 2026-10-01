@@ -129,7 +129,7 @@ test("your own slot row expands in place with calendar, comment and cancel", asy
   await reset();
   await book(480);
   const html = await board();
-  const own = html.match(/<article class="time-slot reserved own">.*?<\/article>/s)?.[0] ?? "";
+  const own = html.match(/<article class="time-slot reserved own"[^>]*>.*?<\/article>/s)?.[0] ?? "";
   assert.match(own, /<details class="own-slot">/);
   assert.match(own, /Din tid/);
   assert.match(own, /event\.ics/);

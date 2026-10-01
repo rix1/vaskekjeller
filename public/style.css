@@ -2336,8 +2336,7 @@ span.apartment-chip:hover {
   align-items: stretch;
   gap: 8px;
 }
-.onboard-main a.button,
-.nudge a.button {
+.onboard-main a.button {
   background: var(--green);
   color: #fff;
   border-radius: 8px;
@@ -2355,51 +2354,6 @@ span.apartment-chip:hover {
   color: var(--muted);
   text-align: center;
 }
-.nudge {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--card);
-  border: 1px solid #c9d4be;
-  border-radius: 13px;
-  padding: 14px 14px 14px 18px;
-  margin-bottom: 24px;
-}
-.nudge-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--green-soft);
-  color: var(--green);
-  flex-shrink: 0;
-}
-.nudge-text {
-  flex: 1;
-  font-size: 13px;
-}
-.nudge-text p {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-.nudge-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.nudge-actions > :not(.nudge-close) {
-  white-space: nowrap;
-}
-button.nudge-close {
-  background: none;
-  color: var(--muted);
-  font-size: 22px;
-  font-weight: 400;
-  padding: 0;
-  width: 40px;
-}
 @media (max-width: 600px) {
   .onboard-main {
     padding-top: 28px;
@@ -2410,18 +2364,159 @@ button.nudge-close {
   .onboard-steps > li::before {
     left: 14px;
   }
-  .nudge {
-    flex-wrap: wrap;
+}
+
+/* Header menu rows ("Varsler", "Tips") and the notification ask under "Dine tider". */
+.tip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+button.tip-button.quiet {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.apartment-popover .tip-button {
+  margin-top: 2px;
+}
+.push-ask {
+  display: grid;
+  grid-template-columns: 28px 1fr 36px;
+  gap: 6px 10px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 12px 8px 12px 12px;
+  background: #f4f6ef;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.push-ask[hidden],
+.push-ask[data-dismissed],
+.tip-button[hidden] {
+  display: none;
+}
+.push-ask-icon {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--green-soft);
+  color: var(--green);
+}
+.push-ask p {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  padding-top: 5px;
+  color: var(--fg);
+}
+.push-ask .tip-button {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  justify-self: start;
+}
+button.push-ask-close {
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  padding: 0;
+  width: 36px;
+  min-height: 36px;
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* Coach marks (client/tour.ts): small, one at a time, no backdrop; the target stays tappable. */
+.coach {
+  position: absolute;
+  z-index: 15;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #2b5948;
+  color: #fff;
+  box-shadow: 0 8px 28px #1c2b2440;
+}
+.coach::before {
+  content: "";
+  position: absolute;
+  left: var(--arrow-x, 24px);
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+.coach[data-placement="below"]::before {
+  top: -7px;
+}
+.coach[data-placement="above"]::before {
+  bottom: -7px;
+}
+.coach-title {
+  display: block;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.coach-body {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.coach-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.coach-step {
+  opacity: 0.75;
+}
+button.coach-off {
+  margin-left: auto;
+  padding: 8px 0;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+}
+button.coach-ok {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: #fff;
+  color: #2b5948;
+  font-size: 14px;
+  font-weight: 650;
+}
+.coach-target {
+  outline: 3px solid #2b594855;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .coach {
+    animation: coach-in 0.18s ease-out;
   }
-  .nudge-text {
-    flex-basis: calc(100% - 100px);
-  }
-  .nudge-actions {
-    width: 100%;
-    padding-left: 50px;
-  }
-  .nudge-actions > :not(.nudge-close) {
-    flex: 1;
+  @keyframes coach-in {
+    from {
+      opacity: 0;
+    }
   }
 }
 

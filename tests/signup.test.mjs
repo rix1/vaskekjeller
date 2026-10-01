@@ -815,12 +815,16 @@ test("each building has its own manifest, so the Home Screen icon opens that bui
   assert.match(board, /<link rel="apple-touch-icon" href="\/apple-touch-icon.png"/);
 });
 
-test("the board offers the notification card once an apartment is chosen", async () => {
+test("the board offers tips and notifications once an apartment is chosen", async () => {
   const { b } = await signUp();
   const resident = browser();
-  assert.doesNotMatch(await (await resident.get("/lofotgata")).text(), /id="home-nudge"/);
+  const before = await (await resident.get("/lofotgata")).text();
+  assert.doesNotMatch(before, /id="home-nudge"|id="push-menu"|data-tips/);
   await resident.post("/lofotgata/apartment", { apartment: "B2" });
   const board = await (await resident.get("/lofotgata")).text();
-  assert.match(board, /<section class="nudge" id="home-nudge"[^>]*hidden/);
+  assert.doesNotMatch(board, /id="home-nudge"/);
+  assert.match(board, /<main class="resident-main" data-tips="new"/);
+  assert.match(board, /<script type="module" src="\/tour\.js"/);
+  assert.match(board, /<section id="push-menu" hidden="">/);
   assert.match(board, /href="\/lofotgata\/velkommen"/);
 });

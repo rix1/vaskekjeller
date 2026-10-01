@@ -148,7 +148,7 @@ const back = (c: Ctx, flash: string, anchor = "", extra: Record<string, string> 
   return c.redirect(`${base(c)}?${params}`, 303);
 };
 const aptCookie = "vk_apt";
-// Set after the first booking on a device; hides the "one tap reserves" hint.
+// Set after the first booking on a device; a device that has booked gets no first-visit tips (client/tour.ts).
 const bookedCookie = "vk_booked";
 
 /** The normalized apartment if the tenant accepts it (on its list, or any short name without a list). */
@@ -252,7 +252,7 @@ t.get("/", async (c) => {
       selectedDate={c.req.query("date")}
       mode={c.req.query("mode")}
       bookedIds={c.req.query("reservation")}
-      hideHint={getCookie(c, bookedCookie) === "1"}
+      booked={getCookie(c, bookedCookie) === "1"}
       demo={isDemoSlug(tenant.slug)}
       embed={c.req.query("embed") === "1"}
       vapidKey={c.env.VAPID_PUBLIC_KEY}

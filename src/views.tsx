@@ -382,7 +382,8 @@ type BoardProps = {
   selectedDate?: string;
   mode?: string;
   bookedIds?: string;
-  hideHint?: boolean;
+  /** This device has booked in this building before (the vk_booked cookie): it gets no tips tour. */
+  booked?: boolean;
   /** One of the landing page's demo buildings: shows a banner and no admin link. */
   demo?: boolean;
   /** Rendered inside the landing page's phone preview: no banner or footer. */
@@ -437,6 +438,22 @@ export const BoardPage: FC<BoardProps> = (p) => {
     if (!open.length) return { text: "Passert", label: "ingen flere tider", state: "" };
     return { text: "Fullt", label: "fullt", state: "full" };
   };
+  // Coach marks (client/tour.ts) anchor to data-tour attributes; the showcase and the demos never show them.
+  const tipsPage = !readOnly && !p.demo && !p.embed;
+  const tips = !!p.apartment && tipsPage;
+  const firstFree = tips && option && !past ? p.slots.find((s) => !slotIsOver(selected, s.end, p.now) && !conflicts(selected, s).length) : undefined;
+  const firstOwn =
+    tips && option && !past
+      ? p.slots.find((s) => {
+          const taken = conflicts(selected, s);
+          return (
+            !slotIsOver(selected, s.end, p.now) &&
+            taken.length > 0 &&
+            taken.every((b) => b.apartment === p.apartment) &&
+            option.machines.every((m) => taken.some((b) => b.machine_id === m.id))
+          );
+        })
+      : undefined;
   const mine = p.bookings.filter((b) => b.apartment === p.apartment && !slotIsOver(b.date, b.end_min, p.now));
   const justBooked = p.flash === "booked" ? mine.filter((b) => (p.bookedIds ?? "").split(",").includes(String(b.id))) : [];
   const messaged = p.flash === "message-sent" ? p.bookings.find((b) => String(b.id) === p.messagedId) : undefined;
@@ -549,7 +566,13 @@ export const BoardPage: FC<BoardProps> = (p) => {
   }).format(new Date(`${selected}T12:00:00Z`));
 
   return (
-    <Layout title={`Vaskekjeller · ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
+    <Layout
+      title={`Vaskekjeller · ${p.tenant.name}`}
+      tenant={p.tenant}
+      vapidKey={p.vapidKey}
+      // Also before an apartment is chosen: choosing one updates the page in place, and the tips start from there.
+      head={tipsPage ? <script type="module" src="/tour.js" defer></script> : undefined}
+    >
       {p.demo && !p.embed && (
         <p class="demo-banner">
           {readOnly ? (
@@ -598,13 +621,48 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 <p>Velg leiligheten du vil reservere for.</p>
                 <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context={query()} />
               </section>
+              {!p.demo && (
+                <section id="push-menu" hidden>
+                  <strong>Varsler</strong>
+                  <p data-push-state="ready" hidden>
+                    Av på denne enheten. Få beskjed når noen venter på tiden din eller skriver til deg.
+                  </p>
+                  <p data-push-state="on" hidden>
+                    På for denne enheten.
+                  </p>
+                  <p data-push-state="needs-install" hidden>
+                    På iPhone må Vaskekjeller ligge på Hjem-skjermen.
+                  </p>
+                  <p data-push-state="blocked" hidden>
+                    Blokkert i nettleseren. Endre det i nettleserinnstillingene.
+                  </p>
+                  <button type="button" class="tip-button" data-push-state="ready" data-push-action="on" hidden>
+                    Slå på varsler
+                  </button>
+                  <button type="button" class="tip-button quiet" data-push-state="on" data-push-action="off" hidden>
+                    Skru av varsler
+                  </button>
+                  <a class="tip-button" data-push-state="needs-install" href={`${base}/velkommen`} hidden>
+                    Vis meg hvordan
+                  </a>
+                </section>
+              )}
+              {tips && (
+                <section id="tips-menu" hidden>
+                  <strong>Tips</strong>
+                  <p>Se hvordan Vaskekjeller virker, ett tips om gangen.</p>
+                  <button type="button" class="tip-button quiet" data-tour-action="reopen">
+                    Vis tips
+                  </button>
+                </section>
+              )}
             </div>
           </details>
         ) : (
           <span class="header-caption">Et felles rom. Litt enklere.</span>
         )}
       </header>
-      <main class="resident-main">
+      <main class="resident-main" data-tips={tips ? (p.booked ? "booked" : "new") : undefined}>
         <div class="page-intro board-intro">
           <div>
             <p class="eyebrow">PLASS TIL HVERDAGEN</p>
@@ -620,7 +678,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </div>
         </div>
         {groups.size > 0 && (
-          <a class="mobile-mine-link" href="#mine">
+          <a class="mobile-mine-link" href="#mine" data-tour={tips ? "manage-bar" : undefined}>
             <Icon name="calendar" size={17} />
             Dine tider <span>{groups.size}</span>
             <Icon name="arrow" size={16} />
@@ -636,7 +694,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <ApartmentPicker tenant={p.tenant} apartments={p.apartments} context={query()} />
           </section>
         )}
-        {p.apartment && !p.demo && <HomeNudge base={base} />}
         <div class="booking-layout">
           <section class="schedule" aria-label="Reserver vasketid">
             <div class="schedule-toolbar">
@@ -646,7 +703,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 {duration} per tid
               </span>
             </div>
-            <nav class="machine-options" aria-label="Velg maskiner">
+            <nav class="machine-options" aria-label="Velg maskiner" data-tour={tips && options.length > 1 ? "machines" : undefined}>
               {options.map((o) => (
                 <a href={url(selected, o.key)} aria-current={o.key === mode ? "true" : undefined} class={o.key === mode ? "selected" : ""}>
                   <MachineIcons machines={o.machines} />
@@ -851,6 +908,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                       node: (
                         <article
                           class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : partial ? "partial" : "occupied"}${expandable ? " own" : ""}`}
+                          data-tour={s === firstOwn ? "manage" : undefined}
                         >
                           {expandable ? (
                             <details class="own-slot">
@@ -879,7 +937,12 @@ export const BoardPage: FC<BoardProps> = (p) => {
                                           start: s.start,
                                         }}
                                       />
-                                      <button class="reserve-button" aria-label={`Reserver ${label}`}>
+                                      <button
+                                        class="reserve-button"
+                                        aria-label={`Reserver ${label}`}
+                                        data-tour={s === firstFree ? "book" : undefined}
+                                        data-tour-machines={s === firstFree ? option.machines.length : undefined}
+                                      >
                                         Reserver
                                         <Icon name="arrow" size={16} />
                                       </button>
@@ -991,15 +1054,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   }),
                 )}
             </div>
-            {!past && !p.hideHint && !readOnly && (
-              <div class="schedule-note">
-                <Icon name="check" size={16} />
-                <span>
-                  {option?.machines.length === 2 ? "Ett trykk reserverer begge maskinene." : "Ett trykk reserverer tiden."} Trykk på din
-                  egen tid for å avbestille.
-                </span>
-              </div>
-            )}
             {justBooked.length > 0 && !readOnly && (
               <div class="booked-calendar">
                 <span>
@@ -1028,13 +1082,18 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   <h2>Dine tider</h2>
                   <span class="count">{groups.size}</span>
                 </div>
-                {[...groups.values()].map((bookings) => {
+                {[...groups.values()].map((bookings, index) => {
                   const b = bookings[0]!;
                   const waiting = waiters(bookings);
                   const openNote = bookings.some((x) => String(x.id) === p.openNote);
                   const day = dayLabel(b.date) === "I dag" || dayLabel(b.date) === "I morgen" ? dayLabel(b.date) : fmtDay(b.date, "short");
                   return (
-                    <details class="reservation-row" id={`reservation-${b.id}`} open={openNote}>
+                    <details
+                      class="reservation-row"
+                      id={`reservation-${b.id}`}
+                      open={openNote}
+                      data-tour={tips && index === 0 ? "manage-card" : undefined}
+                    >
                       <summary>
                         <MachineIcons machines={bookings.flatMap((x) => p.machines.filter((m) => m.id === x.machine_id))} size={16} />
                         <span class="reservation-when">
@@ -1056,6 +1115,28 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     </details>
                   );
                 })}
+                {!readOnly && !p.demo && (
+                  <div class="push-ask" id="push-ask" hidden>
+                    <span class="push-ask-icon">
+                      <Icon name="bell" size={16} />
+                    </span>
+                    <p data-push-state="ready" hidden>
+                      Få beskjed når noen venter på tiden din eller skriver til deg.
+                    </p>
+                    <p data-push-state="needs-install" hidden>
+                      For varsler på iPhone må Vaskekjeller ligge på Hjem-skjermen.
+                    </p>
+                    <button type="button" class="tip-button" data-push-state="ready" data-push-action="on" hidden>
+                      Slå på
+                    </button>
+                    <a class="tip-button" data-push-state="needs-install" href={`${base}/velkommen`} hidden>
+                      Vis meg hvordan
+                    </a>
+                    <button type="button" class="push-ask-close" data-tour-action="dismiss-ask" aria-label="Skjul og ikke spør igjen">
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
+                )}
                 {p.tenant.max_active_bookings > 0 && (
                   <p class="booking-limit">
                     {groups.size} av {p.tenant.max_active_bookings} aktive tider brukt
@@ -1159,35 +1240,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
 // ---------------------------------------------------------------------------
 // Onboarding: Home Screen and notifications
 // ---------------------------------------------------------------------------
-
-/** Board card for devices without notifications yet; client/app.ts picks the variant or keeps it hidden. */
-const HomeNudge: FC<{ base: string }> = ({ base }) => (
-  <section class="nudge" id="home-nudge" aria-label="Varsler" hidden>
-    <span class="nudge-icon">
-      <Icon name="bell" size={18} />
-    </span>
-    <div class="nudge-text">
-      <strong>Få beskjed når en tid blir ledig</strong>
-      <p data-nudge="install" hidden>
-        På iPhone kommer varsler bare når Vaskekjeller ligger på Hjem-skjermen.
-      </p>
-      <p data-nudge="push" hidden>
-        Og når noen skriver til deg eller venter på tiden din. Ingen andre varsler.
-      </p>
-    </div>
-    <div class="nudge-actions">
-      <a class="button" data-nudge="install" href={`${base}/velkommen`} hidden>
-        Vis meg hvordan
-      </a>
-      <button type="button" data-nudge="push" data-push-action="on" hidden>
-        Slå på varsler
-      </button>
-      <button type="button" class="nudge-close" data-push-action="dismiss" aria-label="Ikke nå">
-        <span aria-hidden="true">×</span>
-      </button>
-    </div>
-  </section>
-);
 
 /** A button name in the Home Screen guide, drawn the way the phone shows it. */
 const Key: FC<{ icon?: "share" | "plus" | "more"; children: Child }> = (p) => (
