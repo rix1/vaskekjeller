@@ -521,7 +521,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
         )}
       </header>
       <main class="resident-main">
-        <div class="page-intro">
+        <div class="page-intro board-intro">
           <div>
             <p class="eyebrow">PLASS TIL HVERDAGEN</p>
             <h1>Når vil du vaske?</h1>
