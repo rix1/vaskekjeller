@@ -24,7 +24,7 @@ export const PUBLIC_PAGES = {
     path: "/om",
     title: "Om Vaskekjeller – spørsmål og svar",
     description:
-      "Slik kommer du i gang med Vaskekjeller, når du får varsler, kalender-abonnement og hva som lagres om deg og borettslaget.",
+      "Slik kommer du i gang med Vaskekjeller, når du får varsler, kalenderhendelser og hva som lagres om deg og borettslaget.",
   },
   signup: {
     path: "/ny",

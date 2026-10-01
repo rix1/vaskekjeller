@@ -1,7 +1,7 @@
 ## UX
 
 - [ ] Replace resident password with 4-digit PIN (xxxx) instead of the free-text resident password. show a 4-box input both in the wizard and on login. Password should be customizable in the wizard but I also want a "Generate"-button. Security-wise I think this is good enough, as long as we have a rate limit on the endpoint.
-- [ ] I got some feedback from a alpha-tester and we should change the calendar subscription: after booking, it felt more natural for them to have a "add to calendar" button on the booking event (below the booking-selector). In addition, they didn't like the "show other" feature, so I'm thinking maybe we should change this model from a subscription to a single event thing where you add individual events if you want and no subscription to other events.
+- [x] I got some feedback from a alpha-tester and we should change the calendar subscription: after booking, it felt more natural for them to have a "add to calendar" button on the booking event (below the booking-selector). In addition, they didn't like the "show other" feature, so I'm thinking maybe we should change this model from a subscription to a single event thing where you add individual events if you want and no subscription to other events.
   - [ ] Related to this: after booking the confirmation toast stays on for a tad too long (or it's not indicative that it will auto-hide) and the "Angre"-button gets too much attention (I want to click it, but 90% of the cases I shouldn't).
 - [ ] The toasts are not stacking in a natural way... Instead of hand-rolling this - let's just use Sonner; which have all the niceties (stacking, timing) I expect built-in.
 - [x] "Dine tider" section: We are not using the icons for washer and dryer.
@@ -18,6 +18,7 @@
 
 ## Log
 
+- 2026-10-01: Calendar subscription replaced by single events: "Legg i kalender" downloads one reservation as `.ics` (`GET /<slug>/event.ics`, `buildEvent` in src/calendar.ts), below the schedule after booking and on "Dine tider" cards. Feed links, "Inkluder andres bookinger" and the `calendar_feeds` table are gone (migration 0009); /om and README updated; tests/calendar-event.test.mjs. The 2026-09-23/24 calendar-feed log entries below are history.
 - 2026-10-01: Resident onboarding hides steps that don't apply (Home Screen guide on desktop/installed, notifications when unsupported) instead of showing them disabled (`setupPush` in client/app.ts); intro copy says "Noen raske steg".
 - 2026-10-01: "Dine tider" reservation cards now show the washer/dryer icons (`MachineIcons`, 14px) before the machine label in `.reservation-machines` (src/views.tsx, public/style.css); covered by tests/dine-tider-icons.test.mjs.
 - 2026-09-29: iOS focus zoom: fields were 11–15px (inherit 0.9rem from `label`, plus per-form 12/14px), so iOS zoomed in on focus and stayed zoomed. One `@media (pointer: coarse)` rule at the end of public/style.css forces fields to at least 16px on touch screens (replaces the one-off `.message-form` fix); desktop sizes unchanged. Checked with touch emulation, not yet on a real iPhone.
