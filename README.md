@@ -28,7 +28,8 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
 - **Resident onboarding** (`/<slug>/velkommen`, the link in the admins' share message): apartment, then a
   Home Screen guide for the device (iPhone Safari, in-app browsers such as Messenger, Android with Chrome's own
-  install prompt; skipped on desktop and when opened from the icon), then "Slå på varsler". The password and
+  install prompt; left out on desktop and when opened from the icon), then "Slå på varsler" (left out where
+  notifications aren't supported). Steps that don't apply are hidden, not shown disabled. The password and
   apartment steps come back to it via `?til=velkommen`. Each building has its own manifest
   (`/<slug>/manifest.webmanifest`, `start_url` = the board, open past the password gate), so the icon opens
   that building; `public/apple-touch-icon.png` is the iPhone icon. On the board, a card (`#home-nudge`) offers

@@ -12,12 +12,13 @@
 
 ## Onboarding
 
-- [ ] We currently show disabled boxes in the resident onboarding depending on device. this is confusing for new users. hide the disabled boxes if it doesn't apply to the device.
+- [x] We currently show disabled boxes in the resident onboarding depending on device. this is confusing for new users. hide the disabled boxes if it doesn't apply to the device.
 - [ ] right now we show a notification banner on the home page for new users that doens't have this enabled. this is not enough: we should have a small onboarding tutoarial that explain booking, different machines, cancellation, waiting list, notifications and calendar events. I don't want this as a big modal when they land on the page - let's sequence it out so that the user doesn't feel overwhelmed.
 
 
 ## Log
 
+- 2026-10-01: Resident onboarding hides steps that don't apply (Home Screen guide on desktop/installed, notifications when unsupported) instead of showing them disabled (`setupPush` in client/app.ts); intro copy says "Noen raske steg".
 - 2026-10-01: "Dine tider" reservation cards now show the washer/dryer icons (`MachineIcons`, 14px) before the machine label in `.reservation-machines` (src/views.tsx, public/style.css); covered by tests/dine-tider-icons.test.mjs.
 - 2026-09-29: iOS focus zoom: fields were 11–15px (inherit 0.9rem from `label`, plus per-form 12/14px), so iOS zoomed in on focus and stayed zoomed. One `@media (pointer: coarse)` rule at the end of public/style.css forces fields to at least 16px on touch screens (replaces the one-off `.message-form` fix); desktop sizes unchanged. Checked with touch emulation, not yet on a real iPhone.
 - 2026-09-29: Local dev on a second machine: reverted a hardcoded Tailscale IP in `isLocalDev`; use the Turnstile test keys in `.dev.vars` instead (docs/deploy.md), which exercises the real widget + Siteverify path from any device.
