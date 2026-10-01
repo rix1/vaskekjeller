@@ -401,12 +401,11 @@ test("first visit shows the inline welcome; a saved apartment gets the chip popo
 test("reservation card shows how many other households are waiting", async () => {
   await reset();
   await book(480, "A3", "1");
-  assert.doesNotMatch(await board(tomorrow, "A3"), /venter på denne tiden|note-hint/);
+  assert.doesNotMatch(await board(tomorrow, "A3"), /venter på denne tiden/);
 
   await wait("B2", 1, 480);
   let html = await board(tomorrow, "A3");
   assert.match(html, /<strong>1 venter på denne tiden<\/strong> – legg til en kommentar/);
-  assert.match(html, /1 venter – de får beskjed om kommentaren din\./);
 
   await wait("C1", 1, 480);
   await wait("D4", 1, 480);
@@ -414,7 +413,6 @@ test("reservation card shows how many other households are waiting", async () =>
   await wait("E5", 1, 600); // a different slot does not count
   html = await board(tomorrow, "A3");
   assert.match(html, /<strong>3 venter på denne tiden<\/strong>/);
-  assert.match(html, /3 venter – de får beskjed/);
   assert.doesNotMatch(await board(tomorrow, "B2"), /venter på denne tiden/, "waiters do not see the holder's count");
 });
 

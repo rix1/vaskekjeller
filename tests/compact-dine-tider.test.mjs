@@ -7,7 +7,7 @@ import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 
-// "Dine tider": each reservation card shows the washer/dryer icons of its machines.
+// Compact "Dine tider" and the in-place actions on your own slot row.
 // Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
 let mf, db, temp, sqlite;
 function statement(sql) {
@@ -101,15 +101,54 @@ after(async () => {
   if (temp) await rm(temp, { recursive: true, force: true });
 });
 
-const board = async () =>
-  (await mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&mode=pair-1-2`, { headers: { Cookie: "vk_apt=A3" } })).text();
+const board = async (apartment = "A3", query = "") =>
+  (
+    await mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&mode=pair-1-2${query}`, { headers: { Cookie: `vk_apt=${apartment}` } })
+  ).text();
 
-test("Dine tider cards show a washer and a dryer icon for a pair booking", async () => {
-  const response = await post("book", { date: tomorrow, start: 480, mode: "pair-1-2" });
-  assert.equal(response.status, 303);
+test("Dine tider is hidden while the resident has no bookings", async () => {
+  await reset();
   const html = await board();
-  const card = html.match(/<details class="reservation-row".*?<\/summary>/s)?.[0] ?? "";
-  assert.match(card, /machine-icons/);
-  assert.equal((card.match(/<svg/g) ?? []).length, 2);
-  assert.match(card, /Vaskemaskin \+ Tørketrommel/);
+  assert.doesNotMatch(html, /id="mine"|En ren start|mobile-mine-link/);
+  assert.doesNotMatch(html, />Dine tider</);
+});
+
+test("each booking is a compact row without kicker or check mark", async () => {
+  await reset();
+  await book(480);
+  const html = await board();
+  const mine = html.match(/<section class="my-bookings" id="mine">.*?<\/section>/s)?.[0] ?? "";
+  assert.equal((mine.match(/<details class="reservation-row"/g) ?? []).length, 1);
+  assert.doesNotMatch(mine, /DIN NESTE VASK|RESERVERT|reservation-kicker|<h3/);
+  const summary = mine.match(/<summary>.*?<\/summary>/s)?.[0] ?? "";
+  assert.equal((summary.match(/<svg/g) ?? []).length, 2, "washer and dryer icons");
+  assert.match(summary, /08:00–10:00/);
+});
+
+test("your own slot row expands in place with calendar, comment and cancel", async () => {
+  await reset();
+  await book(480);
+  const html = await board();
+  const own = html.match(/<article class="time-slot reserved own">.*?<\/article>/s)?.[0] ?? "";
+  assert.match(own, /<details class="own-slot">/);
+  assert.match(own, /Din tid/);
+  assert.match(own, /event\.ics/);
+  assert.match(own, /Kommentar/);
+  assert.match(own, /action="\/bygg\/cancel/);
+  assert.match(own, /<details class="cancel-confirm">/);
+  assert.match(own, /Ja, avbestill/);
+  assert.doesNotMatch(html, /Se din tid/);
+  assert.doesNotMatch(await board("B2"), /own-slot/, "other households do not get the actions");
+});
+
+test("a waiting household is mentioned once per list, not twice", async () => {
+  await reset();
+  await book(480);
+  await post("wait", { machine_id: 1, date: tomorrow, start: 480 }, "B2");
+  const html = await board("A3");
+  const mentions = html.match(/venter på denne tiden/g) ?? [];
+  assert.equal(mentions.length, 2, "once in the slot row, once under Dine tider");
+  assert.doesNotMatch(html, /de får beskjed om kommentaren din/);
+  const mine = html.match(/<details class="reservation-row".*?<\/details>/s)?.[0] ?? "";
+  assert.equal((mine.match(/venter/g) ?? []).length, 1);
 });

@@ -365,9 +365,9 @@ test("tapping the message opens the holder's comment field", async () => {
   const html = await (
     await mf.dispatchFetch(`http://localhost/bygg?date=${tomorrow}&note=${dryer.id}`, { headers: { Cookie: "vk_apt=A3" } })
   ).text();
-  assert.match(html, new RegExp(`id="reservation-${washer.id}"[\\s\\S]*?<details open="">\\s*<summary>Legg til kommentar`));
+  assert.match(html, new RegExp(`id="reservation-${washer.id}"[\\s\\S]*?open=""[\\s\\S]*?<details class="note-details" open="">`));
   assert.match(html, /<input name="note"[^>]*autofocus=""/);
-  assert.doesNotMatch(await board(tomorrow, "A3"), /<details open="">\s*<summary>Legg til kommentar/);
+  assert.doesNotMatch(await board(tomorrow, "A3"), /<details class="note-details" open="">/);
 });
 
 test("only 3 messages per apartment per reservation; only the count is stored", async () => {

@@ -180,11 +180,11 @@ test("the booking page offers the download after booking and on each reservation
   const html = await (await boardFor("A3", `&m=booked&reservation=${(await ids())}`)).text();
   const expectedIds = await ids();
   const links = [...html.matchAll(/href="\/bygg\/event\.ics\?booking_ids=([\d,]+)"/g)].map((m) => m[1]);
-  assert.equal(links.length, 2, "below the schedule and on the reservation card");
+  assert.equal(links.length, 3, "below the schedule, on the slot row and on the reservation row");
   assert.ok(links.every((l) => l === expectedIds));
   assert.match(html, /class="booked-calendar"/);
   const later = await (await boardFor("A3")).text();
-  assert.equal([...later.matchAll(/event\.ics/g)].length, 1, "only the card once the confirmation is gone");
+  assert.equal([...later.matchAll(/event\.ics/g)].length, 2, "only the two booking rows once the confirmation is gone");
   assert.doesNotMatch(html, /webcal:|calendar-url|Inkluder andres|Lag ny lenke/);
   assert.equal((await mf.dispatchFetch("http://localhost/bygg/cal/abc.ics")).status, 404, "the feed route is gone");
 });
