@@ -106,7 +106,7 @@ const board = async () =>
 
 test("Dine tider cards show a washer and a dryer icon for a pair booking", async () => {
   const response = await post("book", { date: tomorrow, start: 480, mode: "pair-1-2" });
-  assert.equal(response.status, 302);
+  assert.equal(response.status, 303);
   const html = await board();
   const card = html.match(/<p class="reservation-machines">.*?<\/p>/s)?.[0] ?? "";
   assert.match(card, /machine-icons/);
