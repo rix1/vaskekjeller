@@ -1,5 +1,6 @@
 import type { Child, FC } from "hono/jsx";
 import { CONTACT_EMAIL } from "./about.tsx";
+import { PinAssets, PinField } from "./pin.tsx";
 import { AdminIcon, described, FieldError, RecoveryCodeBlock, schedulePreview, SLOT_LENGTHS, slotLengthLabel } from "./admin-views.tsx";
 import { KIND_LABEL, type MachineKind, type Tenant } from "./db.ts";
 import { PUBLIC_PAGES, type PublicPage } from "./seo.tsx";
@@ -8,7 +9,7 @@ import { fmtMinute, parseHHMM } from "./time.ts";
 import { Icon, Layout, Toast, Toaster } from "./views.tsx";
 
 /** The signup flow, in order. Steps 1–3 happen before the building exists; the rest are admin pages. */
-export const STEPS = ["Navn", "Adresse", "Adminpassord", "Tider", "Maskiner", "Beboerpassord", "Gjenopprettingskode", "Del"] as const;
+export const STEPS = ["Navn", "Adresse", "Adminpassord", "Tider", "Maskiner", "Beboerkode", "Gjenopprettingskode", "Del"] as const;
 
 type Errors = Record<string, string | undefined>;
 
@@ -20,7 +21,7 @@ const FlowPage: FC<{
   /** Error toast, e.g. after a failed validation. */
   alert?: Child;
   dismissHref?: string;
-  scripts?: ("admin" | "signup" | "turnstile")[];
+  scripts?: ("admin" | "signup" | "turnstile" | "pin")[];
   seo?: PublicPage;
   children: Child;
 }> = (p) => (
@@ -34,6 +35,7 @@ const FlowPage: FC<{
         <link rel="stylesheet" href="/signup.css" />
         {p.scripts?.includes("admin") && <script type="module" src="/admin.js" defer></script>}
         {p.scripts?.includes("signup") && <script type="module" src="/signup.js" defer></script>}
+        {p.scripts?.includes("pin") && <PinAssets />}
         {p.scripts?.includes("turnstile") && (
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
         )}
@@ -390,20 +392,20 @@ export const OnboardMachines: FC<{ tenant: Tenant; counts: Record<MachineKind, n
 
 export const OnboardResidents: FC<{ tenant: Tenant; on: boolean; password: string; error?: string }> = ({ tenant, on, password, error }) => (
   <FlowPage
-    title="Beboerpassord"
+    title="Beboerkode"
     step={6}
     tenant={tenant}
     alert={error && fixAlert}
     dismissHref={onboardingPath(tenant, "beboere")}
-    scripts={["signup"]}
+    scripts={["signup", "pin"]}
   >
     <section class="card signup-card">
-      <Intro title="Skal beboerne trenge et passord?">
-        Valgfritt. Et felles passord holder bookingsiden for dere som bor her. Beboerne skriver det inn én gang per mobil.
+      <Intro title="Skal beboerne trenge en kode?">
+        Valgfritt. En felles kode på fire siffer holder bookingsiden for dere som bor her. Beboerne skriver den inn én gang per mobil.
       </Intro>
       <form method="post" action={onboardingPath(tenant, "beboere")} class="card-form" data-resident-choice>
         <fieldset class="field">
-          <legend class="sr-only">Beboerpassord</legend>
+          <legend class="sr-only">Beboerkode</legend>
           <div class="choice-list">
             <label class="choice">
               <input type="radio" name="passord" value="nei" checked={!on} />
@@ -415,7 +417,7 @@ export const OnboardResidents: FC<{ tenant: Tenant; on: boolean; password: strin
             <label class="choice">
               <input type="radio" name="passord" value="ja" checked={on} />
               <span>
-                <strong>Ja, bruk et felles passord</strong>
+                <strong>Ja, bruk en felles kode</strong>
                 <small>Som en dørkode. Du kan alltid se det igjen i innstillingene.</small>
               </span>
             </label>
@@ -423,24 +425,14 @@ export const OnboardResidents: FC<{ tenant: Tenant; on: boolean; password: strin
         </fieldset>
         <div class="reveal" data-when-password>
           <div class="reveal-inner">
-        <div class="field">
-          <label for="access_password">Beboerpassord</label>
-          <input
-            name="access_password"
-            type="text"
-            maxlength={100}
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck={false}
-            placeholder="F.eks. dørkoden til kjelleren"
-            value={password}
-            {...described("access_password", error, true)}
-          />
-          <p class="field-hint" id="access_password-hint">
-            Passordet står i meldingen du sender til beboerne i siste steg.
-          </p>
-          <FieldError id="access_password" error={error} />
-        </div>
+        <PinField
+          name="access_password"
+          label="Beboerkode"
+          value={password}
+          error={error}
+          hint="Velg selv eller lag en. Koden står i meldingen du sender til beboerne i siste steg."
+          generate
+        />
           </div>
         </div>
         <Actions back={onboardingPath(tenant, "maskiner")} submit="Fortsett" />
@@ -531,7 +523,7 @@ export const OnboardShare: FC<{ tenant: Tenant; residents: string; admins: strin
     <ShareCard
       id="melding-beboere"
       title="Til beboerne"
-      description="Med lenken, passordet hvis dere har et, og hvordan de kommer i gang."
+      description="Med lenken, koden hvis dere har en, og hvordan de kommer i gang."
       text={p.residents}
     />
     <ShareCard

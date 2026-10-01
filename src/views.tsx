@@ -14,6 +14,7 @@ import {
   type WaitEntry,
 } from "./db.ts";
 import { NOTE_PRESETS, PLAYGROUND_SLUG } from "./demo.ts";
+import { PinAssets, PinField } from "./pin.tsx";
 import { SeoMeta, type PublicPage } from "./seo.tsx";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
 
@@ -52,6 +53,7 @@ export const FLASH: Record<string, string> = {
   "message-full": `Denne tiden har allerede fått ${MAX_MESSAGES_TOTAL} meldinger. Sett deg på ventelisten for å få beskjed når kommentaren endres.`,
   "no-push": "Den leiligheten har ikke varsler på, så meldingen ble ikke sendt.",
   "wrong-password": "Feil passord.",
+  "too-many-attempts": "For mange forsøk. Vent en stund og prøv igjen.",
   saved: "Lagret.",
 };
 
@@ -100,6 +102,7 @@ const ERROR_CODES = [
   "no-apt",
   "bad-apt",
   "wrong-password",
+  "too-many-attempts",
   "message-limit",
   "message-full",
   "no-push",
@@ -149,15 +152,21 @@ export const PasswordPage: FC<{
   flash?: string;
   /** Shown under the form, e.g. the admin page's link to the password reset. */
   footer?: Child;
+  /** Resident login with a 4-digit PIN: four boxes instead of the free-text password field. */
+  pin?: boolean;
 }> = (p) => (
-  <Layout title={p.tenant.name} tenant={p.tenant}>
+  <Layout title={p.tenant.name} tenant={p.tenant} head={p.pin && <PinAssets />}>
     <main class="narrow">
       <h1>{p.heading}</h1>
       <form method="post" action={p.action} class="stack">
-        <label>
-          Passord
-          <input type="password" name="password" required autofocus autocomplete="current-password" />
-        </label>
+        {p.pin ? (
+          <PinField name="password" label="Kode" autocomplete="one-time-code" autofocus />
+        ) : (
+          <label>
+            Passord
+            <input type="password" name="password" required autofocus autocomplete="current-password" />
+          </label>
+        )}
         <button>Logg inn</button>
       </form>
       {p.footer && <p class="login-footer">{p.footer}</p>}

@@ -484,12 +484,12 @@ test("the resident password is optional, readable, and the next step shows a new
   assert.equal(empty.status, 422);
   assert.equal(tenant("lofotgata").recovery_code_hash, null, "no code before the step is done");
 
-  const response = await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  const response = await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234" });
   assert.equal(location(response).pathname, "/lofotgata/admin/kom-i-gang/kode");
   const t = tenant("lofotgata");
   assert.ok(t.access_password_hash && t.access_password_enc);
   assert.ok(b.jar.has("vk_access"), "the admin's device stays signed in as a resident");
-  assert.match(await (await b.get("/lofotgata/admin/kom-i-gang/beboere")).text(), /value="1234-dør"/);
+  assert.match(await (await b.get("/lofotgata/admin/kom-i-gang/beboere")).text(), /value="1234"/);
 
   const code = /id="recovery-code-value">([^<]+)</.exec(await (await b.get("/lofotgata/admin/kom-i-gang/kode")).text())?.[1];
   assert.match(code, /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){4}$/);
@@ -518,7 +518,7 @@ test("the resident password is optional, readable, and the next step shows a new
 
 test("the share step has ready messages for residents and admins, without the admin password", async () => {
   const { b } = await signUp();
-  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234" });
   const response = await b.get("/lofotgata/admin/kom-i-gang/del");
   assert.equal(response.headers.get("cache-control"), "no-store");
   const page = await response.text();
@@ -527,7 +527,7 @@ test("the share step has ready messages for residents and admins, without the ad
   const residents = texts["melding-beboere"];
   const admins = texts["melding-admin"];
   assert.match(residents, /Kom i gang her: http:\/\/localhost\/lofotgata\/velkommen\n/);
-  assert.match(residents, /Passord: 1234-dør/);
+  assert.match(residents, /Kode: 1234/);
   assert.match(residents, /velg leilighetsnummeret ditt/);
   assert.match(residents, /Hjem-skjermen/);
   assert.match(residents, /varsler/);
@@ -542,7 +542,7 @@ test("the share step has ready messages for residents and admins, without the ad
 
   await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "nei" });
   const open = await (await b.get("/lofotgata/admin/kom-i-gang/del")).text();
-  assert.doesNotMatch(open, /Passord:/);
+  assert.doesNotMatch(open, /Kode:/);
 });
 
 // ---------------------------------------------------------------------------
@@ -769,14 +769,14 @@ test("an automatically closed building is deleted after the grace period like an
 
 test("the onboarding link survives the resident password and the apartment step", async () => {
   const { b } = await signUp();
-  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234" });
   const resident = browser();
   let response = await resident.get("/lofotgata/velkommen");
   assert.equal(location(response).pathname + location(response).search, "/lofotgata/login?til=velkommen");
   assert.match(await (await resident.get("/lofotgata/login?til=velkommen")).text(), /action="\/lofotgata\/login\?til=velkommen"/);
   response = await resident.post("/lofotgata/login?til=velkommen", { password: "feil" });
   assert.equal(location(response).search, "?til=velkommen&m=wrong-password");
-  response = await resident.post("/lofotgata/login?til=velkommen", { password: "1234-dør" });
+  response = await resident.post("/lofotgata/login?til=velkommen", { password: "1234" });
   assert.equal(location(response).pathname, "/lofotgata/velkommen");
 
   let page = await (await resident.get("/lofotgata/velkommen")).text();
@@ -800,7 +800,7 @@ test("the onboarding link survives the resident password and the apartment step"
 
 test("each building has its own manifest, so the Home Screen icon opens that building", async () => {
   const { b } = await signUp();
-  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234" });
   // Fetched by the browser without the resident cookie, so the password gate lets it through.
   const response = await browser().get("/lofotgata/manifest.webmanifest");
   assert.equal(response.status, 200);
