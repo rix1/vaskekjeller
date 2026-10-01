@@ -7,7 +7,7 @@
     "dev": "wrangler d1 migrations apply vaskekjeller --local && wrangler dev",
     "deploy": "CI=true wrangler d1 migrations apply vaskekjeller --remote && wrangler deploy",
     "types": "wrangler types",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p client && tsc --noEmit -p client/tsconfig.sw.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p client && tsc --noEmit -p client/tsconfig.sw.json && tsc --noEmit -p client/tsconfig.toaster.json",
     "db:migrate:local": "wrangler d1 migrations apply vaskekjeller --local",
     "db:migrate:remote": "wrangler d1 migrations apply vaskekjeller --remote",
     "vapid": "node scripts/gen-vapid.ts",
@@ -19,8 +19,10 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "esbuild": "^0.28.1",
+    "preact": "^11.0.0",
+    "sonner": "^2.0.8",
     "typescript": "^7.0.2",
-    "wrangler": "^4.136.3",
-    "esbuild": "^0.28.1"
+    "wrangler": "^4.136.3"
   }
 }

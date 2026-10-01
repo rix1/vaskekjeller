@@ -2012,7 +2012,7 @@ summary.reserve-button:active {
 }
 
 /* Toasts: bottom-center on phones, bottom-right on desktop. Server-rendered and faded out by CSS alone;
-   client/app.ts adds stacking, dismissal and in-place updates. Success toasts leave on their own,
+   with JavaScript client/app.ts hands them to Sonner (below). Success toasts leave on their own,
    errors stay until closed. */
 .toaster {
   position: fixed;
@@ -2053,7 +2053,7 @@ summary.reserve-button:active {
 .toast.long {
   animation:
     toast-in 400ms var(--ease-out) both,
-    toast-out 300ms ease 8s forwards;
+    toast-out 300ms ease 5s forwards;
 }
 /* Reading, hovering or tabbing to a toast keeps it on screen. */
 .toast:hover,
@@ -2152,6 +2152,70 @@ summary.reserve-button:active {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
     visibility: hidden;
+  }
+}
+
+/* Sonner (client/toaster.ts) in the look of the toasts above. */
+[data-sonner-toaster] {
+  --normal-bg: var(--card);
+  --normal-text: var(--ink);
+  --normal-border: #e1e5da;
+  --border-radius: 12px;
+  font-family: inherit;
+}
+[data-sonner-toast][data-styled="true"] {
+  font-size: 13px;
+  box-shadow:
+    0 10px 30px #263e2a1f,
+    0 1px 3px #263e2a14;
+}
+[data-sonner-toast][data-styled="true"] [data-icon] {
+  color: var(--green);
+}
+[data-sonner-toast][data-styled="true"][data-type="error"] [data-icon] {
+  color: var(--err);
+}
+[data-sonner-toast][data-styled="true"] [data-title] {
+  font-weight: 600;
+}
+[data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Angre and Forlat venteliste are escape hatches, not the point of the toast: a quiet text button. */
+[data-sonner-toast][data-styled="true"] [data-button].vk-toast-action.vk-toast-action {
+  height: 28px;
+  margin-left: auto;
+  padding: 0 8px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+[data-sonner-toast][data-styled="true"] [data-button].vk-toast-action.vk-toast-action:hover {
+  color: var(--ink);
+}
+/* The thin line along the bottom runs out as the toast's timer does; it holds while the stack is hovered. */
+.vk-timer {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--green);
+  opacity: 0.45;
+  transform-origin: left;
+  animation: vk-timer linear forwards;
+}
+[data-sonner-toast][data-expanded="true"] .vk-timer {
+  animation-play-state: paused;
+}
+@keyframes vk-timer {
+  to {
+    transform: scaleX(0);
   }
 }
 
