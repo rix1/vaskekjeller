@@ -3,7 +3,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem 1rem;
+}
+.pin-field {
+  text-align: center;
 }
 .pin-boxes {
   display: flex;
@@ -30,7 +34,14 @@
   border-color: var(--err, #b42318);
 }
 .pin-generate {
-  min-height: 2.75rem;
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0;
+  color: #1a5fb4;
+  text-decoration: underline;
+}
+.pin-generate:hover {
+  color: #144a8f;
 }
 @media (max-width: 360px) {
   .pin-box {

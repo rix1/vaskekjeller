@@ -91,15 +91,18 @@ for (const wrap of document.querySelectorAll<HTMLElement>("[data-pin]")) {
   if (focusFirst) boxes[0]!.focus();
 
   if (wrap.hasAttribute("data-generate")) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button pin-generate";
-    button.textContent = "Lag en kode";
-    button.addEventListener("click", () => {
+    // A plain link under the boxes, after the help text when there is one.
+    const link = document.createElement("a");
+    link.href = "#";
+    link.className = "pin-generate";
+    link.textContent = "Generer en kode";
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
       const n = crypto.getRandomValues(new Uint32Array(1))[0]! % 10 ** LENGTH;
       fill(String(n).padStart(LENGTH, "0"), 0);
       boxes[LENGTH - 1]!.blur();
     });
-    wrap.append(button);
+    const hint = wrap.parentElement?.querySelector(".field-hint");
+    (hint ?? wrap).after(link);
   }
 }
