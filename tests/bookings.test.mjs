@@ -355,7 +355,7 @@ test("the date strip shows Monday-to-Sunday weeks within the 14-day look-back an
 
   const first = await board(localDate(-14));
   assert.equal(selectedDate(first), localDate(-14));
-  assert.match(first, /aria-label="Forrige uke" aria-disabled="true"/);
+  assert.match(first, /aria-label="Forrige uke" title="Forrige uke" aria-disabled="true"/);
   for (const d of stripDates(first).filter((d) => d < localDate(-14))) {
     assert.match(first, new RegExp(`<span class="date-item unavailable" data-date="${d}"`));
   }
@@ -364,7 +364,7 @@ test("the date strip shows Monday-to-Sunday weeks within the 14-day look-back an
   assert.equal(selectedDate(await board(localDate(14))), localDate());
   const last = await board(localDate(13));
   assert.equal(selectedDate(last), localDate(13));
-  assert.match(last, /aria-label="Neste uke" aria-disabled="true"/);
+  assert.match(last, /aria-label="Neste uke" title="Neste uke" aria-disabled="true"/);
 });
 
 const boardFor = (apartment) =>

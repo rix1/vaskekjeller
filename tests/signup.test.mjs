@@ -526,11 +526,9 @@ test("the share step has ready messages for residents and admins, without the ad
   const texts = Object.fromEntries([...page.matchAll(message())].map((m) => [m[1], m[2]]));
   const residents = texts["melding-beboere"];
   const admins = texts["melding-admin"];
-  assert.match(residents, /Kom i gang her: http:\/\/localhost\/lofotgata\/velkommen\n/);
+  assert.match(residents, /i ett trykk: http:\/\/localhost\/lofotgata\/velkommen\n/);
   assert.match(residents, /Kode: 1234/);
-  assert.match(residents, /velg leilighetsnummeret ditt/);
-  assert.match(residents, /Hjem-skjermen/);
-  assert.match(residents, /varsler/);
+  assert.doesNotMatch(residents, /Hjem-skjermen/);
   assert.match(admins, /Adminsiden: http:\/\/localhost\/lofotgata\/admin/);
   assert.match(admins, /Passordet får du av meg\./);
   assert.match(admins, /gjenopprettingskoden/);

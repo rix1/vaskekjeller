@@ -89,11 +89,11 @@ test("/om renders the about page with every section and the contact address", as
   assert.match(html, /<html lang="no">/);
   assert.match(html, /<link rel="stylesheet" href="\/landing.css"/);
   assert.match(html, /<h1>Spørsmål og svar<\/h1>/);
-  for (const id of ["kom-i-gang", "varsler", "kalender", "data"]) {
+  for (const id of ["kom-i-gang", "reservere", "varsler", "kalender", "data"]) {
     assert.match(html, new RegExp(`<section class="about-section" id="${id}"`), id);
     assert.match(html, new RegExp(`<a href="#${id}">`), `table of contents links to ${id}`);
   }
-  for (const q of ["Hvordan velger jeg leilighet?", "Hvordan legger jeg den på Hjem-skjermen?", "Når får jeg varsel?", "Hvordan skrur jeg av varsler?", "Oppdateres kalenderen hvis jeg avbestiller?", "Hva lagres ikke?", "Hva er gjenopprettingskoden?"])
+  for (const q of ["Hvordan velger jeg leilighet?", "Hvordan legger jeg den på Hjem-skjermen?", "Når får jeg varsel?", "Hvordan skrur jeg av varsler?", "Hvordan reserverer jeg en tid?", "Hvordan avbestiller jeg?", "Hva er ventelisten?", "Hva er «Send melding»?", "Oppdateres kalenderen hvis jeg avbestiller?", "Hva lagres ikke?", "Hva er gjenopprettingskoden?"])
     assert.match(html, new RegExp(`<summary>${q.replace(/\?/g, "\\?")}</summary>`), q);
   assert.match(html, /<a href="mailto:hjelp@vaskekjeller.no">hjelp@vaskekjeller.no<\/a>/);
   assert.doesNotMatch(html, /gmail/);

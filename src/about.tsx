@@ -6,6 +6,7 @@ export const CONTACT_EMAIL = "hjelp@vaskekjeller.no";
 
 const SECTIONS = [
   { id: "kom-i-gang", icon: "home", title: "Kom i gang" },
+  { id: "reservere", icon: "clock", title: "Reservere og avbestille" },
   { id: "varsler", icon: "bell", title: "Varsler" },
   { id: "kalender", icon: "calendar", title: "Kalender" },
   { id: "data", icon: "shield", title: "Data og personvern" },
@@ -72,8 +73,8 @@ export const AboutPage: FC = () => (
             «Leilighet» øverst på siden.
           </p>
           <p>
-            Du kan bare avbestille tider som er booket på din leilighet. Ingen sjekker hvem du er, så det bygger på tillit, som
-            lista på vaskeromsdøra. Har styret satt et beboerpassord, skriver du det inn én gang.
+            Du kan bare avbestille tider som er reservert for din leilighet. Ingen sjekker hvem du er, så det bygger på tillit, som
+            lista på vaskeromsdøra. Har styret satt en firesifret kode, skriver du den inn én gang per enhet.
           </p>
         </Q>
         <Q q="Hvordan legger jeg den på Hjem-skjermen?">
@@ -90,6 +91,33 @@ export const AboutPage: FC = () => (
           <p>
             Ikonet åpner vaskerommet ditt direkte. Lenken styret deler (den som slutter på /velkommen) viser deg stegene på
             din telefon, og hjelper deg å slå på varsler etterpå.
+          </p>
+        </Q>
+      </Section>
+
+      <Section id="reservere">
+        <Q q="Hvordan reserverer jeg en tid?">
+          <p>
+            Velg dag og trykk «Reserver» på en ledig tid. Vaskemaskin og tørketrommel følger med. Trenger du bare vask eller
+            tørk, velger du det over dagene. Tiden står da som «Din tid», og du finner den igjen under «Dine tider».
+          </p>
+        </Q>
+        <Q q="Hvordan avbestiller jeg?">
+          <p>
+            Trykk på tiden din, eller åpne den under «Dine tider», og velg «Avbestill». Tiden blir ledig med en gang, og
+            naboer på ventelisten får beskjed. Du kan også legge til en kommentar til naboene der.
+          </p>
+        </Q>
+        <Q q="Hva er ventelisten?">
+          <p>
+            Er en tid tatt, trykker du «Venteliste» og så «Si fra når den blir ledig». Blir tiden ledig, får du varsel. Den
+            reserverer ikke for deg: den første som trykker «Reserver» får tiden. Tidene du venter på står under «På venteliste».
+          </p>
+        </Q>
+        <Q q="Hva er «Send melding»?">
+          <p>
+            Under «Venteliste» kan du sende en kort melding til naboen som har tiden, for eksempel at du gjerne vil ha den.
+            Naboen får den som et varsel, og det går bare når vedkommende har varsler på. Meldingen lagres ikke.
           </p>
         </Q>
       </Section>
@@ -113,16 +141,20 @@ export const AboutPage: FC = () => (
               varselet det forrige.
             </li>
             <li>
+              <strong>Tiden din snart starter.</strong> Noen minutter før en tid du har reservert, får du en påminnelse.
+              Avbestiller du, kommer den ikke.
+            </li>
+            <li>
               <strong>Du får en melding.</strong> En nabo trykker «Send melding» på en av dine tider. Det går bare når du har
               varsler på, og det er høyst 3 meldinger per leilighet og 10 totalt per tid. Svar ved å endre kommentaren din: da får
               alle som venter beskjed, også den som sendte meldingen.
             </li>
           </ul>
-          <p>Når du slår på varsler, får du et testvarsel. Ellers kommer det ingen påminnelser eller reklame.</p>
+          <p>Når du slår på varsler, får du et testvarsel. Ellers kommer det ingen reklame.</p>
         </Q>
         <Q q="Hvordan slår jeg på varsler?">
           <p>
-            Sett deg på ventelisten for en opptatt tid. Da dukker «Slå på varsler» opp under «På venteliste». Tillat varsler når
+            Trykk på leiligheten din øverst og velg «Slå på varsler», eller bruk «Slå på» under «Dine tider». Tillat varsler når
             nettleseren spør. Varsler gjelder den ene enheten, så gjør det på hver telefon eller datamaskin du vil ha dem på.
           </p>
         </Q>
@@ -139,7 +171,7 @@ export const AboutPage: FC = () => (
               <strong>For én tid:</strong> trykk «Forlat venteliste».
             </li>
             <li>
-              <strong>Alle varsler på enheten:</strong> trykk «Skru av» under «På venteliste», eller slå av varsler for
+              <strong>Alle varsler på enheten:</strong> velg «Skru av varsler» i menyen under leiligheten din øverst, eller slå av varsler for
               Vaskekjeller i innstillingene på telefonen eller i nettleseren.
             </li>
           </ul>
@@ -150,7 +182,7 @@ export const AboutPage: FC = () => (
       <Section id="kalender">
         <Q q="Kan jeg se tidene mine i kalenderen?">
           <p>
-            Ja. Rett etter at du har booket, dukker «Legg i kalender» opp under tidene. Du finner den også på hver tid under
+            Ja. Rett etter at du har reservert, dukker «Legg i kalender» opp under tidene. Du finner den også på hver tid under
             «Dine tider». Da laster du ned én kalenderhendelse som du åpner i kalenderappen din, og den virker i Apple Kalender,
             Google Kalender og Outlook.
           </p>
@@ -166,19 +198,19 @@ export const AboutPage: FC = () => (
       <Section id="data">
         <Q q="Hva lagres?">
           <ul>
-            <li>Leilighetsnummeret på bookinger, ventelister og varsler.</li>
-            <li>Tidene som bookes, også avbestilte (til statistikk), og kommentarene på dem.</li>
+            <li>Leilighetsnummeret på reservasjoner, ventelister og varsler.</li>
+            <li>Tidene som reserveres, også avbestilte (til statistikk), og kommentarene på dem.</li>
             <li>For varsler: en adresse fra nettleserens varseltjeneste, én per enhet.</li>
             <li>Daglige totaler: sidevisninger, antall besøkende og antall varsler.</li>
             <li>
               Koder som byttes hver dag, for å telle besøkende og nye vaskerom per nettverk (aldri selve IP-adressen).
             </li>
             <li>
-              En aktivitetslogg over styrets endringer, med en grov enhetstype som «iPhone · Safari». Beboeres egne bookinger
+              En aktivitetslogg over styrets endringer, med en grov enhetstype som «iPhone · Safari». Beboeres egne reservasjoner
               logges ikke der.
             </li>
             <li>
-              Passord bare som hash. Beboerpassordet lagres også kryptert, så styret kan se og dele det. Gjenopprettingskoden
+              Passord bare som hash. Beboerkoden lagres også kryptert, så styret kan se og dele det. Gjenopprettingskoden
               lagres bare som hash.
             </li>
           </ul>
@@ -186,7 +218,7 @@ export const AboutPage: FC = () => (
           <ul>
             <li>Leiligheten din og hvilket vaskerom du brukte sist.</li>
             <li>Om du er logget inn.</li>
-            <li>Om du har booket før, så første gangs tips kan hoppes over.</li>
+            <li>Om du har reservert før, så første gangs tips kan hoppes over.</li>
             <li>
               Hvilke tips du har sett og om du har lukket spørsmålet om varsler (lagret i nettleseren, ikke som
               informasjonskapsel, og felles for alle vaskekjellere på denne enheten).
@@ -217,7 +249,7 @@ export const AboutPage: FC = () => (
             <li>Aktivitetsloggen: 12 måneder.</li>
             <li>Varseladresser: til du skrur av varsler, eller varseltjenesten sier at adressen er utløpt.</li>
             <li>
-              Bookinger, kommentarer og daglige totaler: så lenge vaskerommet finnes. Beboere ser 14 dager bakover; avbestilte
+              Reservasjoner, kommentarer og daglige totaler: så lenge vaskerommet finnes. Beboere ser 14 dager bakover; avbestilte
               tider vises ikke.
             </li>
           </ul>
