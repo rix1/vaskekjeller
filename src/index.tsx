@@ -332,7 +332,7 @@ t.get("/event.ics", async (c) => {
   const bookings = await ownedBookings(c, { booking_ids: c.req.query("booking_ids") ?? "" });
   const first = bookings[0];
   if (!first || bookings.some((b) => b.date !== first.date || b.start_min !== first.start_min || b.end_min !== first.end_min))
-    return c.text("Ukjent booking", 404);
+    return c.text("Ukjent tid", 404);
   const machines = await getMachines(c.env.DB, c.var.tenant.id, true);
   return c.body(buildEvent(c.var.tenant, bookings, machines, new URL(c.req.url).origin), 200, {
     "Content-Type": "text/calendar; charset=utf-8",

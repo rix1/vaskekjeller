@@ -2195,7 +2195,7 @@ span.apartment-chip:hover {
 .onboard-main {
   max-width: 600px;
   margin: 0 auto;
-  padding: 40px 0 48px;
+  padding: 24px 0 48px;
 }
 .onboard-main h1 {
   font-size: clamp(26px, 6vw, 34px);
@@ -2208,7 +2208,7 @@ span.apartment-chip:hover {
   list-style: none;
   counter-reset: step;
   padding: 0;
-  margin: 28px 0 20px;
+  margin: 18px 0 20px;
   display: grid;
   gap: 12px;
 }
@@ -2343,7 +2343,8 @@ span.apartment-chip:hover {
   padding: 0.55rem 1rem;
 }
 .skip-link {
-  text-align: center;
+  display: block;
+  text-align: right;
   font-size: 13px;
   color: var(--muted);
   padding: 10px;
@@ -2356,7 +2357,7 @@ span.apartment-chip:hover {
 }
 @media (max-width: 600px) {
   .onboard-main {
-    padding-top: 28px;
+    padding-top: 16px;
   }
   .onboard-steps > li {
     padding: 16px 16px 16px 54px;

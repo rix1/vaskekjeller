@@ -161,17 +161,13 @@ export async function returnSignupSlot(db: D1Database, day: string, network: str
 // Ready-made messages for the last signup step
 // ---------------------------------------------------------------------------
 
-/** For residents: the onboarding link (apartment, Home Screen, notifications) and the resident PIN when there is one. */
+/** For residents: the one-tap pitch with the onboarding link and the resident PIN when there is one. */
 export function residentMessage(name: string, bookingUrl: string, password: string | null): string {
   return [
     "Hei alle sammen!",
     "",
-    `Nå booker vi vaskekjelleren i ${name} på nett. Du reserverer vaskemaskin og tørketrommel med ett trykk, og ser hvem som har hvilke tider.`,
-    "",
-    `Kom i gang her: ${bookingUrl}/velkommen`,
+    `Book vaskekjelleren i ${name} i ett trykk: ${bookingUrl}/velkommen`,
     ...(password ? [`Kode: ${password}`] : []),
-    "",
-    "Lenken viser deg tre raske steg: velg leilighetsnummeret ditt, legg Vaskekjeller på Hjem-skjermen og slå på varsler. Da får du beskjed når en tid du venter på blir ledig.",
   ].join("\n");
 }
 

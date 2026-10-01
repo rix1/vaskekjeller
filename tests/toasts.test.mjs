@@ -123,7 +123,7 @@ test("booking redirects to a confirmation toast with a working Angre form", asyn
   const [cancelled] = toasts(await page(undo.headers.get("location")));
   assert.equal(cancelled[1], "toast success auto");
   assert.equal(cancelled[2], "status");
-  assert.match(cancelled[3], /Bookingen er avbestilt\./);
+  assert.match(cancelled[3], /Tiden er avbestilt\./);
 });
 
 test("errors render as toasts that stay until closed", async () => {

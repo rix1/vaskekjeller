@@ -37,9 +37,9 @@ const foldElapsed = (rows: { fold: boolean; node: Child }[]) => {
 export const FLASH: Record<string, string> = {
   booked: "Tiden er din. God vask!",
   apartment: "Leiligheten er lagret på denne enheten.",
-  cancelled: "Bookingen er avbestilt.",
+  cancelled: "Tiden er avbestilt.",
   taken: "Noen andre tok akkurat den tiden. Tidene under er oppdatert.",
-  limit: "Du har nådd maks antall aktive bookinger.",
+  limit: "Du har nådd maks antall aktive tider.",
   invalid: "Ugyldig forespørsel.",
   over: "Den tiden er allerede passert.",
   "no-apt": "Velg leiligheten din først.",
@@ -220,8 +220,7 @@ export const ApartmentPicker: FC<{
       )}
     </label>
     <button>
-      {p.current ? "Lagre" : "Fortsett"}
-      <span aria-hidden="true"> ↗</span>
+      {p.current ? "Lagre" : <>Fortsett<span aria-hidden="true"> →</span></>}
     </button>
   </form>
 );
@@ -314,7 +313,7 @@ const KIND_SHORT: Record<MachineKind, string> = { washer: "Vask", dryer: "Tørk"
 const KIND_DEFINITE: Record<MachineKind, string> = { washer: "vaskemaskinen", dryer: "tørketrommelen" };
 
 const MachineIcons: FC<{ machines: Machine[]; size?: number }> = ({ machines, size = 17 }) => (
-  <span class="machine-icons">
+  <span class="machine-icons" title={machines.map((m) => m.name).join(" + ")}>
     {machines.map((m) => (
       <Icon name={m.kind} size={size} />
     ))}
@@ -559,6 +558,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
       </div>
     );
   };
+  const countTitle = `${groups.size} ${groups.size === 1 ? "reservert tid" : "reserverte tider"}`;
   const weekIndex = p.weeks.findIndex((w) => w.includes(selected));
   const week = p.weeks[weekIndex] ?? [];
   // Opening a week selects today when it is in that week, else its first viewable day.
@@ -689,7 +689,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
         {groups.size > 0 && (
           <a class="mobile-mine-link" href="#mine" data-tour={tips ? "manage-bar" : undefined}>
             <Icon name="calendar" size={17} />
-            Dine tider <span>{groups.size}</span>
+            Dine tider <span title={countTitle}>{groups.size}</span>
             <Icon name="arrow" size={16} />
           </a>
         )}
@@ -707,7 +707,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
           <section class="schedule" aria-label="Reserver vasketid">
             <div class="schedule-toolbar">
               <h2>Finn en ledig tid</h2>
-              <span class="duration">
+              <span class="duration" title={`Hver tid varer ${duration}`}>
                 <Icon name="clock" size={15} />
                 {duration} per tid
               </span>
@@ -724,13 +724,14 @@ export const BoardPage: FC<BoardProps> = (p) => {
               <span class="month">{month}</span>
               <div class="calendar-actions">
                 {selected !== p.now.date && (
-                  <a href={url(p.now.date)} class="today-link">
+                  <a href={url(p.now.date)} class="today-link" title="Gå til i dag">
                     I dag
                   </a>
                 )}
                 <a
                   class={`icon-button ${prevWeek ? "" : "disabled"}`}
                   aria-label="Forrige uke"
+                  title="Forrige uke"
                   aria-disabled={prevWeek ? undefined : "true"}
                   href={prevWeek ? url(weekTarget(prevWeek)) : undefined}
                 >
@@ -739,6 +740,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 <a
                   class={`icon-button ${nextWeek ? "" : "disabled"}`}
                   aria-label="Neste uke"
+                  title="Neste uke"
                   aria-disabled={nextWeek ? undefined : "true"}
                   href={nextWeek ? url(weekTarget(nextWeek)) : undefined}
                 >
@@ -1089,7 +1091,9 @@ export const BoardPage: FC<BoardProps> = (p) => {
               <section class="my-bookings" id="mine">
                 <div class="aside-heading">
                   <h2>Dine tider</h2>
-                  <span class="count">{groups.size}</span>
+                  <span class="count" title={countTitle}>
+                    {groups.size}
+                  </span>
                 </div>
                 {[...groups.values()].map((bookings, index) => {
                   const b = bookings[0]!;
@@ -1270,7 +1274,7 @@ export const WelcomePage: FC<{
   return (
     <Layout title={`Kom i gang · ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
       <header class="top resident-top">
-        <a class="brand" href={board} aria-label="Vaskekjeller, til bookingsiden">
+        <a class="brand" href={board} aria-label="Vaskekjeller, til vaskerommet">
           <span class="brand-icon">
             <Icon size={25} />
           </span>
@@ -1280,10 +1284,14 @@ export const WelcomePage: FC<{
         </a>
       </header>
       <main class="onboard-main" id="onboarding" data-ready={ready ? "" : undefined}>
-        <p class="eyebrow">KOM I GANG</p>
+        {ready && (
+          <a class="skip-link" href={board} data-when="pending" hidden>
+            Hopp over, gå til vaskerommet →
+          </a>
+        )}
         <h1>Velkommen til vaskekjelleren</h1>
         <p class="intro-copy">
-          Her booker du vaskemaskin og tørketrommel i {p.tenant.name}. Noen raske steg, så får du beskjed når en tid blir ledig.
+          Her reserverer du vaskemaskin og tørketrommel i {p.tenant.name}. Noen raske steg, så er du klar.
         </p>
         <ol class="onboard-steps">
           <li class={ready ? "done" : "current"}>
@@ -1411,9 +1419,6 @@ export const WelcomePage: FC<{
           <div class="onboard-actions">
             <a class="button" href={board} data-when="done">
               Gå til vaskerommet <Icon name="arrow" size={17} />
-            </a>
-            <a class="skip-link" href={board} data-when="pending" hidden>
-              Hopp over, gå til vaskerommet
             </a>
           </div>
         )}
