@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { SLOT_LENGTHS } from "./admin-views.tsx";
 import { encryptText, hashPassword } from "./crypto.ts";
 import type { Tenant } from "./db.ts";
+import { residentPinError } from "./pin.ts";
 import { parseHHMM } from "./time.ts";
 
 export async function form(c: Context): Promise<Record<string, string>> {
@@ -35,15 +36,12 @@ export function adminPasswordErrors(f: Record<string, string>) {
   return errors;
 }
 
-export function residentPasswordError(pw: string) {
-  if (!pw) return "Skriv inn et passord.";
-  if (pw.length > 100) return "Passordet kan ha maks 100 tegn.";
-  return undefined;
-}
+/** The resident password is a 4-digit PIN (see pin.ts); buildings from before that keep their old free-text password until it is changed. */
+export const residentPasswordError = residentPinError;
 
 export const accessContext = (t: Tenant) => `tenant:${t.id}:access-password`;
 
-/** Sets the resident password, or turns it off with null. Returns the new hash (null when off).
+/** Sets the resident PIN (always a PIN from here on, so residents get the 4-box login), or turns it off with null. Returns the new hash (null when off).
  * It is verified against the hash (which resident cookies are bound to) and also stored
  * encrypted so admins can read it back. */
 export async function setResidentPassword(
@@ -56,7 +54,7 @@ export async function setResidentPassword(
   const hash = pw === null ? null : await hashPassword(pw);
   const encrypted = pw === null ? null : await encryptText(c.env.SESSION_SECRET, pw, accessContext(t));
   await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?").bind(hash, encrypted, t.id),
+    c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ?, access_pin = ? WHERE id = ?").bind(hash, encrypted, pw === null ? 0 : 1, t.id),
     ...also,
   ]);
   return hash;

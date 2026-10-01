@@ -12,6 +12,8 @@ export type Tenant = {
   access_password_hash: string | null;
   /** Encrypted copy of the resident password so admins can read it back; see crypto.ts encryptText. */
   access_password_enc: string | null;
+  /** 1: the resident password is a 4-digit PIN (4-box login); 0: a free-text password from before PINs. */
+  access_pin: number;
   admin_password_hash: string;
   /** When an admin closed the building (UTC); the booking page is offline and the data is deleted 7 days later. */
   closed_at: string | null;

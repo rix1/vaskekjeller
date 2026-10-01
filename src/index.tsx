@@ -37,6 +37,7 @@ import {
   type MessageKey,
   type Tenant,
 } from "./db.ts";
+import { cleanPin, returnLoginAttempt, takeLoginAttempt } from "./pin.ts";
 import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
 import { sendPush, type PushOutcome, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
 import {
@@ -188,6 +189,7 @@ t.get("/login", (c) =>
       action={`${base(c)}/login${fromWelcome(c) ? toWelcome : ""}`}
       heading={c.var.tenant.name}
       flash={c.req.query("m")}
+      pin={!!c.var.tenant.access_pin}
     />,
   ),
 );
@@ -196,8 +198,16 @@ t.post("/login", async (c) => {
   const { password } = await form(c);
   const hash = c.var.tenant.access_password_hash;
   const welcome = fromWelcome(c);
-  if (hash && !(await verifyPassword(password ?? "", hash)))
-    return c.redirect(`${base(c)}/login?${welcome ? "til=velkommen&" : ""}m=wrong-password`, 303);
+  const failTo = (m: string) => c.redirect(`${base(c)}/login?${welcome ? "til=velkommen&" : ""}m=${m}`, 303);
+  if (hash) {
+    // Every try counts before it is checked; a correct code gives its try back.
+    const ip = c.req.header("cf-connecting-ip") ?? "";
+    const id = c.var.tenant.id;
+    if (!(await takeLoginAttempt(c.env.DB, c.env.SESSION_SECRET, id, ip))) return failTo("too-many-attempts");
+    const typed = c.var.tenant.access_pin ? cleanPin(password) : (password ?? "");
+    if (!(await verifyPassword(typed, hash))) return failTo("wrong-password");
+    await returnLoginAttempt(c.env.DB, c.env.SESSION_SECRET, id, ip);
+  }
   await auth.grant(c, c.var.tenant, "access");
   return c.redirect(welcome ? `${base(c)}/velkommen` : base(c), 303);
 });
@@ -1374,7 +1384,7 @@ admin.post("/machines/:id/active", async (c) => {
 // Sets or changes the resident password (see setResidentPassword).
 admin.post("/access", async (c) => {
   const tenant = c.var.tenant;
-  const pw = ((await form(c)).access_password ?? "").trim();
+  const pw = cleanPin((await form(c)).access_password);
   const error = residentPasswordError(pw);
   if (error) return renderSettings(c, { errors: { access_password: error }, dialog: "beboerpassord" }, 422);
   const hash = await setResidentPassword(c, tenant, pw, [
@@ -1531,6 +1541,7 @@ async function scheduled(_: ScheduledController, env: Env) {
     ...expired.flatMap((t) => deleteTenant(env.DB, t.id)),
     ...unused,
     env.DB.prepare("DELETE FROM signup_counts WHERE day < ?").bind(yesterday),
+    env.DB.prepare("DELETE FROM login_attempts WHERE expires < ?").bind(Math.floor(Date.now() / 1000)),
   ]);
   // Both demo buildings start each day fresh, with bookings placed around the new "today".
   await seedDemos(env.DB);

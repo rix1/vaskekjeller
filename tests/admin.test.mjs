@@ -270,14 +270,14 @@ test("adding a machine appends it; errors reopen the dialog", async () => {
 });
 
 test("resident password: set, view, verify residents, change, and turn off", async () => {
-  const set = await post("admin/access", { access_password: " 1234-dør " }, admin);
+  const set = await post("admin/access", { access_password: " 1234 " }, admin);
   assert.equal(set.status, 303);
   assert.equal(location(set).searchParams.get("m"), "access-on");
   const stored = tenant();
   assert.match(stored.access_password_enc, /^v1\./);
   assert.doesNotMatch(stored.access_password_enc, /1234/);
   // The encrypted value round-trips and is bound to this tenant.
-  assert.equal(await crypto.decryptText(SECRET, stored.access_password_enc, "tenant:1:access-password"), "1234-dør");
+  assert.equal(await crypto.decryptText(SECRET, stored.access_password_enc, "tenant:1:access-password"), "1234");
   assert.equal(await crypto.decryptText(SECRET, stored.access_password_enc, "tenant:2:access-password"), null);
   assert.equal(await crypto.decryptText("another-secret", stored.access_password_enc, "tenant:1:access-password"), null);
   // The admin's own device stays signed in as a resident.
@@ -286,14 +286,14 @@ test("resident password: set, view, verify residents, change, and turn off", asy
   const settings = await get("admin/settings", admin);
   assert.equal(settings.headers.get("cache-control"), "no-store");
   const settingsPage = await settings.text();
-  assert.match(settingsPage, /<span class="secret-plain">1234-dør<\/span>/);
+  assert.match(settingsPage, /<span class="secret-plain">1234<\/span>/);
   // client/admin.ts copies the element the button names (tests/copy-buttons.test.mjs).
   assert.match(settingsPage, /<button type="button" class="text-button" data-copy=".secret-plain"/);
 
   // Residents are verified against the hash, and their cookie is bound to it.
   assert.equal(location(await get("")).pathname, "/bygg/login");
   assert.equal(location(await post("login", { password: "wrong" })).searchParams.get("m"), "wrong-password");
-  const resident = cookieFrom(await post("login", { password: "1234-dør" }), "vk_access");
+  const resident = cookieFrom(await post("login", { password: "1234" }), "vk_access");
   assert.equal((await get("", resident)).status, 200);
 
   const changed = await post("admin/access", { access_password: "5678" }, admin);
@@ -314,7 +314,7 @@ test("an empty resident password is rejected instead of removing the password", 
   const response = await post("admin/access", { access_password: "   " }, admin);
   assert.equal(response.status, 422);
   const page = await response.text();
-  assert.match(page, /Skriv inn et passord\./);
+  assert.match(page, /Skriv inn en kode på fire siffer\./);
   assert.match(page, /<dialog id="beboerpassord"[^>]* open=""/);
   assert.equal(tenant().access_password_hash, before.access_password_hash);
   assert.equal(tenant().access_password_enc, before.access_password_enc);
@@ -323,7 +323,7 @@ test("an empty resident password is rejected instead of removing the password", 
 test("a resident password set before this change asks for a new one to be viewable", async () => {
   sqlite.prepare("UPDATE tenants SET access_password_hash = ?").run(await crypto.hashPassword("legacy"));
   const page = await (await get("admin/settings", admin)).text();
-  assert.match(page, /Passordet kan ikke vises her\. <strong>Sett et nytt passord for å kunne vise det\./);
+  assert.match(page, /Koden kan ikke vises her\. <strong>Velg en ny kode for å kunne vise den\./);
   assert.doesNotMatch(page, /secret-plain/);
   // Legacy residents keep working until the password is changed.
   assert.equal((await get("", cookieFrom(await post("login", { password: "legacy" }), "vk_access"))).status, 200);
@@ -331,7 +331,7 @@ test("a resident password set before this change asks for a new one to be viewab
   // A stored password that no longer decrypts (SESSION_SECRET rotated) gets the same notice.
   sqlite.prepare("UPDATE tenants SET access_password_enc = ?").run("v1.AAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA");
   const unreadable = await (await get("admin/settings", admin)).text();
-  assert.match(unreadable, /Passordet kan ikke vises her\./);
+  assert.match(unreadable, /Koden kan ikke vises her\./);
   assert.doesNotMatch(unreadable, /secret-plain/);
 });
 

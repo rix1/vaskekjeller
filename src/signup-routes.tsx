@@ -4,6 +4,7 @@ import * as auth from "./auth.ts";
 import { decryptText, hashPassword } from "./crypto.ts";
 import { getMachines, getTenant, KIND_LABEL, type MachineKind, type Tenant } from "./db.ts";
 import { fmtMinute } from "./time.ts";
+import { cleanPin, PIN_PATTERN } from "./pin.ts";
 import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
 import { forgetRecoveryCode, issueRecoveryCode, pendingRecoveryCode } from "./recovery.ts";
 import {
@@ -245,20 +246,23 @@ async function setMachineCounts(c: Ctx, counts: Record<MachineKind, number>) {
   await db.batch(stmts);
 }
 
+/** The stored code for the field; an old free-text password is not a PIN, so the field starts empty. */
+const onlyPin = (pw: string | null) => (pw && PIN_PATTERN.test(pw) ? pw : "");
+
 async function residentPassword(c: Ctx, t: Tenant) {
   return t.access_password_enc ? decryptText(c.env.SESSION_SECRET, t.access_password_enc, accessContext(t)) : null;
 }
 
 onboarding.get("/beboere", async (c) => {
   const t = c.var.tenant;
-  return c.html(<OnboardResidents tenant={t} on={!!t.access_password_hash} password={(await residentPassword(c, t)) ?? ""} />);
+  return c.html(<OnboardResidents tenant={t} on={!!t.access_password_hash} password={onlyPin(await residentPassword(c, t))} />);
 });
 
 onboarding.post("/beboere", async (c) => {
   const t = c.var.tenant;
   const f = await form(c);
   if (f.passord === "ja") {
-    const pw = (f.access_password ?? "").trim();
+    const pw = cleanPin(f.access_password);
     const error = residentPasswordError(pw);
     if (error) return c.html(<OnboardResidents tenant={t} on password={pw} error={error} />, 422);
     if (pw !== (await residentPassword(c, t))) {

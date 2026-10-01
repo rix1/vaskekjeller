@@ -1,6 +1,7 @@
 import type { Child, FC } from "hono/jsx";
 import { KIND_LABEL, normalizeApartment, type Booking, type Machine, type Tenant } from "./db.ts";
 import { fromSqlTime, type AuditAction, type AuditEntry } from "./audit.ts";
+import { PinField, PinAssets } from "./pin.tsx";
 import { RECOVERY_WARNING } from "./recovery.ts";
 import { addDays, fmtDay, fmtMinute, localNow, slotsFor } from "./time.ts";
 import { FLASH, Icon, Layout, Toast, Toaster } from "./views.tsx";
@@ -22,9 +23,9 @@ const ADMIN_FLASH: Record<string, string> = {
   "machine-saved": "Maskinen er lagret.",
   "machine-on": "Maskinen kan bookes igjen.",
   "machine-off": "Maskinen er slått av. Eksisterende bookinger beholdes.",
-  "access-on": "Beboerpassord er slått på.",
-  "access-changed": "Beboerpassordet er endret. Beboere må logge inn på nytt.",
-  "access-off": "Beboerpassord er slått av. Alle med lenken kan se bookingsiden.",
+  "access-on": "Beboerkode er slått på.",
+  "access-changed": "Beboerkoden er endret. Beboere må logge inn på nytt.",
+  "access-off": "Beboerkode er slått av. Alle med lenken kan se bookingsiden.",
   "admin-password": "Adminpassordet er byttet.",
   "machine-failed": "Endringen ble ikke lagret. Prøv igjen.",
   closed: "Vaskekjelleren er stengt. Bookingsiden er offline.",
@@ -180,6 +181,7 @@ export const AdminPage: FC<{
         <>
           <link rel="stylesheet" href="/admin.css" />
           <script type="module" src="/admin.js" defer></script>
+          <PinAssets />
           {p.head}
         </>
       }
@@ -804,7 +806,7 @@ export const AdminSettings: FC<
                 <AdminIcon name="key" />
               </span>
               <div class="setting-text">
-                <h3 id="beboerpassord-label">Beboerpassord</h3>
+                <h3 id="beboerpassord-label">Beboerkode</h3>
                 <p>
                   {passwordOn
                     ? "På. Beboere skriver inn en felles kode én gang per enhet."
@@ -829,7 +831,7 @@ export const AdminSettings: FC<
                   <input type="checkbox" id="vis-beboerpassord" class="secret-toggle sr-only" />
                   <code class="secret-value">
                     <span class="secret-masked">
-                      <span aria-hidden="true">••••••••</span>
+                      <span aria-hidden="true">••••</span>
                       <span class="sr-only">Skjult</span>
                     </span>
                     <span class="secret-plain">{residentPassword}</span>
@@ -838,7 +840,7 @@ export const AdminSettings: FC<
                     <label for="vis-beboerpassord" class="text-button">
                       <span class="secret-show">Vis</span>
                       <span class="secret-hide">Skjul</span>
-                      <span class="sr-only"> beboerpassord</span>
+                      <span class="sr-only"> beboerkode</span>
                     </label>
                     <button type="button" class="text-button" data-copy=".secret-plain" hidden>
                       <AdminIcon name="copy" size={15} />
@@ -852,10 +854,10 @@ export const AdminSettings: FC<
               ) : (
                 <div class="secret notice">
                   <p>
-                    Passordet kan ikke vises her. <strong>Sett et nytt passord for å kunne vise det.</strong>
+                    Koden kan ikke vises her. <strong>Velg en ny kode for å kunne vise den.</strong>
                   </p>
                   <a href="#beboerpassord" data-dialog="beboerpassord" class="text-button">
-                    Sett nytt passord
+                    Velg ny kode
                   </a>
                 </div>
               ))}
@@ -954,41 +956,33 @@ export const AdminSettings: FC<
 
       <Sheet
         id="beboerpassord"
-        title={passwordOn ? "Endre beboerpassord" : "Slå på beboerpassord"}
+        title={passwordOn ? "Endre beboerkode" : "Slå på beboerkode"}
         closeTo={back("tilgang")}
         open={dialog === "beboerpassord"}
       >
         <form method="post" action={`${base}/access`} class="sheet-form">
-          <div class="field">
-            <label for="access_password">{passwordOn ? "Nytt beboerpassord" : "Beboerpassord"}</label>
-            <input
-              name="access_password"
-              type="text"
-              required
-              maxlength={100}
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck={false}
-              {...described("access_password", errors.access_password, true)}
-            />
-            <p class="field-hint" id="access_password-hint">
-              {passwordOn
-                ? "Alle beboere må skrive inn det nye passordet neste gang de åpner bookingsiden. Kalenderlenkene deres slutter å virke."
-                : "En felles kode, som en dørkode. Du kan alltid se den igjen her. Kalenderlenker som alt er delt, slutter å virke."}
-            </p>
-            <FieldError id="access_password" error={errors.access_password} />
-          </div>
+          <PinField
+            name="access_password"
+            label={passwordOn ? "Ny beboerkode" : "Beboerkode"}
+            error={errors.access_password}
+            hint={
+              passwordOn
+                ? "Fire siffer. Alle beboere må skrive inn den nye koden neste gang de åpner bookingsiden. Kalenderlenkene deres slutter å virke."
+                : "Fire siffer, som en dørkode. Velg selv eller lag en. Du kan alltid se den igjen her. Kalenderlenker som alt er delt, slutter å virke."
+            }
+            generate
+          />
           <div class="sheet-actions">
             <a href={back("tilgang")} class="button ghost" data-dialog-close>
               Avbryt
             </a>
-            <button>{passwordOn ? "Lagre passord" : "Slå på"}</button>
+            <button>{passwordOn ? "Lagre kode" : "Slå på"}</button>
           </div>
         </form>
       </Sheet>
 
       {passwordOn && (
-        <Sheet id="slaa-av-beboerpassord" title="Slå av beboerpassord?" closeTo={back("tilgang")}>
+        <Sheet id="slaa-av-beboerpassord" title="Slå av beboerkode?" closeTo={back("tilgang")}>
           <p class="sheet-copy">Alle med lenken kan da se bookingsiden og reservere tider. Beboernes kalenderlenker slutter å virke.</p>
           <form method="post" action={`${base}/access/off`} class="sheet-actions">
             <a href={back("tilgang")} class="button ghost" data-dialog-close>

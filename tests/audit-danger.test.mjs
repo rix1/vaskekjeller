@@ -190,8 +190,8 @@ test("machines: added, renamed, retyped, moved, switched off and on each log one
 });
 
 test("resident password on, changed and off, and the admin password change, each log one entry", async () => {
-  await post("admin/access", { access_password: "dør1234" }, admin);
-  await post("admin/access", { access_password: "dør5678" }, admin);
+  await post("admin/access", { access_password: "1234" }, admin);
+  await post("admin/access", { access_password: "5678" }, admin);
   await post("admin/access/off", {}, admin);
   await post("admin/access/off", {}, admin); // already off
   const response = await post("admin/admin-password", { admin_password: "nytt passord", admin_password_confirm: "nytt passord" }, admin);
@@ -203,7 +203,7 @@ test("resident password on, changed and off, and the admin password change, each
     { action: "admin-password", detail: "Byttet adminpassordet", device: "iPhone · Safari" },
   ]);
   const text = JSON.stringify(sqlite.prepare("SELECT * FROM audit_log").all());
-  assert.doesNotMatch(text, /dør1234|dør5678|nytt passord/, "passwords are never logged");
+  assert.doesNotMatch(text, /1234|5678|nytt passord/, "passwords are never logged");
 });
 
 test("an admin cancelling a booking logs who and when; residents' own bookings are not logged", async () => {
@@ -226,7 +226,7 @@ test("an admin cancelling a booking logs who and when; residents' own bookings a
 });
 
 test("the settings page lists the activity newest first with the device, in its own section", async () => {
-  await post("admin/access", { access_password: "dør1234" }, admin);
+  await post("admin/access", { access_password: "1234" }, admin);
   await post("admin/settings", { section: "generelt", name: "Nytt navn" }, admin);
   const page = await (await get("admin/settings", admin)).text();
   assert.match(page, /<a href="#aktivitet">Aktivitet<\/a>/);
@@ -247,7 +247,7 @@ test("the activity section shows every retained entry in one list, with no pagin
 
 test("only a coarse device label is stored: no IP address and no raw User-Agent", async () => {
   await post("admin/settings", { section: "generelt", name: "Nytt navn" }, admin);
-  await post("admin/access", { access_password: "dør1234" }, admin);
+  await post("admin/access", { access_password: "1234" }, admin);
   const columns = sqlite.prepare("PRAGMA table_info(audit_log)").all().map((c) => c.name);
   assert.deepEqual(columns, ["id", "tenant_id", "created_at", "action", "detail", "device"]);
   const rows = sqlite.prepare("SELECT * FROM audit_log").all();

@@ -84,7 +84,10 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Passwords**: the resident password is a shared door code. It is verified against a PBKDF2 hash (which
   resident cookies are bound to) and also stored AES-GCM encrypted with a key derived from `SESSION_SECRET`,
   so admins can view and copy it. Rotating `SESSION_SECRET` makes it unreadable until an admin sets a new one.
-  The admin password is only ever hashed.
+  The admin password is only ever hashed. The resident password is a 4-digit PIN (four-box input in signup, settings
+  and login, with a Generate button); buildings from before PINs keep their free-text password until an admin sets a
+  PIN (`tenants.access_pin`). Resident login is rate limited in D1 (`login_attempts`): 5 tries per 15 minutes per
+  building and network, 40 per hour per building, counted with salted hashes (`src/pin.ts`).
 - **Stats** are privacy friendly: only daily totals are stored. Unique visitors are counted with a salted hash that
   rotates every day and is deleted by a daily cron.
 - **Multi-tenant**: every table has `tenant_id`; each building lives under `/<slug>`.
