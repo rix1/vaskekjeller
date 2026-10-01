@@ -1,7 +1,6 @@
 import type { Child, FC } from "hono/jsx";
 import { bookingOptions } from "./booking-options.ts";
 import {
-  KIND_LABEL,
   LATE_MESSAGE,
   LATE_MESSAGE_MIN,
   MAX_MESSAGES,
@@ -17,6 +16,22 @@ import {
 import { NOTE_PRESETS, PLAYGROUND_SLUG } from "./demo.ts";
 import { SeoMeta, type PublicPage } from "./seo.tsx";
 import { addDays, fmtDay, fmtMinute, slotIsOver, type LocalNow, type Slot } from "./time.ts";
+
+/** Folds elapsed rows (today only) into one "N tidligere tider" line. */
+const foldElapsed = (rows: { fold: boolean; node: Child }[]) => {
+  const folded = rows.filter((r) => r.fold);
+  return (
+    <>
+      {folded.length > 0 && (
+        <details class="elapsed-fold">
+          <summary>{folded.length === 1 ? "1 tidligere tid" : `${folded.length} tidligere tider`}</summary>
+          {folded.map((r) => r.node)}
+        </details>
+      )}
+      {rows.filter((r) => !r.fold).map((r) => r.node)}
+    </>
+  );
+};
 
 export const FLASH: Record<string, string> = {
   booked: "Tiden er din. God vask!",
@@ -442,6 +457,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
   const nextWeek = p.weeks[weekIndex + 1];
   const duration =
     p.tenant.slot_min % 60 === 0 ? `${p.tenant.slot_min / 60} ${p.tenant.slot_min === 60 ? "time" : "timer"}` : `${p.tenant.slot_min} min`;
+  const lastOver = p.slots.filter((s) => slotIsOver(selected, s.end, p.now)).at(-1);
   const month = new Intl.DateTimeFormat("nb-NO", {
     month: "long",
     year: "numeric",
@@ -505,7 +521,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
         )}
       </header>
       <main class="resident-main">
-        <div class="page-intro">
+        <div class="page-intro board-intro">
           <div>
             <p class="eyebrow">PLASS TIL HVERDAGEN</p>
             <h1>Når vil du vaske?</h1>
@@ -557,9 +573,11 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <div class="calendar-toolbar">
               <span class="month">{month}</span>
               <div class="calendar-actions">
-                <a href={url(p.now.date)} class="today-link">
-                  I dag
-                </a>
+                {selected !== p.now.date && (
+                  <a href={url(p.now.date)} class="today-link">
+                    I dag
+                  </a>
+                )}
                 <a
                   class={`icon-button ${prevWeek ? "" : "disabled"}`}
                   aria-label="Forrige uke"
@@ -614,13 +632,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 {dayLabel(selected) === "I dag" || dayLabel(selected) === "I morgen" ? `${dayLabel(selected)}, ` : ""}
                 {fmtDay(selected).toLowerCase()}
               </h3>
-              {past ? (
-                <span>Hvem brukte maskinene</span>
-              ) : (
-                <span>
-                  <span class="legend-dot" /> Ledig
-                </span>
-              )}
+              {past && <span>Hvem brukte maskinene</span>}
             </div>
             <div class="slots" id={`d-${selected}`}>
               {!option && !past && (
@@ -676,7 +688,8 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 })}
               {option &&
                 !past &&
-                p.slots.map((s) => {
+                foldElapsed(
+                  p.slots.map((s) => {
                   const over = slotIsOver(selected, s.end, p.now);
                   const ongoing = selected === p.now.date && s.start < p.now.minute && !over;
                   const occupied = conflicts(selected, s);
@@ -691,7 +704,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                   const late = over && !!p.apartment && !readOnly && other.length > 0 && !slotIsOver(selected, s.end + LATE_MESSAGE_MIN, p.now);
                   const time = `${fmtDay(selected)} ${fmtMinute(s.start)}–${fmtMinute(s.end)}`;
                   const label = `${option.label}, ${time}`;
-                  return (
+                  return { fold: over && !(late && s === lastOver), node: (
                     <article
                       class={`time-slot ${over ? "elapsed" : free ? "available" : ownAll ? "reserved" : partial ? "partial" : "occupied"}`}
                     >
@@ -701,7 +714,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                           <span class="time-dash">–</span>
                           {fmtMinute(s.end)}
                         </strong>
-                        <span>{ongoing ? `Pågår · til ${fmtMinute(s.end)}` : duration}</span>
+                        {(ongoing || !free) && <span>{ongoing ? `Pågår · til ${fmtMinute(s.end)}` : duration}</span>}
                       </div>
                       <div class="slot-status">
                         <strong>
@@ -738,13 +751,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
                             })}
                           </small>
                         ) : (
-                          <small>
-                            {over
-                              ? ""
-                              : free
-                                ? option.machines.map((m) => KIND_LABEL[m.kind]).join(" + ")
-                                : [...new Set(occupied.map(holder))].join(" · ")}
-                          </small>
+                          !free && <small>{over ? "" : [...new Set(occupied.map(holder))].join(" · ")}</small>
                         )}
                       </div>
                       <div class="slot-action">
@@ -882,8 +889,9 @@ export const BoardPage: FC<BoardProps> = (p) => {
                         {over && !late && <span class="muted">—</span>}
                       </div>
                     </article>
-                  );
-                })}
+                  ) };
+                  }),
+                )}
             </div>
             {!past && !p.hideHint && !readOnly && (
               <div class="schedule-note">
@@ -1063,19 +1071,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
                 <p class="muted">Ventelisten reserverer ikke automatisk. Først til mølla når tiden blir ledig.</p>
               </section>
             )}
-            <section class="good-neighbor">
-              <span class="neighbor-symbol" aria-hidden="true">
-                ✳
-              </span>
-              <h3>Litt omtanke. God flyt.</h3>
-              <p>Ferdig før tiden? Legg til en kommentar. Endrede planer? Frigi tiden til en nabo.</p>
-              <div class="room-hours">
-                <Icon name="clock" size={16} />
-                <span>
-                  {fmtMinute(p.tenant.day_start_min)}–{fmtMinute(p.tenant.day_end_min)} hver dag
-                </span>
-              </div>
-            </section>
           </aside>
         </div>
       </main>

@@ -596,8 +596,7 @@ a.add-to-calendar.small-button {
   color: var(--muted);
   margin-top: 3px;
 }
-.status-dot,
-.legend-dot {
+.status-dot {
   display: inline-block;
   flex-shrink: 0;
   width: 6px;
@@ -1159,40 +1158,6 @@ button.small-button {
   padding-top: 15px;
   margin-bottom: 0;
 }
-.good-neighbor {
-  background: #eeeede;
-  border: 1px solid #e5e5d3;
-  border-radius: 13px;
-  padding: 22px;
-}
-.neighbor-symbol {
-  display: block;
-  color: #899170;
-  font-size: 33px;
-  line-height: 1;
-  margin-bottom: 20px;
-}
-.good-neighbor h3 {
-  font-size: 15px;
-  font-weight: 550;
-  margin: 0 0 10px;
-  letter-spacing: -0.3px;
-}
-.good-neighbor p {
-  font-size: 12px;
-  line-height: 1.8;
-  color: #7d826e;
-  margin: 0 0 20px;
-}
-.room-hours {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  color: #777d68;
-  font-size: 11px;
-  border-top: 1px solid #dddfca;
-  padding-top: 15px;
-}
 .waitlist-section {
   background: #fff;
   border: 1px solid var(--line);
@@ -1510,16 +1475,6 @@ footer.resident-foot {
   .empty-bookings {
     padding: 22px 0 8px;
   }
-  .good-neighbor {
-    padding: 20px;
-  }
-  .neighbor-symbol {
-    float: left;
-    margin: 3px 17px 8px 0;
-  }
-  .good-neighbor p {
-    margin-bottom: 14px;
-  }
   .welcome {
     flex-direction: column;
     gap: 16px;
@@ -1649,8 +1604,6 @@ header.resident-top {
 .slot-status small,
 .slot-time > span,
 .empty-bookings p,
-.good-neighbor p,
-.room-hours,
 .schedule-note {
   color: #68735f;
 }
@@ -1675,8 +1628,6 @@ header.resident-top {
 .eyebrow,
 .welcome p,
 .machine-options a,
-.good-neighbor p,
-.room-hours,
 footer.resident-foot,
 .date-item small,
 .reservation-actions summary,
@@ -2409,5 +2360,36 @@ button.nudge-close {
   select,
   textarea {
     font-size: max(16px, 1em) !important;
+  }
+}
+/* First screen: fold elapsed rows into one line; phones drop the hero text. */
+.elapsed-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 11px;
+  font-size: 12px;
+  color: #606d58;
+  cursor: pointer;
+  list-style: none;
+  border-bottom: 1px solid var(--line, #ecefe8);
+}
+.elapsed-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.elapsed-fold > summary::after {
+  content: "⌄";
+}
+.elapsed-fold[open] > summary::after {
+  content: "⌃";
+}
+@media (max-width: 740px) {
+  .board-intro .eyebrow,
+  .board-intro .intro-copy {
+    display: none;
+  }
+  .board-intro {
+    padding: 18px 0 14px;
   }
 }
