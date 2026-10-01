@@ -559,9 +559,6 @@ export const BoardPage: FC<BoardProps> = (p) => {
               <h2>Finn en ledig tid</h2>
               <span class="duration">
                 <Icon name="clock" size={15} />
-                <span class="duration-hours">
-                  Åpent {fmtMinute(p.tenant.day_start_min)}–{fmtMinute(p.tenant.day_end_min)} ·{" "}
-                </span>
                 {duration} per tid
               </span>
             </div>

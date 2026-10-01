@@ -127,7 +127,6 @@ test("single-machine mode does not repeat the machine name on rows", async () =>
 test("the Ledig legend and the tips card are gone", async () => {
   const html = await page(`date=${tomorrow}&mode=pair-1-2`);
   assert.doesNotMatch(html, /legend-dot|good-neighbor|Litt omtanke/);
-  assert.match(html, /Åpent \d\d:\d\d–\d\d:\d\d/);
 });
 
 test("I dag is only offered when not viewing today", async () => {

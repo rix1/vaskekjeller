@@ -2433,9 +2433,6 @@ button.nudge-close {
 .elapsed-fold[open] > summary::after {
   content: "⌃";
 }
-.duration-hours {
-  display: none;
-}
 @media (max-width: 740px) {
   .eyebrow,
   .intro-copy {
@@ -2443,8 +2440,5 @@ button.nudge-close {
   }
   .page-intro {
     padding: 18px 0 14px;
-  }
-  .duration-hours {
-    display: inline;
   }
 }
