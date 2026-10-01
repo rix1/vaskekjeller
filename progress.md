@@ -1,45 +1,26 @@
 ## UX
 
-- [x] add icons to "kun vask" and "kun tørk" as well. (2026-09-23, #14: machine options show an icon per machine kind, both for the pair.)
-- [x] Right now, it's not possible to see what machines are booked from the default (vask+tørk). Let's update the row so it clearly indicates what machines will be used during an occupied slot (right now people won't think to change it because it looks occupied.) (2026-09-23, #14: paired rows read Ledig / Delvis ledig / Reservert with per-machine holders and a one-tap confirm for the free machine.)
-- [x] make the "endre leilighet" appear in a popup, similar to the "se detailjer" (2026-09-23: header chip opens a details/summary popover with the picker; first visit keeps the inline welcome.)
-- [x] Add a sonner like toast instead of the banners for system status after saving/doing changes. Should be used on the tenant booking page (for all actions where it makes sense) as well as on the admin page. (2026-09-23, #17: server-rendered toasts on booking and admin pages, Angre on the booking confirmation.)
-- [x] Should also be more clear to users if people are on waiting list for the spot you currently hold, and that they will be notified if you add/change the comment. (2026-09-23: card under Dine tider shows the waiter count; saving a new/changed comment pushes to waiters, tag per reservation.)
-- [x] The "Ett trykk reserverer tiden. Du kan avbestille under Dine tider." doesn't provide much value. Can you remove it after the first click? (2026-09-23, #14: hidden after a device's first booking, `vk_booked` cookie.)
-- [x] make it possible to see last 14 days as well (should default to this week). (2026-09-23: date strip uses Mon–Sun calendar weeks from today-14 to the horizon; past days are read-only and show who used each machine plus comments.)
-- [x] make "fullt" on day-level more present/visible (2026-09-23, #14: full days get a stronger style; "Delvis" when only single machines are left.)
-- [x] tone the obnoxious focus ring a bit down: mute/change the color. (2026-09-23, #14: muted 2px green ring.)
+- [ ] Replace resident password with 4-digit PIN (xxxx) instead of the free-text resident password. show a 4-box input both in the wizard and on login. Password should be customizable in the wizard but I also want a "Generate"-button. Security-wise I think this is good enough, as long as we have a rate limit on the endpoint.
+- [ ] I got some feedback from a alpha-tester and we should change the calendar subscription: after booking, it felt more natural for them to have a "add to calendar" button on the booking event (below the booking-selector). In addition, they didn't like the "show other" feature, so I'm thinking maybe we should change this model from a subscription to a single event thing where you add individual events if you want and no subscription to other events.
+  - [ ] Related to this: after booking the confirmation toast stays on for a tad too long (or it's not indicative that it will auto-hide) and the "Angre"-button gets too much attention (I want to click it, but 90% of the cases I shouldn't).
+- [ ] The toasts are not stacking in a natural way... Instead of hand-rolling this - let's just use Sonner; which have all the niceties (stacking, timing) I expect built-in.
+- [ ] "Dine tider" section: We are not using the icons for washer and dryer.
 
 ## Features
 
-- [x] Add a Google calendar subscription feature, similar to how I did it for ~/Development/family-cal - so you can check bookings straight from your calendar. Event should contain useful info and a link to the tenant page. (2026-09-24: shipped as an Apple Calendar-only feed per apartment in the header-chip popover; Google refreshes too slowly. See README "Calendar".)
-- [] Add the option for people to set name/contact details (phone number) along with their apartment and add a directory where admins can see this and a way for users to reach out to people with existing bookings to ask questions. Adding this info is optional per resident. (2026-09-23, #18: residents can reach a booking holder with a one-way push message; names, contact details and the directory are not built.)
-
-## UI
-
-- [x] The row background colors is off: for inactive/passert Subsequent bookings look weird together (no space but also border radius separating them). (2026-09-23, #14: tinted rows are separate rounded rows with a gap.)
-- [x] there's no margin-x on the booking rows, so when a backgorund color is present (e.g. for inacive) the left and right most text looks crammed into the sides. (2026-09-23, #14: rows share side padding.)
-
-## Admin
-
-- [x] Improve the UX on the admin/settings page. (2026-09-23, #19: sections with a table of contents, dialogs/drawers, inline machine edits, readable resident password. 2026-09-25, #23: activity log and a close-and-delete danger zone.)
+- [ ] Push reminder 5–10 minutes before your own booking starts.
 
 ## Onboarding
 
-- [x] Create a minimal landing page that explains what this is with a nice screenshot (full of bookings) (2026-09-25, #25: live phone-framed preview of the read-only `/visning` showcase, plus the `/demo` playground; both reset nightly.)
-- [x] Create an signup and onboarding flow for new tenants. Should end with "share with tenants" with some prepared "marketing" material/copy that admins can send out to tenants + other admins (shared account): "copy this message and share it to your tenants to get them started". Slug should be auto-generated from name (and checked for conflicts) but also possible to override/customize. (2026-09-25, #24: eight-step signup at `/ny` with Turnstile, recovery codes and a share step with ready-made messages.)
-- [x] Add about page explaining what this is, with FAQ on how data is stored etc. focus on: installing/getting started and how notifications work: when are you notified, how, etc. (2026-09-25: `/om`, linked from the landing and every building's footer; contact hjelp@vaskekjeller.no.)
+- [ ] We currently show disabled boxes in the resident onboarding depending on device. this is confusing for new users. hide the disabled boxes if it doesn't apply to the device.
+- [ ] right now we show a notification banner on the home page for new users that doens't have this enabled. this is not enough: we should have a small onboarding tutoarial that explain booking, different machines, cancellation, waiting list, notifications and calendar events. I don't want this as a big modal when they land on the page - let's sequence it out so that the user doesn't feel overwhelmed.
 
-## Devops
-
-- [] Push repo to Github and update the project list in ~/Development/rix1.dev/ (see project skill). (2026-09-23: repo is public at https://github.com/rix1/vaskekjeller; rix1.dev project list not yet updated.)
-- [x] Connect the repo to Workers Builds in the Cloudflare dashboard (2026-09-27: confirmed working; push to main deploys).
-- [] Create the Lofotgata building (captain; checklist in docs/deploy.md).
-- [x] Find suitable domain name candidates, e.g. vask.now. (2026-09-25, #22: served only at www.vaskekjeller.no; the bare domain redirects.)
-- [x] Ensure D1 is set up to store data in EU. (2026-09-23: created `vaskekjeller` D1 with `--jurisdiction eu`, pinned `database_id` in wrangler.jsonc; 2026-09-27: confirmed live in EU.)
 
 ## Log
 
+- 2026-09-29: iOS focus zoom: fields were 11–15px (inherit 0.9rem from `label`, plus per-form 12/14px), so iOS zoomed in on focus and stayed zoomed. One `@media (pointer: coarse)` rule at the end of public/style.css forces fields to at least 16px on touch screens (replaces the one-off `.message-form` fix); desktop sizes unchanged. Checked with touch emulation, not yet on a real iPhone.
+- 2026-09-29: Local dev on a second machine: reverted a hardcoded Tailscale IP in `isLocalDev`; use the Turnstile test keys in `.dev.vars` instead (docs/deploy.md), which exercises the real widget + Siteverify path from any device.
+- 2026-09-27: Resident onboarding at `/<slug>/velkommen` (branch `feat/resident-onboarding`): apartment → Home Screen guide per device → notifications; share message links there; per-building manifest with PNG icons so the Home Screen icon opens the building; board card nudges until push is on (dismissible). Push code in client/app.ts now shared by banner, card and guide (delegated `data-push-action` clicks). Checked in headless Chrome with iPhone/Android/desktop user agents; not yet on a real iPhone (install, first launch from the icon, permission prompt). Open question: whether iOS carries Safari cookies (apartment, resident login) into the Home Screen app; if not, the icon opens the login/apartment picker once.
 - 2026-09-27: Turnstile switched to Managed mode (Invisible would require citing Cloudflare's Turnstile Privacy Addendum on /om). Site key `0x4AAAAAAFFi0W20tv3SHwiV` in wrangler.jsonc; copy/docs updated for a visible widget (dev test key now 1x…AA). Signup opens once `TURNSTILE_SECRET_KEY` is set with `wrangler secret put` and this is deployed; then do a real signup on www to validate end-to-end.
 - 2026-09-27: Closed-signup page (`SignupClosed`, shown when Turnstile keys are missing) now links hjelp@vaskekjeller.no via `CONTACT_EMAIL` instead of "den som drifter siden". Confirmed the contact address is used everywhere (/om, VAPID_SUBJECT).
 - 2026-09-27: Booking holders get a "Noen venter på tiden din" push when a household joins their slot's waitlist via Venteliste (not via messages); `/wait` redirects without waiting for it. Admin push test page at `/<slug>/admin/debug` runs both flows against the `TEST (varsler)` household; cleanup deletes the test household's rows and the admin's test booking, cancelling it first if it hasn't ended so real waiters are told (README "Push test").

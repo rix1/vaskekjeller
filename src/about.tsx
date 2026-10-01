@@ -87,7 +87,10 @@ export const AboutPage: FC = () => (
               startskjermen.
             </li>
           </ul>
-          <p>Ikonet åpner forsiden, med snarvei til vaskerommet du brukte sist.</p>
+          <p>
+            Ikonet åpner vaskerommet ditt direkte. Lenken styret deler (den som slutter på /velkommen) viser deg stegene på
+            din telefon, og hjelper deg å slå på varsler etterpå.
+          </p>
         </Q>
       </Section>
 
@@ -192,6 +195,7 @@ export const AboutPage: FC = () => (
             <li>Leiligheten din og hvilket vaskerom du brukte sist.</li>
             <li>Om du er logget inn.</li>
             <li>Om du har booket før, så tipset om første booking kan skjules.</li>
+            <li>Om du har lukket kortet om varsler (lagret i nettleseren, ikke som informasjonskapsel).</li>
             <li>
               For styret: en ny gjenopprettingskode, kryptert, i opptil en time og bare på adminsidene, så den kan vises til
               den er lagret.

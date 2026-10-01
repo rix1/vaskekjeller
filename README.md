@@ -26,6 +26,14 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   the waitlist. At most 3 messages per apartment and 10 in total per booking; only those counts are stored, never
   the text.
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
+- **Resident onboarding** (`/<slug>/velkommen`, the link in the admins' share message): apartment, then a
+  Home Screen guide for the device (iPhone Safari, in-app browsers such as Messenger, Android with Chrome's own
+  install prompt; skipped on desktop and when opened from the icon), then "Slå på varsler". The password and
+  apartment steps come back to it via `?til=velkommen`. Each building has its own manifest
+  (`/<slug>/manifest.webmanifest`, `start_url` = the board, open past the password gate), so the icon opens
+  that building; `public/apple-touch-icon.png` is the iPhone icon. On the board, a card (`#home-nudge`) offers
+  the guide on iPhone outside the Home Screen app, or "Slå på varsler" elsewhere, until notifications are on or
+  it is dismissed (`localStorage`, `vk-nudge-dismissed`). The device checks are in `setupPush` in `client/app.ts`.
 - **Calendar**: the apartment popover on the header chip has a secret feed link for Apple Calendar
   (`/<slug>/cal/<token>.ics`, subscribed via `webcal://`). It lists the apartment's own bookings (busy) and,
   with "Inkluder andres bookinger", everyone else's as free "Opptatt" events. The setting is saved on the link,
@@ -223,7 +231,7 @@ closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, l
 showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),
 the about page, its footer links and the reserved `om` address (`tests/about.test.mjs`),
 indexable versus noindex pages, link-preview tags, JSON-LD, robots.txt and the sitemap (`tests/seo.test.mjs`),
-signup, onboarding, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`),
+signup, onboarding, resident onboarding and per-building manifests, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`),
 the holder's "someone is waiting" push and the admin push test page (`tests/debug-push.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it

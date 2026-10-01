@@ -52,7 +52,7 @@ import { PUBLIC_PATHS, robotsTxt, sitemapXml } from "./seo.tsx";
 import { onboarding, signup } from "./signup-routes.tsx";
 import { RecoveryResetPage } from "./signup-views.tsx";
 import { addDays, calendarWeeks, fmtDay, fmtMinute, isValidDate, localNow, slotIsOver, slotsFor } from "./time.ts";
-import { BoardPage, ClosedPage, DeletedPage, PasswordPage } from "./views.tsx";
+import { BoardPage, ClosedPage, DeletedPage, PasswordPage, WelcomePage } from "./views.tsx";
 
 type App = { Bindings: Env; Variables: { tenant: Tenant } };
 type Ctx = Context<App>;
@@ -128,15 +128,19 @@ t.use(async (c, next) => {
   if (tenant.closed_at && !sub.startsWith("/admin")) return c.html(<ClosedPage tenant={tenant} />, 410);
   // Calendar feeds are keyed by their secret token, so calendar apps need no password.
   const feed = (c.req.method === "GET" || c.req.method === "HEAD") && /^\/cal\/[^/]+$/.test(sub);
-  const open = sub.startsWith("/admin") || sub === "/login" || feed;
+  const open = sub.startsWith("/admin") || sub === "/login" || sub === "/manifest.webmanifest" || feed;
   if (!open && tenant.access_password_hash && !(await auth.has(c, tenant, "access"))) {
-    if (c.req.method === "GET") return c.redirect(`/${tenant.slug}/login`);
+    // The onboarding link survives the password step, so a new resident lands back in the guide.
+    if (c.req.method === "GET") return c.redirect(`/${tenant.slug}/login${sub === "/velkommen" ? toWelcome : ""}`);
     return c.text("Unauthorized", 401);
   }
   await next();
 });
 
 const base = (c: Ctx) => `/${c.var.tenant.slug}`;
+// Login and the apartment picker return to the onboarding guide instead of the board when this is on the URL.
+const toWelcome = "?til=velkommen";
+const fromWelcome = (c: Ctx) => c.req.query("til") === "velkommen";
 const back = (c: Ctx, flash: string, anchor = "", extra: Record<string, string> = {}) => {
   const params = new URLSearchParams({ ...extra, m: flash });
   const date = c.req.query("date") || anchor.replace(/^d-/, "");
@@ -180,15 +184,24 @@ function rememberApartment(c: Ctx, apt: string) {
 }
 
 t.get("/login", (c) =>
-  c.html(<PasswordPage tenant={c.var.tenant} action={`${base(c)}/login`} heading={c.var.tenant.name} flash={c.req.query("m")} />),
+  c.html(
+    <PasswordPage
+      tenant={c.var.tenant}
+      action={`${base(c)}/login${fromWelcome(c) ? toWelcome : ""}`}
+      heading={c.var.tenant.name}
+      flash={c.req.query("m")}
+    />,
+  ),
 );
 
 t.post("/login", async (c) => {
   const { password } = await form(c);
   const hash = c.var.tenant.access_password_hash;
-  if (hash && !(await verifyPassword(password ?? "", hash))) return c.redirect(`${base(c)}/login?m=wrong-password`, 303);
+  const welcome = fromWelcome(c);
+  if (hash && !(await verifyPassword(password ?? "", hash)))
+    return c.redirect(`${base(c)}/login?${welcome ? "til=velkommen&" : ""}m=wrong-password`, 303);
   await auth.grant(c, c.var.tenant, "access");
-  return c.redirect(base(c), 303);
+  return c.redirect(welcome ? `${base(c)}/velkommen` : base(c), 303);
 });
 
 // ---------------------------------------------------------------------------
@@ -259,9 +272,54 @@ t.get("/", async (c) => {
 
 t.post("/apartment", async (c) => {
   const apt = validApartment(c, (await form(c)).apartment ?? "");
-  if (!apt) return back(c, "bad-apt");
+  const welcome = fromWelcome(c);
+  if (!apt) return welcome ? c.redirect(`${base(c)}/velkommen?m=bad-apt`, 303) : back(c, "bad-apt");
   rememberApartment(c, apt);
-  return back(c, "apartment");
+  return welcome ? c.redirect(`${base(c)}/velkommen`, 303) : back(c, "apartment");
+});
+
+// ---------------------------------------------------------------------------
+// Onboarding: the link admins share. Apartment, then Home Screen, then notifications.
+// ---------------------------------------------------------------------------
+
+t.get("/velkommen", (c) => {
+  const tenant = c.var.tenant;
+  // The demos offer no notifications, so there is nothing to set up.
+  if (isDemoSlug(tenant.slug)) return c.redirect(base(c));
+  c.header("Cache-Control", "private, no-cache");
+  return c.html(
+    <WelcomePage
+      tenant={tenant}
+      apartment={currentApartment(c)}
+      apartments={apartmentList(tenant)}
+      vapidKey={c.env.VAPID_PUBLIC_KEY}
+      flash={c.req.query("m")}
+    />,
+  );
+});
+
+// One manifest per building, so the Home Screen icon opens that building rather than the front page.
+t.get("/manifest.webmanifest", (c) => {
+  const board = base(c);
+  return c.body(
+    JSON.stringify({
+      id: board,
+      name: `Vaskekjeller ${c.var.tenant.name}`,
+      short_name: "Vaskekjeller",
+      start_url: board,
+      scope: "/",
+      display: "standalone",
+      background_color: "#f6f5f0",
+      theme_color: "#f6f5f0",
+      icons: [
+        { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+        { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
+      ],
+    }),
+    200,
+    { "Content-Type": "application/manifest+json; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+  );
 });
 
 // ---------------------------------------------------------------------------

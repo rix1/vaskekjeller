@@ -60,8 +60,10 @@ export const Layout: FC<{
       <title>{p.seo?.title ?? p.title}</title>
       {p.seo ? <SeoMeta page={p.seo} /> : <meta name="robots" content="noindex" />}
       <link rel="stylesheet" href="/style.css" />
-      <link rel="manifest" href="/manifest.webmanifest" />
+      <link rel="manifest" href={p.tenant ? `/${p.tenant.slug}/manifest.webmanifest` : "/manifest.webmanifest"} />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      <meta name="apple-mobile-web-app-title" content="Vaskekjeller" />
       <script type="module" src="/app.js" defer></script>
       {p.head}
     </head>
@@ -239,7 +241,7 @@ const CalendarSubscription: FC<{
 );
 
 export const Icon: FC<{
-  name?: MachineKind | "arrow" | "clock" | "check" | "home" | "calendar" | "alert" | "bell" | "phone" | "shield";
+  name?: MachineKind | "arrow" | "clock" | "check" | "home" | "calendar" | "alert" | "bell" | "phone" | "shield" | "share" | "plus" | "more";
   size?: number;
 }> = ({ name = "washer", size = 20 }) => (
   <svg
@@ -285,6 +287,16 @@ export const Icon: FC<{
       </>
     ) : name === "shield" ? (
       <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zm-3 9 2 2 4-4" />
+    ) : name === "share" ? (
+      // Apple's Share button: a box with an arrow out of the top.
+      <path d="M12 3v12M8 7l4-4 4 4M8 10H6.5A1.5 1.5 0 0 0 5 11.5v8A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-8a1.5 1.5 0 0 0-1.5-1.5H16" />
+    ) : name === "plus" ? (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="4" />
+        <path d="M12 8.5v7M8.5 12h7" />
+      </>
+    ) : name === "more" ? (
+      <path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3" />
     ) : name === "home" ? (
       <>
         <path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8" />
@@ -564,6 +576,7 @@ export const BoardPage: FC<BoardProps> = (p) => {
             <ApartmentPicker tenant={p.tenant} apartments={p.apartments} context={query()} />
           </section>
         )}
+        {p.apartment && !p.demo && <HomeNudge base={base} />}
         <div class="booking-layout">
           <section class="schedule" aria-label="Reserver vasketid">
             <div class="schedule-toolbar">
@@ -1140,6 +1153,217 @@ export const BoardPage: FC<BoardProps> = (p) => {
           </span>
         </footer>
       )}
+    </Layout>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Onboarding: Home Screen and notifications
+// ---------------------------------------------------------------------------
+
+/** Board card for devices without notifications yet; client/app.ts picks the variant or keeps it hidden. */
+const HomeNudge: FC<{ base: string }> = ({ base }) => (
+  <section class="nudge" id="home-nudge" aria-label="Varsler" hidden>
+    <span class="nudge-icon">
+      <Icon name="bell" size={18} />
+    </span>
+    <div class="nudge-text">
+      <strong>Få beskjed når en tid blir ledig</strong>
+      <p data-nudge="install" hidden>
+        På iPhone kommer varsler bare når Vaskekjeller ligger på Hjem-skjermen.
+      </p>
+      <p data-nudge="push" hidden>
+        Og når noen skriver til deg eller venter på tiden din. Ingen andre varsler.
+      </p>
+    </div>
+    <div class="nudge-actions">
+      <a class="button" data-nudge="install" href={`${base}/velkommen`} hidden>
+        Vis meg hvordan
+      </a>
+      <button type="button" data-nudge="push" data-push-action="on" hidden>
+        Slå på varsler
+      </button>
+      <button type="button" class="nudge-close" data-push-action="dismiss" aria-label="Ikke nå">
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  </section>
+);
+
+/** A button name in the Home Screen guide, drawn the way the phone shows it. */
+const Key: FC<{ icon?: "share" | "plus" | "more"; children: Child }> = (p) => (
+  <span class="ui-key">
+    {p.icon && <Icon name={p.icon} size={15} />}
+    {p.children}
+  </span>
+);
+
+export const WelcomePage: FC<{
+  tenant: Tenant;
+  apartment?: string;
+  apartments: string[];
+  vapidKey?: string;
+  flash?: string;
+}> = (p) => {
+  const board = `/${p.tenant.slug}`;
+  const ready = !!p.apartment;
+  return (
+    <Layout title={`Kom i gang · ${p.tenant.name}`} tenant={p.tenant} vapidKey={p.vapidKey}>
+      <header class="top resident-top">
+        <a class="brand" href={board} aria-label="Vaskekjeller, til bookingsiden">
+          <span class="brand-icon">
+            <Icon size={25} />
+          </span>
+          <span>
+            Vaskekjeller<small>{p.tenant.name}</small>
+          </span>
+        </a>
+      </header>
+      <main class="onboard-main" id="onboarding" data-ready={ready ? "" : undefined}>
+        <p class="eyebrow">KOM I GANG</p>
+        <h1>Velkommen til vaskekjelleren</h1>
+        <p class="intro-copy">
+          Her booker du vaskemaskin og tørketrommel i {p.tenant.name}. Tre raske steg, så får du beskjed når en tid blir ledig.
+        </p>
+        <ol class="onboard-steps">
+          <li class={ready ? "done" : "current"}>
+            <h2>Velg leiligheten din</h2>
+            {ready ? (
+              <details class="onboard-apartment">
+                <summary>
+                  Leilighet <strong>{p.apartment}</strong> <span class="link">Endre</span>
+                </summary>
+                <ApartmentPicker tenant={p.tenant} apartments={p.apartments} current={p.apartment} context="?til=velkommen" />
+              </details>
+            ) : (
+              <>
+                <p>Da ser naboene hvem som har tiden, og bare du kan avbestille den.</p>
+                <ApartmentPicker tenant={p.tenant} apartments={p.apartments} context="?til=velkommen" />
+              </>
+            )}
+          </li>
+          <li class={ready ? "current" : "upcoming"} data-step="install">
+            <h2>Legg Vaskekjeller på Hjem-skjermen</h2>
+            {ready && (
+              <>
+                <div data-device="ios" hidden>
+                  <p>Da åpner du den med ett trykk, som en app. På iPhone er det også den eneste måten å få varsler på.</p>
+                  <ol class="guide">
+                    <li>
+                      Trykk på <Key icon="share">Del</Key> i Safari. Ser du den ikke, trykk på <Key icon="more">Mer</Key> først.
+                    </li>
+                    <li>
+                      Bla ned og velg <Key icon="plus">Legg til på Hjem-skjerm</Key>.
+                    </li>
+                    <li>
+                      Trykk <Key>Legg til</Key> øverst til høyre.
+                    </li>
+                    <li>Åpne Vaskekjeller fra Hjem-skjermen og fortsett der.</li>
+                  </ol>
+                </div>
+                <div data-device="inapp" hidden>
+                  <p>
+                    Du har åpnet lenken inne i en annen app. Derfra går det ikke å legge den på Hjem-skjermen, så åpne den i Safari
+                    (eller Chrome på Android) først.
+                  </p>
+                  <ol class="guide">
+                    <li>
+                      Trykk på <Key icon="more">Mer</Key> eller <Key icon="share">Del</Key> i appen.
+                    </li>
+                    <li>
+                      Velg <Key>Åpne i Safari</Key> eller <Key>Åpne i nettleser</Key>.
+                    </li>
+                  </ol>
+                  <p class="onboard-copy">
+                    Eller kopier lenken og lim den inn i nettleseren:{" "}
+                    <button type="button" class="small-button" data-copy-link>
+                      Kopier lenken
+                    </button>
+                  </p>
+                </div>
+                <div data-device="android" hidden>
+                  <p>Da åpner du den med ett trykk, som en app.</p>
+                  <button type="button" data-install hidden>
+                    Legg til på startskjermen
+                  </button>
+                  <ol class="guide" data-install-manual>
+                    <li>
+                      Trykk på <Key icon="more">⋮</Key> øverst til høyre i Chrome.
+                    </li>
+                    <li>
+                      Velg <Key icon="plus">Legg til på startsiden</Key> eller <Key>Installer app</Key>.
+                    </li>
+                  </ol>
+                </div>
+                <div data-device="installed" hidden>
+                  <p class="onboard-ok">
+                    <Icon name="check" size={16} /> Du bruker Vaskekjeller fra Hjem-skjermen.
+                  </p>
+                </div>
+                <div data-device="desktop" hidden>
+                  <p>
+                    Du er på en datamaskin. Vil du ha den på mobilen, åpner du den samme lenken der. Varsler virker her også.
+                  </p>
+                </div>
+                <noscript>
+                  <p>
+                    <strong>iPhone:</strong> trykk Del i Safari og velg «Legg til på Hjem-skjerm». <strong>Android:</strong> trykk ⋮ i
+                    Chrome og velg «Legg til på startsiden».
+                  </p>
+                </noscript>
+              </>
+            )}
+          </li>
+          <li class="upcoming" data-step="push">
+            <h2>Slå på varsler</h2>
+            {ready && (
+              <>
+                <p>Du får beskjed bare når</p>
+                <ul class="onboard-list">
+                  <li>en tid du venter på blir ledig,</li>
+                  <li>noen skriver til deg om tiden din,</li>
+                  <li>noen stiller seg på venteliste for tiden din.</li>
+                </ul>
+                <div data-push-state="ready" hidden>
+                  <button type="button" data-push-action="on">
+                    <Icon name="bell" size={17} /> Slå på varsler
+                  </button>
+                </div>
+                <p data-push-state="on" class="onboard-ok" hidden>
+                  <Icon name="check" size={16} /> Varsler er på for denne enheten.
+                </p>
+                <p data-push-state="needs-install" class="muted" hidden>
+                  På iPhone slår du på varsler når du har åpnet Vaskekjeller fra Hjem-skjermen.
+                </p>
+                <p data-push-state="blocked" class="muted" hidden>
+                  Varsler er blokkert for denne siden. Slå dem på i innstillingene (iPhone: Innstillinger → Varslinger →
+                  Vaskekjeller), og last inn siden på nytt.
+                </p>
+                <p data-push-state="unsupported" class="muted" hidden>
+                  Denne nettleseren kan ikke vise varsler. På iPhone trengs iOS 16.4 eller nyere.
+                </p>
+                <noscript>
+                  <p class="muted">Varsler trenger JavaScript.</p>
+                </noscript>
+              </>
+            )}
+          </li>
+        </ol>
+        {ready && (
+          <div class="onboard-actions">
+            <a class="button" href={board} data-when="done">
+              Gå til vaskerommet <Icon name="arrow" size={17} />
+            </a>
+            <a class="skip-link" href={board} data-when="pending" hidden>
+              Hopp over, gå til vaskerommet
+            </a>
+          </div>
+        )}
+        <p class="onboard-more">
+          Lurer du på noe? Se <a href="/om#varsler">spørsmål og svar om varsler</a>.
+        </p>
+      </main>
+      <Toaster code={p.flash} dismissHref={`${board}/velkommen`} />
     </Layout>
   );
 };

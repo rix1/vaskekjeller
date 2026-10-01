@@ -528,9 +528,9 @@ test("the share step has ready messages for residents and admins, without the ad
   const texts = Object.fromEntries([...page.matchAll(message())].map((m) => [m[1], m[2]]));
   const residents = texts["melding-beboere"];
   const admins = texts["melding-admin"];
-  assert.match(residents, /Åpne: http:\/\/localhost\/lofotgata\n/);
+  assert.match(residents, /Kom i gang her: http:\/\/localhost\/lofotgata\/velkommen\n/);
   assert.match(residents, /Passord: 1234-dør/);
-  assert.match(residents, /velger du leilighetsnummeret ditt/);
+  assert.match(residents, /velg leilighetsnummeret ditt/);
   assert.match(residents, /Hjem-skjermen/);
   assert.match(residents, /varsler/);
   assert.match(admins, /Adminsiden: http:\/\/localhost\/lofotgata\/admin/);
@@ -763,4 +763,66 @@ test("an automatically closed building is deleted after the grace period like an
   sqlite.exec("UPDATE tenants SET closed_at = datetime('now', '-8 days')");
   await worker.scheduled({}, env);
   assert.equal(tenant("lofotgata"), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Resident onboarding (/velkommen)
+// ---------------------------------------------------------------------------
+
+test("the onboarding link survives the resident password and the apartment step", async () => {
+  const { b } = await signUp();
+  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  const resident = browser();
+  let response = await resident.get("/lofotgata/velkommen");
+  assert.equal(location(response).pathname + location(response).search, "/lofotgata/login?til=velkommen");
+  assert.match(await (await resident.get("/lofotgata/login?til=velkommen")).text(), /action="\/lofotgata\/login\?til=velkommen"/);
+  response = await resident.post("/lofotgata/login?til=velkommen", { password: "feil" });
+  assert.equal(location(response).search, "?til=velkommen&m=wrong-password");
+  response = await resident.post("/lofotgata/login?til=velkommen", { password: "1234-dør" });
+  assert.equal(location(response).pathname, "/lofotgata/velkommen");
+
+  let page = await (await resident.get("/lofotgata/velkommen")).text();
+  assert.match(page, /Velkommen til vaskekjelleren/);
+  assert.match(page, /action="\/lofotgata\/apartment\?til=velkommen"/);
+  assert.doesNotMatch(page, /data-device="ios"/, "the guide waits for the apartment");
+  response = await resident.post("/lofotgata/apartment?til=velkommen", { apartment: "" });
+  assert.equal(location(response).pathname + location(response).search, "/lofotgata/velkommen?m=bad-apt");
+  response = await resident.post("/lofotgata/apartment?til=velkommen", { apartment: "B2" });
+  assert.equal(location(response).pathname + location(response).search, "/lofotgata/velkommen");
+
+  page = await (await resident.get("/lofotgata/velkommen")).text();
+  assert.match(page, /Leilighet <strong>B2<\/strong>/);
+  for (const device of ["ios", "inapp", "android", "installed", "desktop"]) assert.match(page, new RegExp(`data-device="${device}"`));
+  assert.match(page, /data-push-action="on"/);
+  assert.match(page, /Legg til på Hjem-skjerm/);
+  // Without the flag the apartment picker still goes back to the board.
+  response = await resident.post("/lofotgata/apartment", { apartment: "B3" });
+  assert.equal(location(response).pathname, "/lofotgata");
+});
+
+test("each building has its own manifest, so the Home Screen icon opens that building", async () => {
+  const { b } = await signUp();
+  await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
+  // Fetched by the browser without the resident cookie, so the password gate lets it through.
+  const response = await browser().get("/lofotgata/manifest.webmanifest");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /application\/manifest\+json/);
+  const manifest = await response.json();
+  assert.equal(manifest.start_url, "/lofotgata");
+  assert.equal(manifest.id, "/lofotgata");
+  assert.equal(manifest.display, "standalone");
+  assert.ok(manifest.icons.some((i) => i.src === "/icon-192.png"));
+  const board = await (await b.get("/lofotgata")).text();
+  assert.match(board, /<link rel="manifest" href="\/lofotgata\/manifest.webmanifest"/);
+  assert.match(board, /<link rel="apple-touch-icon" href="\/apple-touch-icon.png"/);
+});
+
+test("the board offers the notification card once an apartment is chosen", async () => {
+  const { b } = await signUp();
+  const resident = browser();
+  assert.doesNotMatch(await (await resident.get("/lofotgata")).text(), /id="home-nudge"/);
+  await resident.post("/lofotgata/apartment", { apartment: "B2" });
+  const board = await (await resident.get("/lofotgata")).text();
+  assert.match(board, /<section class="nudge" id="home-nudge"[^>]*hidden/);
+  assert.match(board, /href="\/lofotgata\/velkommen"/);
 });
