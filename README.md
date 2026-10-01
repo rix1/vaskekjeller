@@ -98,7 +98,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   to use the link from the board. Opening a building sets a root cookie `vk_last` (the slug only), so the landing
   page shows "Gå til <navn> →" for the last building used on the device while it exists and is not closed.
 - **About page** (`/om`, `src/about.tsx`): a shared, Norwegian-only FAQ linked from the landing page footer and every
-  building's footer: getting started, when each notification fires, adding a reservation to the calendar, and what data is
+  building's footer: getting started, booking and cancelling, the waitlist and messages, when each notification fires, adding a reservation to the calendar, and what data is
   stored and for how long. Its contact address is hjelp@vaskekjeller.no. `om` is in signup's `RESERVED_SLUGS`, and
   the route is registered before `/:slug`. Keep its copy in step with the behavior it describes.
 - **Demo buildings** (`src/demo.ts`): `/visning` is a read-only showcase (tenant flag `read_only`: every write route
