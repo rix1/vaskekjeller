@@ -132,12 +132,3 @@ test("each Kopier button on an admin page copies its own text, once, and keeps i
   for (const el of [copyCode, copySecret, copyMessage]) assert.equal(el.textContent, "", "the icon and label stay");
   assert.equal(copyMessage.label.textContent, "Kopier melding");
 });
-
-test("the resident page's calendar link still copies", async () => {
-  const field = new HTMLElement({ classes: ["calendar-link"] });
-  const input = Object.assign(new HTMLInputElement({ id: "calendar-url", parent: field }), { value: "https://example/cal.ics" });
-  const copy = new HTMLButtonElement({ dataset: { copy: "#calendar-url" }, parent: field });
-  const resident = await page([field, input, copy], ["client/app.ts"]);
-  await resident.click(copy);
-  assert.deepEqual(resident.writes, ["https://example/cal.ics"]);
-});

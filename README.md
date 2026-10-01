@@ -35,14 +35,11 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   that building; `public/apple-touch-icon.png` is the iPhone icon. On the board, a card (`#home-nudge`) offers
   the guide on iPhone outside the Home Screen app, or "Slå på varsler" elsewhere, until notifications are on or
   it is dismissed (`localStorage`, `vk-nudge-dismissed`). The device checks are in `setupPush` in `client/app.ts`.
-- **Calendar**: the apartment popover on the header chip has a secret feed link for Apple Calendar
-  (`/<slug>/cal/<token>.ics`, subscribed via `webcal://`). It lists the apartment's own bookings (busy) and,
-  with "Inkluder andres bookinger", everyone else's as free "Opptatt" events. The setting is saved on the link,
-  so an existing subscription follows it. The feed needs no resident password, asks for a refresh every 15
-  minutes, and covers 14 days back to the booking horizon. "Lag ny lenke" replaces the token; the old link
-  returns 404. Setting, changing or removing the resident password retires every link the same way, and each
-  apartment gets a new one in the popover. Google Calendar refreshes subscriptions only every several hours,
-  so only Apple is offered.
+- **Calendar**: "Legg i kalender" downloads one reservation as a single-event `.ics`
+  (`GET /<slug>/event.ics?booking_ids=1,2`, built by `buildEvent` in `src/calendar.ts`). It sits below the schedule right
+  after booking and on each card under "Dine tider". The event has the machines, the comment and a link back to that day;
+  it is a copy, not a subscription, so a later cancellation does not change it. The route is behind the resident password
+  and only serves the apartment's own bookings.
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
   bookings per apartment, machines, access passwords, upcoming bookings, and stats. Settings are split into
   cards with a table of contents; "add" actions and password changes open in a dialog (centered on desktop,
@@ -66,7 +63,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   "iPhone · Safari" (derived in `src/audit.ts`), never the IP address or the raw User-Agent. Entries are
   deleted by the daily cron after 12 months.
 - **Closing a building**: "Steng og slett" at the bottom of the Tilgang section needs the building's name
-  typed to confirm. The booking page, every resident route and any feed under `/<slug>` then answer
+  typed to confirm. The booking page, every resident route then answer
   410 with "Denne vaskekjelleren er stengt". Admin login still works and shows only "Stengt – slettes
   permanent <dato>" with "Gjenåpne" and "Slett permanent nå" (which needs the name again). The daily cron
   deletes a building 7 days after it was closed. Deleting removes the tenant row; every table cascades
@@ -83,7 +80,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   to use the link from the board. Opening a building sets a root cookie `vk_last` (the slug only), so the landing
   page shows "Gå til <navn> →" for the last building used on the device while it exists and is not closed.
 - **About page** (`/om`, `src/about.tsx`): a shared, Norwegian-only FAQ linked from the landing page footer and every
-  building's footer: getting started, when each notification fires, the Apple-only calendar, and what data is
+  building's footer: getting started, when each notification fires, adding a reservation to the calendar, and what data is
   stored and for how long. Its contact address is hjelp@vaskekjeller.no. `om` is in signup's `RESERVED_SLUGS`, and
   the route is registered before `/:slug`. Keep its copy in step with the behavior it describes.
 - **Demo buildings** (`src/demo.ts`): `/visning` is a read-only showcase (tenant flag `read_only`: every write route
@@ -227,7 +224,7 @@ the unused-building cleanup mark and the per-network signup counts. Migration `0
 reservations, atomic conflicts, household limits, ownership, comments, cancellation, schedule overlaps, the
 calendar-week date strip, the read-only past-day view, apartment selection, waitlist counts and comment
 pushes, the board's partly free rows, day-strip status, and first-booking hint cookie, the server-rendered
-toasts (Angre confirmation, errors), the calendar feed (`tests/calendar-feed.test.mjs`), messages to booking
+toasts (Angre confirmation, errors), the add-to-calendar event (`tests/calendar-event.test.mjs`), messages to booking
 holders (`tests/push-messages.test.mjs`), the admin settings, machine, and password routes, the activity log and
 closing/deleting a building (`tests/audit-danger.test.mjs`), the landing page, last-building cookie, read-only
 showcase on every write route, presets-only playground and the nightly demo reset (`tests/landing.test.mjs`),

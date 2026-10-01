@@ -171,10 +171,9 @@ test("visiting a building remembers it for the landing page's Gå til link; demo
   assert.match(cookie, /vk_last=lofotgata;/);
   assert.match(cookie, /Path=\//);
   assert.match(cookie, /HttpOnly/);
-  // Any page of the building counts, including a password or admin page, but not a form post or calendar feed.
+  // Any page of the building counts, including a password or admin page, but not a form post.
   assert.match((await get("/lofotgata/admin/login")).headers.get("set-cookie") ?? "", /vk_last=lofotgata/);
   assert.doesNotMatch((await post("/lofotgata/apartment", { apartment: "A1" })).headers.get("set-cookie") ?? "", /vk_last/);
-  assert.doesNotMatch((await get("/lofotgata/cal/finnes-ikke.ics")).headers.get("set-cookie") ?? "", /vk_last/);
   for (const path of ["/visning", "/visning?embed=1", "/demo"]) assert.doesNotMatch((await get(path)).headers.get("set-cookie") ?? "", /vk_last/, path);
   assert.doesNotMatch((await get("/finnes-ikke")).headers.get("set-cookie") ?? "", /vk_last/);
 
@@ -231,8 +230,6 @@ test("the showcase is seen as one apartment and shows no actions", async () => {
   assert.match(html, /Din tid/);
   assert.match(html, /2 venter på denne tiden/);
   assert.doesNotMatch(html, /\/admin/);
-  // Viewing it writes nothing: no calendar link is made for its apartment.
-  assert.equal(rows("SELECT COUNT(*) AS n FROM calendar_feeds WHERE tenant_id = ?", tenantId("visning"))[0].n, 0);
   // Embedded: no demo banner or footer.
   assert.doesNotMatch(html, /demo-banner/);
   assert.doesNotMatch(html, /<footer/);
@@ -328,11 +325,9 @@ test("the nightly reset is idempotent and undoes what visitors did", async () =>
   assert.equal(flash(await post("/demo/apartment", { apartment: "D2" })), "apartment");
   assert.equal(flash(await post("/demo/book", { date: tomorrow, start: "600", mode: String(washer.id) }, "vk_apt=D2")), "booked");
   await get("/demo", "vk_apt=D2");
-  assert.equal(rows("SELECT COUNT(*) AS n FROM calendar_feeds WHERE tenant_id = ?", tenantId("demo"))[0].n, 1);
   assert.notDeepEqual(snapshot("demo"), first);
   await reset();
   assert.deepEqual(snapshot("demo"), first);
-  assert.equal(rows("SELECT COUNT(*) AS n FROM calendar_feeds WHERE tenant_id = ?", tenantId("demo"))[0].n, 0);
   assert.deepEqual(snapshot("visning").machines.length, 2);
   // Both demos, each exactly once.
   assert.equal(rows("SELECT COUNT(*) AS n FROM tenants WHERE slug IN ('visning', 'demo')")[0].n, 2);

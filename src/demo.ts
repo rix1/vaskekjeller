@@ -173,7 +173,7 @@ export function demoSeed(slug: DemoSlug, today: string): SeedStatement[] {
       params: [slug],
     },
     { sql: `UPDATE machines SET active = 1 WHERE tenant_id = ${tenant}`, params: [slug] },
-    ...["bookings", "waitlist", "push_subscriptions", "message_counts", "daily_stats", "visitor_hashes", "calendar_feeds"].map((table) => ({
+    ...["bookings", "waitlist", "push_subscriptions", "message_counts", "daily_stats", "visitor_hashes"].map((table) => ({
       sql: `DELETE FROM ${table} WHERE tenant_id = ${tenant}`,
       params: [slug],
     })),

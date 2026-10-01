@@ -310,7 +310,7 @@ test("closing needs the building's name; a wrong name changes nothing", async ()
   assert.equal((await get("")).status, 200);
 });
 
-test("closing takes the booking page, resident routes and feeds offline at once; admin still works", async () => {
+test("closing takes the booking page, resident routes and calendar events offline at once; admin still works", async () => {
   sqlite.prepare("UPDATE tenants SET access_password_hash = NULL WHERE id = 1").run();
   const response = await post("admin/close", { confirm_name: "  lofotgata   5 " }, admin);
   assert.equal(response.status, 303);
@@ -324,7 +324,7 @@ test("closing takes the booking page, resident routes and feeds offline at once;
   const board = await get("");
   assert.equal(board.status, 410);
   assert.match(await board.text(), /Denne vaskekjelleren er stengt/);
-  for (const path of ["login", "kalender.ics", "feed/abc123.ics"]) assert.equal((await get(path)).status, 410, path);
+  for (const path of ["login", "event.ics?booking_ids=1"]) assert.equal((await get(path)).status, 410, path);
   const apt = cookieFrom(await fetchApp("apartment", { method: "POST" }), "vk_apt");
   assert.equal(apt, undefined);
   for (const path of ["apartment", "book", "cancel", "wait", "message"]) assert.equal((await post(path, { apartment: "A1" })).status, 410, path);
@@ -393,7 +393,6 @@ function seedEverything(id) {
   sqlite.prepare("INSERT INTO visitor_hashes (tenant_id, day, hash) VALUES (?, ?, 'h')").run(id, date);
   sqlite.prepare("INSERT INTO message_counts (tenant_id, date, start_min, holder, sender, sent) VALUES (?, ?, 600, 'A1', 'B1', 1)").run(id, date);
   sqlite.prepare("INSERT INTO audit_log (tenant_id, action, detail, device) VALUES (?, 'settings', 'x', 'Mac · Safari')").run(id);
-  sqlite.prepare("INSERT INTO calendar_feeds (tenant_id, apartment, token) VALUES (?, 'A1', ?)").run(id, `feed-${id}`);
 }
 
 test("delete-now needs a closed building and the name again, then deletes everything", async () => {

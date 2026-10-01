@@ -93,7 +93,7 @@ test("/om renders the about page with every section and the contact address", as
     assert.match(html, new RegExp(`<section class="about-section" id="${id}"`), id);
     assert.match(html, new RegExp(`<a href="#${id}">`), `table of contents links to ${id}`);
   }
-  for (const q of ["Hvordan velger jeg leilighet?", "Hvordan legger jeg den på Hjem-skjermen?", "Når får jeg varsel?", "Hvordan skrur jeg av varsler?", "Hvorfor bare Apple Kalender?", "Hva lagres ikke?", "Hva er gjenopprettingskoden?"])
+  for (const q of ["Hvordan velger jeg leilighet?", "Hvordan legger jeg den på Hjem-skjermen?", "Når får jeg varsel?", "Hvordan skrur jeg av varsler?", "Oppdateres kalenderen hvis jeg avbestiller?", "Hva lagres ikke?", "Hva er gjenopprettingskoden?"])
     assert.match(html, new RegExp(`<summary>${q.replace(/\?/g, "\\?")}</summary>`), q);
   assert.match(html, /<a href="mailto:hjelp@vaskekjeller.no">hjelp@vaskekjeller.no<\/a>/);
   assert.doesNotMatch(html, /gmail/);

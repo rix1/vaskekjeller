@@ -1,7 +1,6 @@
 // Form handling shared by the admin settings and the signup flow.
 import type { Context } from "hono";
 import { SLOT_LENGTHS } from "./admin-views.tsx";
-import { retireFeeds } from "./calendar.ts";
 import { encryptText, hashPassword } from "./crypto.ts";
 import type { Tenant } from "./db.ts";
 import { parseHHMM } from "./time.ts";
@@ -46,7 +45,7 @@ export const accessContext = (t: Tenant) => `tenant:${t.id}:access-password`;
 
 /** Sets the resident password, or turns it off with null. Returns the new hash (null when off).
  * It is verified against the hash (which resident cookies are bound to) and also stored
- * encrypted so admins can read it back. Calendar links made under the old password stop working. */
+ * encrypted so admins can read it back. */
 export async function setResidentPassword(
   c: Context<{ Bindings: Env; Variables: any }>,
   t: Tenant,
@@ -58,7 +57,6 @@ export async function setResidentPassword(
   const encrypted = pw === null ? null : await encryptText(c.env.SESSION_SECRET, pw, accessContext(t));
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE tenants SET access_password_hash = ?, access_password_enc = ? WHERE id = ?").bind(hash, encrypted, t.id),
-    retireFeeds(c.env.DB, t.id),
     ...also,
   ]);
   return hash;

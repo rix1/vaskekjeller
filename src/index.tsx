@@ -14,7 +14,7 @@ import { AboutPage } from "./about.tsx";
 import { audit, AUDIT_RETENTION, auditEntries, auditStatement, CLOSED_GRACE_DAYS, deviceLabel, purgeDate, sameName } from "./audit.ts";
 import * as auth from "./auth.ts";
 import { bookingOptions } from "./booking-options.ts";
-import { buildFeed, ensureFeed, feedByToken, feedEtag, newFeedToken, passwordKey, replaceFeedToken } from "./calendar.ts";
+import { buildEvent } from "./calendar.ts";
 import { decryptText, hashPassword, sha256Hex, verifyPassword } from "./crypto.ts";
 import { DebugPushPage, pickTestSlot, TEST_APARTMENT, TEST_NOTE, type DebugResult, type DebugTest, type TestSlot } from "./debug-push.tsx";
 import { DEMO_SLUGS, demoSeed, demoToday, isDemoSlug, NOTE_PRESETS, SHOWCASE_VIEWER, type DemoSlug } from "./demo.ts";
@@ -69,7 +69,7 @@ app.use(async (c, next) => {
 });
 
 // Only the public pages in src/seo.tsx may be indexed. Everything else the Worker serves (buildings, admin,
-// onboarding, the demo buildings, calendar feeds) is noindex, on top of the robots meta tag in Layout.
+// onboarding, the demo buildings) is noindex, on top of the robots meta tag in Layout.
 app.use(async (c, next) => {
   await next();
   if (!PUBLIC_PATHS.has(c.req.path) && c.req.path !== "/robots.txt" && c.req.path !== "/sitemap.xml")
@@ -115,8 +115,8 @@ t.use(async (c, next) => {
   // The showcase can't be changed by anyone: every write route stops here.
   if (tenant.read_only && c.req.method !== "GET" && c.req.method !== "HEAD") return c.text("Denne visningen kan ikke endres.", 403);
   const sub = c.req.path.slice(tenant.slug.length + 1);
-  // Opening any page of an open building (not a demo, not a calendar feed) remembers it for "Gå til".
-  if (c.req.method === "GET" && !isDemoSlug(tenant.slug) && !tenant.closed_at && !sub.startsWith("/cal/"))
+  // Opening any page of an open building (not a demo) remembers it for "Gå til".
+  if (c.req.method === "GET" && !isDemoSlug(tenant.slug) && !tenant.closed_at && sub !== "/event.ics")
     setCookie(c, lastCookie, tenant.slug, {
       path: "/",
       httpOnly: true,
@@ -124,11 +124,9 @@ t.use(async (c, next) => {
       sameSite: "Lax",
       maxAge: 60 * 60 * 24 * 400,
     });
-  // A closed building is offline for residents (including feeds); only the admin page still works.
+  // A closed building is offline for residents; only the admin page still works.
   if (tenant.closed_at && !sub.startsWith("/admin")) return c.html(<ClosedPage tenant={tenant} />, 410);
-  // Calendar feeds are keyed by their secret token, so calendar apps need no password.
-  const feed = (c.req.method === "GET" || c.req.method === "HEAD") && /^\/cal\/[^/]+$/.test(sub);
-  const open = sub.startsWith("/admin") || sub === "/login" || sub === "/manifest.webmanifest" || feed;
+  const open = sub.startsWith("/admin") || sub === "/login" || sub === "/manifest.webmanifest";
   if (!open && tenant.access_password_hash && !(await auth.has(c, tenant, "access"))) {
     // The onboarding link survives the password step, so a new resident lands back in the guide.
     if (c.req.method === "GET") return c.redirect(`/${tenant.slug}/login${sub === "/velkommen" ? toWelcome : ""}`);
@@ -217,12 +215,10 @@ t.get("/", async (c) => {
   const first = addDays(now.date, -LOOKBACK_DAYS);
   const last = addDays(now.date, tenant.booking_horizon_days - 1);
   const apartment = currentApartment(c);
-  const [machines, bookings, waitlist, feed] = await Promise.all([
+  const [machines, bookings, waitlist] = await Promise.all([
     getMachines(c.env.DB, tenant.id, true),
     getBookings(c.env.DB, tenant.id, first, last),
     getWaitlist(c.env.DB, tenant.id, now.date, last),
-    // The read-only showcase offers no calendar link, so it never creates one.
-    apartment && !tenant.read_only ? ensureFeed(c.env.DB, tenant, apartment) : undefined,
   ]);
   c.executionCtx.waitUntil(recordVisit(c, now.date));
   if (apartment && !tenant.read_only) rememberApartment(c, apartment);
@@ -260,12 +256,6 @@ t.get("/", async (c) => {
       demo={isDemoSlug(tenant.slug)}
       embed={c.req.query("embed") === "1"}
       vapidKey={c.env.VAPID_PUBLIC_KEY}
-      calendar={
-        feed && {
-          url: `${new URL(c.req.url).origin}${base(c)}/cal/${feed.token}.ics`,
-          includeOthers: !!feed.include_others,
-        }
-      }
     />,
   );
 });
@@ -323,43 +313,21 @@ t.get("/manifest.webmanifest", (c) => {
 });
 
 // ---------------------------------------------------------------------------
-// Calendar subscription
+// Add to calendar
 // ---------------------------------------------------------------------------
 
-t.get("/cal/:file", async (c) => {
-  const token = /^([\w-]{20,})\.ics$/.exec(c.req.param("file"))?.[1];
-  const feed = token ? await feedByToken(c.env.DB, c.var.tenant, token) : null;
-  if (!feed) return c.text("Ukjent kalenderlenke", 404);
-  const ics = await buildFeed(c.env.DB, c.var.tenant, feed, new URL(c.req.url).origin);
-  const etag = await feedEtag(ics);
-  const headers = { ETag: etag, "Cache-Control": "private, max-age=900" };
-  if (c.req.header("if-none-match")?.includes(etag)) return c.body(null, 304, headers);
-  return c.body(ics, 200, {
-    ...headers,
+// One reservation as a single event (?booking_ids=1,2), for the resident's own bookings only.
+t.get("/event.ics", async (c) => {
+  const bookings = await ownedBookings(c, { booking_ids: c.req.query("booking_ids") ?? "" });
+  const first = bookings[0];
+  if (!first || bookings.some((b) => b.date !== first.date || b.start_min !== first.start_min || b.end_min !== first.end_min))
+    return c.text("Ukjent booking", 404);
+  const machines = await getMachines(c.env.DB, c.var.tenant.id, true);
+  return c.body(buildEvent(c.var.tenant, bookings, machines, new URL(c.req.url).origin), 200, {
     "Content-Type": "text/calendar; charset=utf-8",
-    "Content-Disposition": 'inline; filename="vaskekjeller.ics"',
+    "Content-Disposition": 'attachment; filename="vaskekjeller.ics"',
+    "Cache-Control": "private, no-store",
   });
-});
-
-// The setting lives on the link, so an existing subscription picks it up on its next refresh.
-t.post("/calendar/others", async (c) => {
-  const apt = currentApartment(c);
-  if (!apt) return back(c, "no-apt");
-  const on = (await form(c)).include_others === "1";
-  await c.env.DB.prepare(
-    `INSERT INTO calendar_feeds (tenant_id, apartment, token, include_others, password_key) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (tenant_id, apartment) DO UPDATE SET include_others = excluded.include_others`,
-  )
-    .bind(c.var.tenant.id, apt, newFeedToken(), on ? 1 : 0, await passwordKey(c.var.tenant))
-    .run();
-  return back(c, on ? "cal-others-on" : "cal-others-off");
-});
-
-t.post("/calendar/new-link", async (c) => {
-  const apt = currentApartment(c);
-  if (!apt) return back(c, "no-apt");
-  await replaceFeedToken(c.env.DB, c.var.tenant, apt);
-  return back(c, "cal-new-link");
 });
 
 /** Validates a (machine, date, start) triple from a form against the tenant's current schedule. */
