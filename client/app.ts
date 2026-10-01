@@ -33,12 +33,21 @@ type Notice = {
   detail?: string;
   action?: { label: string; run: () => void };
   duration?: number;
+  onClose?: () => void;
 };
 type Toaster = { notify(notice: Notice): void; dismissNotice(id: string): void };
 const toasterUrl: string = "/toaster.js";
 let toaster: Promise<Toaster> | undefined;
 // Angre's booking ids by toast id: it only applies while all of them are still listed under "Dine tider".
 const undoable = new Map<string, string[]>();
+const actionForms = new Map<string, HTMLFormElement>();
+
+function releaseToast(id: string, form?: HTMLFormElement) {
+  if (form && actionForms.get(id) !== form) return form.remove();
+  undoable.delete(id);
+  actionForms.get(id)?.remove();
+  actionForms.delete(id);
+}
 
 function notify(notice: Notice) {
   void (toaster ??= import(toasterUrl) as Promise<Toaster>).then((t) => t.notify(notice));
@@ -62,9 +71,11 @@ function showToast(toast: HTMLElement) {
         run: () => form.requestSubmit(),
       }
     : undefined;
+  releaseToast(id);
   if (form) {
     form.hidden = true;
     document.body.append(form);
+    actionForms.set(id, form);
     const ids = form.querySelector<HTMLInputElement>('[name="booking_ids"]')?.value;
     if (ids) undoable.set(id, ids.split(","));
   }
@@ -75,11 +86,12 @@ function showToast(toast: HTMLElement) {
     detail,
     action,
     duration: toast.classList.contains("long") ? BOOKING_TOAST_MS : undefined,
+    onClose: () => releaseToast(id, form ?? undefined),
   });
 }
 
 function dismissToast(id: string) {
-  undoable.delete(id);
+  releaseToast(id);
   void toaster?.then((t) => t.dismissNotice(id));
 }
 

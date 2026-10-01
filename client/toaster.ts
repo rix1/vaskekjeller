@@ -13,6 +13,8 @@ export type Notice = {
   action?: { label: string; run: () => void };
   /** Milliseconds on screen; errors stay until closed. */
   duration?: number;
+  /** Called once the toast is gone: auto-hidden, closed, dismissed or replaced. */
+  onClose?: () => void;
 };
 
 export const AUTO_HIDE_MS = 4000;
@@ -53,6 +55,8 @@ export function notify(notice: Notice) {
     id: notice.id,
     description,
     duration,
+    onDismiss: notice.onClose,
+    onAutoClose: notice.onClose,
     classNames: { toast: `vk-toast${notice.action ? " vk-has-action" : ""}`, actionButton: "vk-toast-action" },
     action: notice.action && { label: notice.action.label, onClick: notice.action.run },
   });
