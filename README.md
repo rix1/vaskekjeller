@@ -33,9 +33,20 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   notifications aren't supported). Steps that don't apply are hidden, not shown disabled. The password and
   apartment steps come back to it via `?til=velkommen`. Each building has its own manifest
   (`/<slug>/manifest.webmanifest`, `start_url` = the board, open past the password gate), so the icon opens
-  that building; `public/apple-touch-icon.png` is the iPhone icon. On the board, a card (`#home-nudge`) offers
-  the guide on iPhone outside the Home Screen app, or "Slå på varsler" elsewhere, until notifications are on or
-  it is dismissed (`localStorage`, `vk-nudge-dismissed`). The device checks are in `setupPush` in `client/app.ts`.
+  that building; `public/apple-touch-icon.png` is the iPhone icon. On the board, notifications are offered where they have a reason (below), not on first load.
+  The device checks are in `setupPush` in `client/app.ts`, shared by the guide, the ask and the header menu row.
+- **First-use tips** (`client/tour.ts`, anchors are `data-tour` attributes in `src/views.tsx`): small coach marks, one
+  at a time and at most one per page view, no backdrop, the target stays tappable. Tip 1 sits on the first free
+  "Reserver" for a device that has never booked (no `vk_booked` cookie, `main[data-tips="new"]`); tip 2 on the
+  resident's own booking once a booking exists and no toast is showing; tip 3 on the machine choices in a later
+  session. Marks wait while a toast, popover, soft keyboard or hidden tab is up, and stay clear of the bottom edge.
+  "Skjønner" or using the control marks one seen, "Ikke vis flere tips" turns them all off, Escape closes one.
+  A device that has booked before when it first loads the board gets no tour. State is one `localStorage` key,
+  `vk-tips` (`seen`, `shown`, `off`, `askOff`, `last`), shared by every building on the origin, with memory and
+  `sessionStorage` as fallback; nothing is stored on the server. The header apartment menu has a "Varsler" row (on/off,
+  the way back after dismissing) and a "Tips" row that restarts the tips. The notification ask ("Slå på", or "Vis meg
+  hvordan" on iPhone Safari) sits under the reservations in "Dine tider" once there is one; its × is kept in the same
+  key (a closed old card, `vk-nudge-dismissed`, pre-closes it). Marks need JavaScript; the ask and menu rows too.
 - **Calendar**: "Legg i kalender" downloads one reservation as a single-event `.ics`
   (`GET /<slug>/event.ics?booking_ids=1,2`, built by `buildEvent` in `src/calendar.ts`). It sits below the schedule right
   after booking and in each of your own reservation rows. The event has the machines, the comment and a link back to that day;
@@ -205,7 +216,7 @@ Cancelling is a two-step confirm in place ("Avbestill", then "Ja, avbestill" or 
 free and how many neighbours on its waitlist are told.
 In the paired view a partly taken slot shows who holds each machine and offers the free machine in one tap,
 behind a small in-place confirmation; the day strip reads "Delvis" when only single machines are left and
-marks a fully booked day. The "Ett trykk reserverer" hint disappears after a device's first booking (`vk_booked` cookie).
+marks a fully booked day. The first-use tips (see Resident onboarding) are skipped for devices that have booked (`vk_booked` cookie).
 
 The date strip shows Monday-to-Sunday weeks and opens on today. It reaches back 14 days and forward to the
 booking horizon. Past days are read-only: each slot shows who had each machine and any comment, including

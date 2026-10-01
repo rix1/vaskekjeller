@@ -163,9 +163,9 @@ test("day strip says Delvis when every slot is partly taken and Fullt only when 
   assert.match(day, /<small>6 ledige<\/small>/);
 });
 
-test("the first successful booking sets a device cookie that hides the booking hint", async () => {
+test("the first successful booking sets a device cookie that marks the device as having booked", async () => {
   await reset();
-  assert.match(await tomorrowBoard(), /Ett trykk reserverer/);
+  assert.match(await tomorrowBoard(), /data-tips="new"/);
   assert.equal(flash(await book(480, "D4")), "booked");
   const taken = await book(480);
   assert.equal(flash(taken), "taken");
@@ -176,10 +176,10 @@ test("the first successful booking sets a device cookie that hides the booking h
   assert.match(cookie, /^vk_booked=1;/);
   assert.match(cookie, /Path=\/bygg/);
   assert.match(cookie, /Max-Age=34560000/);
-  assert.doesNotMatch(await tomorrowBoard("vk_apt=A3; vk_booked=1"), /Ett trykk reserverer/);
+  assert.match(await tomorrowBoard("vk_apt=A3; vk_booked=1"), /data-tips="booked"/);
 });
 
-test("past days never render the booking hint, even before the first booking", async () => {
+test("past days never anchor the booking tip, even before the first booking", async () => {
   await reset();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo" }).format(new Date());
   const d = new Date(`${today}T00:00:00Z`);
@@ -187,9 +187,9 @@ test("past days never render the booking hint, even before the first booking", a
   const past = d.toISOString().slice(0, 10);
   const html = await (await mf.dispatchFetch(`http://localhost/bygg?date=${past}`, { headers: { Cookie: "vk_apt=A3" } })).text();
   assert.match(html, new RegExp(`data-date="${past}"[^>]*aria-current="date"`));
-  assert.doesNotMatch(html, /Ett trykk reserverer/);
+  assert.doesNotMatch(html, /data-tour="book"/);
   assert.match(
     await (await mf.dispatchFetch(`http://localhost/bygg`, { headers: { Cookie: "vk_apt=A3" } })).text(),
-    /Ett trykk reserverer/,
+    /data-tour="book"/,
   );
 });

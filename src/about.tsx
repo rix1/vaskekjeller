@@ -186,8 +186,11 @@ export const AboutPage: FC = () => (
           <ul>
             <li>Leiligheten din og hvilket vaskerom du brukte sist.</li>
             <li>Om du er logget inn.</li>
-            <li>Om du har booket før, så tipset om første booking kan skjules.</li>
-            <li>Om du har lukket kortet om varsler (lagret i nettleseren, ikke som informasjonskapsel).</li>
+            <li>Om du har booket før, så første gangs tips kan hoppes over.</li>
+            <li>
+              Hvilke tips du har sett og om du har lukket spørsmålet om varsler (lagret i nettleseren, ikke som
+              informasjonskapsel, og felles for alle vaskekjellere på denne enheten).
+            </li>
             <li>
               For styret: en ny gjenopprettingskode, kryptert, i opptil en time og bare på adminsidene, så den kan vises til
               den er lagret.

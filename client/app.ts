@@ -96,7 +96,13 @@ function dismissToast(id: string) {
 }
 
 // Hide the server-rendered copies at once, so they do not show while Sonner loads.
-document.querySelectorAll<HTMLElement>(".toaster .toast").forEach(showToast);
+const firstToasts = document.querySelectorAll<HTMLElement>(".toaster .toast");
+firstToasts.forEach(showToast);
+// Tells client/tour.ts that the board is new (or was updated in place) and how many toasts came with it,
+// so it can wait for them to leave. The first announcement waits for every page script to have loaded.
+const boardChanged = (toasts: number) => document.dispatchEvent(new CustomEvent("vk:board", { detail: { toasts } }));
+if (document.readyState === "complete") boardChanged(firstToasts.length);
+else addEventListener("DOMContentLoaded", () => boardChanged(firstToasts.length), { once: true });
 // Other page scripts (client/admin.ts) hand over toasts from pages they fetch.
 document.addEventListener("vk:toast", (event) => showToast((event as CustomEvent<HTMLElement>).detail));
 
@@ -200,6 +206,7 @@ async function updateBoard(
       focus?.focus({ preventScroll: true });
     }
     void setupPush().catch(() => {});
+    boardChanged(toasts.length);
   } catch (error) {
     if (controller.signal.aborted) return;
     const menu = document.querySelector<HTMLDetailsElement>(".apartment-menu[open]");
@@ -309,7 +316,8 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Web push: the waitlist banner, the board's reminder card and the onboarding guide (/velkommen) share one switch.
+// Web push: the waitlist banner, the notification ask under "Dine tider", the header menu row and the onboarding
+// guide (/velkommen) share one switch.
 const ua = navigator.userAgent;
 // iPadOS reports itself as a Mac; the touch points give it away.
 const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -321,7 +329,6 @@ const standalone =
 // iOS only exposes push to web apps opened from the Home Screen.
 const needsInstall = isIOS && !standalone;
 const canPush = !needsInstall && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-const NUDGE_KEY = "vk-nudge-dismissed";
 
 function keyToBytes(b64url: string): Uint8Array<ArrayBuffer> {
   const b = atob(b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4));
@@ -368,14 +375,6 @@ async function disablePush() {
   await sub.unsubscribe();
 }
 
-function nudgeDismissed() {
-  try {
-    return localStorage.getItem(NUDGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 function showOnly(root: ParentNode, attribute: string, value: string | undefined) {
   root.querySelectorAll<HTMLElement>(`[data-${attribute}]`).forEach((el) => {
     el.hidden = el.getAttribute(`data-${attribute}`) !== value;
@@ -385,12 +384,22 @@ function showOnly(root: ParentNode, attribute: string, value: string | undefined
 /** Brings every push control on the page in line with this device; runs on load and after each board update. */
 async function setupPush(initial = false) {
   const banner = document.querySelector<HTMLElement>("#push-banner");
-  const nudge = document.querySelector<HTMLElement>("#home-nudge");
+  const ask = document.querySelector<HTMLElement>("#push-ask");
+  const menu = document.querySelector<HTMLElement>("#push-menu");
   const onboarding = document.querySelector<HTMLElement>("#onboarding[data-ready]");
-  if (!slug || !vapidKey || !(banner || nudge || onboarding)) return;
+  if (!slug || !vapidKey || !(banner || ask || menu || onboarding)) return;
   if ("serviceWorker" in navigator) void pushRegistration();
   const sub = await currentSubscription();
   if (sub) await api("subscribe", sub.toJSON()).catch(() => {}); // keep apartment mapping fresh
+  const state = sub
+    ? "on"
+    : needsInstall
+      ? "needs-install"
+      : !canPush
+        ? "unsupported"
+        : Notification.permission === "denied"
+          ? "blocked"
+          : "ready";
 
   if (onboarding) {
     // Opened from the Home Screen with notifications already on: nothing left to set up.
@@ -399,15 +408,6 @@ async function setupPush(initial = false) {
       return;
     }
     const device = standalone ? "installed" : inAppBrowser ? "inapp" : isIOS ? "ios" : isAndroid ? "android" : "desktop";
-    const state = sub
-      ? "on"
-      : needsInstall
-        ? "needs-install"
-        : !canPush
-          ? "unsupported"
-          : Notification.permission === "denied"
-          ? "blocked"
-          : "ready";
     showOnly(onboarding, "device", device);
     showOnly(onboarding, "push-state", state);
     const install = onboarding.querySelector<HTMLElement>('[data-step="install"]');
@@ -424,15 +424,15 @@ async function setupPush(initial = false) {
     showOnly(onboarding, "when", done ? "done" : "pending");
   }
 
-  if (nudge) {
-    let kind: "install" | "push" | undefined;
-    // The waitlist banner already asks, so the card stays away while it is shown.
-    if (!nudgeDismissed() && !banner) {
-      if (needsInstall) kind = "install";
-      else if (canPush && !sub && Notification.permission === "default") kind = "push";
-    }
-    nudge.hidden = !kind;
-    showOnly(nudge, "nudge", kind);
+  // The header menu row is always there (the way back to this switch); client/tour.ts owns the ask's own "×".
+  if (menu) {
+    menu.hidden = state === "unsupported";
+    showOnly(menu, "push-state", state);
+  }
+  if (ask) {
+    // Offered once there is a booking, and only where it can be acted on. The waitlist banner already asks.
+    ask.hidden = banner !== null || (state !== "ready" && state !== "needs-install");
+    showOnly(ask, "push-state", state);
   }
 
   const toggle = banner?.querySelector<HTMLButtonElement>("#push-toggle");
@@ -460,15 +460,6 @@ async function setupPush(initial = false) {
 document.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-push-action]") : null;
   if (!target) return;
-  if (target.dataset.pushAction === "dismiss") {
-    try {
-      localStorage.setItem(NUDGE_KEY, "1");
-    } catch {
-      // Private mode or blocked storage: the card just comes back next time.
-    }
-    target.closest<HTMLElement>("#home-nudge")?.setAttribute("hidden", "");
-    return;
-  }
   if (!(target instanceof HTMLButtonElement) || target.disabled) return;
   target.disabled = true;
   try {
