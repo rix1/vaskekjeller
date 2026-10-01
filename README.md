@@ -229,6 +229,12 @@ Date/machine navigation and resident forms update in place with JavaScript. URLs
 keyboard focus, and server-side validation are preserved. Without JavaScript, the same links and forms
 work as ordinary page requests. Notification setup appears after joining a waitlist.
 
+The board refreshes itself because a Home Screen app on iOS is resumed rather than reloaded and has no pull to
+refresh: when the app comes back into view, and every 45 seconds while it is visible (`refreshBoard` in
+`client/app.ts`). It only redraws when the server HTML changed, and never while the resident is typing or has
+a popover, sheet, expanded row, confirm or action toast open. A booking lost to a concurrent resident shows
+"Noen andre tok akkurat den tiden. Tidene under er oppdatert." with the current board (`tests/board-refresh.test.mjs`).
+
 The active-booking limit counts distinct time periods per apartment, so reserving both machines at the
 same time counts once. Migration `0002_booking_overlap.sql` also prevents overlaps with existing
 reservations after an administrator changes the schedule. Migration `0003_resident_password_readable.sql`
