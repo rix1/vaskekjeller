@@ -39,6 +39,7 @@ import {
 } from "./db.ts";
 import { cleanPin, returnLoginAttempt, takeLoginAttempt } from "./pin.ts";
 import { accessContext, adminPasswordErrors, form, parseSchedule, residentPasswordError, setResidentPassword } from "./forms.ts";
+import { sendReminders } from "./reminder.ts";
 import { sendPush, type PushOutcome, type PushSubscriptionRow, type VapidKeys } from "./push.ts";
 import {
   forgetRecoveryCode,
@@ -1525,7 +1526,15 @@ async function closeUnused(env: Env) {
   ]);
 }
 
-async function scheduled(_: ScheduledController, env: Env) {
+/** The `triggers.crons` entry that runs the booking reminders. Keep in sync with wrangler.jsonc. */
+const REMINDER_CRON = "*/5 * * * *";
+
+async function scheduled(controller: ScheduledController, env: Env) {
+  // The frequent trigger only sends booking reminders; the daily one does the housekeeping below.
+  if (controller.cron === REMINDER_CRON) {
+    await sendReminders(env.DB, (tenant, subs, message) => pushAll(env, tenant as Tenant, subs, message));
+    return;
+  }
   // Using UTC "yesterday" is conservative enough for any European tenant.
   const yesterday = addDays(new Date().toISOString().slice(0, 10), -1);
   // Selected before this run closes anything, so a building closed now still gets its full grace period.
