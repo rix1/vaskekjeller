@@ -2411,3 +2411,40 @@ button.nudge-close {
     font-size: max(16px, 1em) !important;
   }
 }
+/* First screen: fold elapsed rows into one line; phones drop the hero text. */
+.elapsed-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 11px;
+  font-size: 12px;
+  color: #606d58;
+  cursor: pointer;
+  list-style: none;
+  border-bottom: 1px solid var(--line, #ecefe8);
+}
+.elapsed-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.elapsed-fold > summary::after {
+  content: "⌄";
+}
+.elapsed-fold[open] > summary::after {
+  content: "⌃";
+}
+.duration-hours {
+  display: none;
+}
+@media (max-width: 740px) {
+  .eyebrow,
+  .intro-copy {
+    display: none;
+  }
+  .page-intro {
+    padding: 18px 0 14px;
+  }
+  .duration-hours {
+    display: inline;
+  }
+}
