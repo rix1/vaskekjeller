@@ -37,7 +37,7 @@ export const FLASH: Record<string, string> = {
   booked: "Tiden er din. God vask!",
   apartment: "Leiligheten er lagret på denne enheten.",
   cancelled: "Bookingen er avbestilt.",
-  taken: "Beklager, noen var raskere – den tiden er allerede tatt.",
+  taken: "Noen andre tok akkurat den tiden. Tidene under er oppdatert.",
   limit: "Du har nådd maks antall aktive bookinger.",
   invalid: "Ugyldig forespørsel.",
   over: "Den tiden er allerede passert.",

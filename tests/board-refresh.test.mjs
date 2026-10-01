@@ -7,8 +7,8 @@ import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 
-// Server-rendered toasts: the booking confirmation with Angre, and error toasts that stay until closed.
-// Same harness as bookings.test.mjs: the real Hono routes against an isolated SQLite database.
+// Board refresh: the "taken" message says someone else got the slot and the board shown with it is current;
+// an unchanged board renders identically, so the client can skip redrawing it. Same harness as toasts.test.mjs.
 let mf, db, temp, sqlite;
 function statement(sql) {
   let bindings = [];
@@ -49,13 +49,12 @@ const post = (path, body, apartment = "A3") =>
     redirect: "manual",
   });
 const book = (start, apartment = "A3", mode = "pair-1-2") => post("book", { date: tomorrow, start, mode }, apartment);
-const active = () => db.prepare("SELECT * FROM bookings WHERE cancelled_at IS NULL ORDER BY id").all();
 const reset = async () => {
   await db.batch([db.prepare("DELETE FROM bookings"), db.prepare("DELETE FROM waitlist")]);
 };
 const flash = (response) => new URL(response.headers.get("location"), "http://localhost").searchParams.get("m");
 before(async () => {
-  temp = await mkdtemp(join(tmpdir(), "vaskekjeller-toast-tests-"));
+  temp = await mkdtemp(join(tmpdir(), "vaskekjeller-refresh-tests-"));
   const output = join(temp, "worker.mjs");
   await build({
     entryPoints: ["src/index.tsx"],
@@ -105,38 +104,24 @@ const page = async (location, apartment = "A3") =>
   (await mf.dispatchFetch(new URL(location, "http://localhost"), { headers: { Cookie: `vk_apt=${apartment}` } })).text();
 const toasts = (html) => [...html.matchAll(/<div class="(toast [^"]*)" role="(\w+)">([\s\S]*?)<a class="toast-close"/g)];
 
-test("booking redirects to a confirmation toast with a working Angre form", async () => {
-  await reset();
-  const response = await book(480);
-  const [toast, ...rest] = toasts(await page(response.headers.get("location")));
-  assert.equal(rest.length, 0);
-  assert.equal(toast[1], "toast success auto long");
-  assert.equal(toast[2], "status");
-  assert.match(toast[3], /Tiden er din!/);
-  assert.match(toast[3], /08:00–10:00 · Vaskemaskin \+ Tørketrommel/);
-  const ids = (await active()).results.map((b) => b.id).join(",");
-  assert.match(toast[3], new RegExp(`<form method="post" action="/bygg/cancel\\?date=${tomorrow}&amp;mode=pair-1-2"`));
-  assert.match(toast[3], new RegExp(`name="booking_ids" value="${ids}"`));
-  assert.match(toast[3], />Angre</);
-  const undo = await post("cancel", { booking_ids: ids });
-  assert.equal(flash(undo), "cancelled");
-  const [cancelled] = toasts(await page(undo.headers.get("location")));
-  assert.equal(cancelled[1], "toast success auto");
-  assert.equal(cancelled[2], "status");
-  assert.match(cancelled[3], /Bookingen er avbestilt\./);
-});
-
-test("errors render as toasts that stay until closed", async () => {
+test("a lost race says someone else took the slot and shows the board with their booking", async () => {
   await reset();
   await book(480, "D4");
   const taken = await book(480);
   assert.equal(flash(taken), "taken");
-  const [toast] = toasts(await page(taken.headers.get("location")));
-  assert.equal(toast[1], "toast error");
-  assert.equal(toast[2], "alert");
-  assert.match(toast[3], /Noen andre tok akkurat den tiden/);
-  assert.equal(toasts(await page(`/bygg?date=${tomorrow}`)).length, 0);
-  const [password] = toasts(await page("/bygg/admin/login?m=wrong-password"));
-  assert.equal(password[1], "toast error");
-  assert.match(password[3], /Feil passord\./);
+  const html = await page(taken.headers.get("location"));
+  const [toast] = toasts(html);
+  assert.match(toast[3], /Noen andre tok akkurat den tiden\. Tidene under er oppdatert\./);
+  assert.equal(sqlite.prepare("SELECT 1 FROM bookings WHERE cancelled_at IS NULL").all().length, 1);
+});
+
+test("an unchanged board renders identically, a new booking changes it", async () => {
+  await reset();
+  const url = `/bygg?date=${tomorrow}&mode=pair-1-2`;
+  const board = (html) => html.match(/<main[\s\S]*<\/main>/)?.[0];
+  const before = board(await page(url));
+  assert.ok(before);
+  assert.equal(board(await page(url)), before);
+  await book(480, "D4");
+  assert.notEqual(board(await page(url)), before);
 });

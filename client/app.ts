@@ -171,6 +171,7 @@ async function updateBoard(
     const historyMode = options.history ?? (options.form ? "replace" : "push");
     if (historyMode === "push") history.pushState(null, "", finalUrl);
     if (historyMode === "replace") history.replaceState(null, "", finalUrl);
+    boardSignature = signatureOf(doc);
     document.title = doc.title;
     document.querySelector(".resident-top")!.replaceWith(nextHeader);
     const oldStrip = main.querySelector<HTMLElement>(".date-strip");
@@ -300,6 +301,52 @@ const openTargetRow = () => {
 };
 window.addEventListener("hashchange", openTargetRow);
 openTargetRow();
+
+// Background refresh. A Home Screen app on iOS is resumed, not reloaded, and has no pull to refresh,
+// so the board is re-read when the app comes back into view and quietly every minute while it is visible.
+// The server HTML is compared with the last one drawn, so an unchanged board is never touched.
+const REFRESH_MS = 45_000;
+let boardSignature: string | undefined;
+let refreshing = false;
+const signatureOf = (doc: Document) => (doc.querySelector(".resident-top")?.outerHTML ?? "") + (doc.querySelector(".resident-main")?.outerHTML ?? "");
+
+// Never replace the board under a resident who is typing, has a popover, waitlist sheet, expanded row, cancel confirm or tour tip open, or has a toast with an action (Angre) showing.
+function boardIsBusy() {
+  const active = document.activeElement;
+  return (
+    submitting ||
+    !!document.querySelector(".resident-main[aria-busy]") ||
+    (active instanceof HTMLElement && active.matches("input, textarea, select, [contenteditable]")) ||
+    !!document.querySelector(".slot-details[open], .apartment-menu[open], .reservation-row[open], .own-slot[open], .note-details[open], .cancel-confirm[open], dialog[open], .coach, .vk-has-action")
+  );
+}
+
+async function refreshBoard(force: boolean) {
+  if (!isBoard() || document.hidden || refreshing || boardIsBusy()) return;
+  refreshing = true;
+  try {
+    const url = cleanUrl(location.href).href;
+    const res = await fetch(url, { headers: { "X-Requested-With": "Vaskekjeller" } });
+    if (!res.ok || res.redirected) return;
+    const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+    if (!force && boardSignature !== undefined && signatureOf(doc) === boardSignature) return;
+    // The resident may have started something while this was loading.
+    if (document.hidden || boardIsBusy()) return;
+    await updateBoard(url, { history: "none" });
+  } catch {
+    // Offline or a hiccup: stay quiet, the next tick tries again.
+  } finally {
+    refreshing = false;
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) void refreshBoard(false);
+});
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) void refreshBoard(true);
+});
+setInterval(() => void refreshBoard(false), REFRESH_MS);
 
 window.addEventListener("popstate", () => {
   if (isBoard() && !submitting && location.pathname + cleanUrl(location.href).search !== renderedView)
