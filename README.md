@@ -27,6 +27,9 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   the waitlist. At most 3 messages per apartment and 10 in total per booking; only those counts are stored, never
   the text.
 - **Push** needs the resident to tap "Slå på varsler". On iPhone this only works after "Legg til på Hjem-skjerm".
+  Devices of an apartment also get "Vasketiden din starter om N min" 5–10 minutes before one of its bookings starts
+  (a cron every 5 minutes, `src/reminder.ts`): once per booking, one push for a washer and dryer in the same slot,
+  and none for bookings made in the last 10 minutes, cancelled ones, or the demo buildings.
 - **Resident onboarding** (`/<slug>/velkommen`, the link in the admins' share message): apartment, then a
   Home Screen guide for the device (iPhone Safari, in-app browsers such as Messenger, Android with Chrome's own
   install prompt; left out on desktop and when opened from the icon), then "Slå på varsler" (left out where
@@ -149,7 +152,7 @@ EU database gave local dev a fresh, empty D1 file, so buildings created locally 
 Recreate them with `node scripts/create-tenant.ts` (after `npm run db:migrate:local`).
 
 Open `/visning` or `/demo` locally to create the demo buildings; run `wrangler dev --test-scheduled` and open
-`/__scheduled` to trigger the nightly reset.
+`/__scheduled` to trigger the nightly reset (add `?cron=*/5+*+*+*+*` for the booking reminders).
 
 ## Deploy
 
@@ -259,7 +262,7 @@ showcase on every write route, presets-only playground and the nightly demo rese
 the about page, its footer links and the reserved `om` address (`tests/about.test.mjs`),
 indexable versus noindex pages, link-preview tags, JSON-LD, robots.txt and the sitemap (`tests/seo.test.mjs`),
 signup, onboarding, resident onboarding and per-building manifests, Turnstile, the signup limit, recovery codes and the cleanup of unused buildings (`tests/signup.test.mjs`),
-the holder's "someone is waiting" push and the admin push test page (`tests/debug-push.test.mjs`), the Kopier buttons
+the holder's "someone is waiting" push and the admin push test page (`tests/debug-push.test.mjs`), the booking reminder push (`tests/reminder.test.mjs`), the Kopier buttons
 (`tests/copy-buttons.test.mjs`), and the settings table of contents and inline machine updates in
 `client/admin.ts` against a simulated page. It also compiles the service worker and runs it
 as a classic script, since `/sw.js` is registered without `{ type: "module" }`.
