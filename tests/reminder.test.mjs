@@ -43,7 +43,7 @@ before(async () => {
 });
 after(() => rm(temp, { recursive: true, force: true }));
 
-// Oslo is UTC+2 in July 2026: 12:00 local is 10:00Z. Booking at 12:00, so ticks 08:50–09:55Z... see below.
+// Oslo is UTC+2 in July 2026, so a 12:00 booking starts at 10:00Z.
 const NOW = new Date("2026-07-01T09:52:00Z"); // 11:52 Oslo, 8 minutes before a 12:00 booking
 const setup = (slug = "bygg", extra = {}) => {
   sqlite.exec("DELETE FROM bookings; DELETE FROM push_subscriptions; DELETE FROM machines; DELETE FROM tenants;");
