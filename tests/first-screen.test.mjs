@@ -36,7 +36,8 @@ function statement(sql) {
     },
   };
 }
-const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const osloDate = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo" }).format(ms);
+const tomorrow = osloDate(Date.now() + 86400000);
 const post = (path, body, apartment = "A3") =>
   mf.dispatchFetch(`http://localhost/bygg/${path}?date=${tomorrow}&mode=pair-1-2`, {
     method: "POST",
@@ -103,7 +104,25 @@ after(async () => {
 
 const page = async (query) =>
   (await mf.dispatchFetch(`http://localhost/bygg?${query}`, { headers: { Cookie: "vk_apt=A3" } })).text();
-const today = new Date().toISOString().slice(0, 10);
+const RealDate = Date;
+const PINNED = RealDate.parse("2030-06-15T11:00:00Z");
+const pinnedDay = "2030-06-15";
+async function pinned(fn) {
+  globalThis.Date = class extends RealDate {
+    constructor(...args) {
+      super(...(args.length ? args : [PINNED]));
+    }
+    static now() {
+      return PINNED;
+    }
+  };
+  try {
+    return await fn();
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+const pinnedPage = (query) => pinned(() => page(query));
 // Visible text only: the Reserver button's aria-label legitimately names the machines.
 const rows = (html) =>
   [...html.matchAll(/<article class="time-slot available".*?<\/article>/gs)].map((m) => m[0].replace(/aria-label="[^"]*"/g, ""));
@@ -130,16 +149,33 @@ test("the Ledig legend and the tips card are gone", async () => {
 });
 
 test("I dag is only offered when not viewing today", async () => {
-  assert.match(await page(`date=${tomorrow}&mode=pair-1-2`), /class="today-link"/);
-  assert.doesNotMatch(await page(`date=${today}&mode=pair-1-2`), /class="today-link"/);
+  assert.match(await pinnedPage(`date=2030-06-16&mode=pair-1-2`), /class="today-link"/);
+  assert.doesNotMatch(await pinnedPage(`date=${pinnedDay}&mode=pair-1-2`), /class="today-link"/);
 });
 
-test("elapsed slots fold into one line, keeping a still-late latest slot open", async () => {
-  const html = await page(`date=${today}&mode=pair-1-2`);
-  const elapsed = (html.match(/class="time-slot elapsed/g) ?? []).length;
-  const fold = html.match(/<details class="elapsed-fold">.*?<\/details>/s)?.[0];
-  if (elapsed === 0) return assert.equal(fold, undefined);
-  const folded = fold ? (fold.match(/class="time-slot elapsed/g) ?? []).length : 0;
-  assert.ok(elapsed - folded <= 1);
-  if (fold) assert.match(fold, new RegExp(`<summary>${folded === 1 ? "1 tidligere tid" : `${folded} tidligere tider`}</summary>`));
+const slotInsert = (machine, start) =>
+  db
+    .prepare("INSERT INTO bookings (tenant_id,machine_id,date,start_min,end_min,apartment) VALUES (1,?,?,?,?,'B7')")
+    .bind(machine, pinnedDay, start, start + 120)
+    .run();
+
+test("elapsed slots fold into one line", async () => {
+  await reset();
+  const html = await pinnedPage(`date=${pinnedDay}&mode=pair-1-2`);
+  const fold = html.match(/<details class="elapsed-fold">.*?<\/details>/s)[0];
+  assert.match(fold, /<summary>2 tidligere tider<\/summary>/);
+  assert.equal((fold.match(/class="time-slot elapsed/g) ?? []).length, 2);
+  assert.equal((html.match(/class="time-slot elapsed/g) ?? []).length, 2);
+});
+
+test("the latest elapsed slot stays visible while its late message is offered", async () => {
+  await reset();
+  await slotInsert(1, 600);
+  await slotInsert(2, 600);
+  const html = await pinnedPage(`date=${pinnedDay}&mode=pair-1-2`);
+  const fold = html.match(/<details class="elapsed-fold">.*?<\/details>/s)[0];
+  assert.match(fold, /<summary>1 tidligere tid<\/summary>/);
+  assert.equal((fold.match(/class="time-slot elapsed/g) ?? []).length, 1);
+  assert.equal((html.match(/class="time-slot elapsed/g) ?? []).length, 2);
+  await reset();
 });
