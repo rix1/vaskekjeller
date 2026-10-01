@@ -984,7 +984,13 @@ export const BoardPage: FC<BoardProps> = (p) => {
                     <p class="reservation-time">
                       {fmtMinute(b.start_min)}–{fmtMinute(b.end_min)}
                     </p>
-                    <p class="reservation-machines">{groupLabel(bookings)}</p>
+                    <p class="reservation-machines">
+                      <MachineIcons
+                        machines={bookings.flatMap((x) => p.machines.filter((m) => m.id === x.machine_id))}
+                        size={14}
+                      />
+                      {groupLabel(bookings)}
+                    </p>
                     {b.note && <p class="reservation-note">“{b.note}”</p>}
                     {waiting > 0 && (
                       <p class="reservation-waiting">
