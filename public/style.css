@@ -596,8 +596,7 @@ a.add-to-calendar.small-button {
   color: var(--muted);
   margin-top: 3px;
 }
-.status-dot,
-.legend-dot {
+.status-dot {
   display: inline-block;
   flex-shrink: 0;
   width: 6px;
