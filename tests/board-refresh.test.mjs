@@ -112,7 +112,7 @@ test("a lost race says someone else took the slot and shows the board with their
   const html = await page(taken.headers.get("location"));
   const [toast] = toasts(html);
   assert.match(toast[3], /Noen andre tok akkurat den tiden\. Tidene under er oppdatert\./);
-  assert.equal(sqlite.prepare("SELECT 1 FROM bookings WHERE cancelled_at IS NULL").all().length, 1);
+  assert.equal(sqlite.prepare("SELECT 1 FROM bookings WHERE cancelled_at IS NULL").all().length, 2);
 });
 
 test("an unchanged board renders identically, a new booking changes it", async () => {

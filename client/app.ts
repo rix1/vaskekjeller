@@ -346,7 +346,11 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) void refreshBoard(true);
 });
-setInterval(() => void refreshBoard(false), REFRESH_MS);
+const refreshTick = () => {
+  void refreshBoard(false);
+  setTimeout(refreshTick, REFRESH_MS);
+};
+setTimeout(refreshTick, REFRESH_MS);
 
 window.addEventListener("popstate", () => {
   if (isBoard() && !submitting && location.pathname + cleanUrl(location.href).search !== renderedView)
