@@ -286,6 +286,14 @@ document.addEventListener("submit", (event) => {
   void updateBoard(form.action, { form });
 });
 
+// A link to #reservation-N (push, toast) lands on a collapsed row; open it.
+const openTargetRow = () => {
+  const row = document.querySelector(":target")?.closest<HTMLDetailsElement>(".reservation-row");
+  if (row) row.open = true;
+};
+window.addEventListener("hashchange", openTargetRow);
+openTargetRow();
+
 window.addEventListener("popstate", () => {
   if (isBoard() && !submitting && location.pathname + cleanUrl(location.href).search !== renderedView)
     void updateBoard(location.href, { history: "none" });

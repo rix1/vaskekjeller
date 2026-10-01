@@ -2465,3 +2465,116 @@ button.nudge-close {
     padding: 18px 0 14px;
   }
 }
+/* Your own bookings: the slot row expands in place, and "Dine tider" is one compact row per booking. */
+.time-slot.own {
+  display: block;
+  min-height: 0;
+  padding: 0;
+}
+.own-slot > summary {
+  display: grid;
+  grid-template-columns: 1.05fr 1.2fr auto;
+  align-items: center;
+  gap: 15px;
+  min-height: 70px;
+  padding: 10px;
+}
+.expand-chevron {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #697365;
+  font-size: 16px;
+  transition: transform 140ms var(--ease-out);
+}
+details[open] > summary .expand-chevron {
+  transform: rotate(180deg);
+}
+.own-slot .booking-panel {
+  padding: 0 10px 14px;
+}
+.reservation-row {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  scroll-margin-top: 24px;
+}
+.reservation-row:target,
+.reservation-row:has(> span:target) {
+  outline: 2px solid #b9caae;
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.reservation-row > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+}
+.reservation-when {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.reservation-when strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reservation-row .booking-panel {
+  padding-bottom: 14px;
+}
+.booking-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.booking-actions > form,
+.booking-actions > details > summary,
+.booking-actions > a {
+  flex: none;
+}
+.booking-actions > details[open] {
+  flex-basis: 100%;
+  order: 1;
+}
+.booking-actions .action-button,
+a.add-to-calendar.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #dce7d5;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 550;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.booking-actions .cancel-button {
+  background: #fff;
+  border-color: #ecd6d1;
+  color: #99392b;
+}
+.booking-actions .note-form button.small-button {
+  min-height: 44px;
+}
+@media (max-width: 740px) {
+  .own-slot > summary {
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    min-height: 76px;
+  }
+}

@@ -14,7 +14,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
 - **Waitlist**: on a booked slot, tap "Venteliste" (a bottom sheet on phones), then "Si fra når den blir ledig",
   which joins every machine of that row in one tap. When the booking is cancelled, everyone on that slot's
   waitlist gets a push notification. First to book wins.
-  The holder sees how many are waiting under "Dine tider"; adding or changing their comment pushes it to
+  The holder sees how many are waiting in their expanded reservation row; adding or changing their comment pushes it to
   everyone waiting (clearing it sends nothing, and edits replace the previous notification and alert again).
   When another household taps "Venteliste" on a holder's slot, the holder gets "Noen venter på tiden din" (or
   "N venter …", counting every machine in the reservation), linking to that day and machine. Joining again, or
@@ -38,7 +38,7 @@ Booking, cancellation, comments, and waitlists also work without JavaScript; pus
   it is dismissed (`localStorage`, `vk-nudge-dismissed`). The device checks are in `setupPush` in `client/app.ts`.
 - **Calendar**: "Legg i kalender" downloads one reservation as a single-event `.ics`
   (`GET /<slug>/event.ics?booking_ids=1,2`, built by `buildEvent` in `src/calendar.ts`). It sits below the schedule right
-  after booking and on each card under "Dine tider". The event has the machines, the comment and a link back to that day;
+  after booking and in each of your own reservation rows. The event has the machines, the comment and a link back to that day;
   it is a copy, not a subscription, so a later cancellation does not change it. The route is behind the resident password
   and only serves the apartment's own bookings.
 - **Admin** (`/<slug>/admin`): schedule (start, end, slot length), how many days ahead you can book, max active
@@ -189,7 +189,12 @@ and hand over the admin password.
 ## Resident booking experience
 
 The default selection reserves one washer and one dryer together in a single atomic write.
-Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
+Residents select a day, then tap **Reserver**; comments are added afterward by expanding their own reservation.
+Tapping your own "Din tid" row in the slot list expands it in place with **Legg i kalender**, **Kommentar** and
+**Avbestill** (real buttons, at least 44px tall). **Dine tider** lists the same reservations as compact one-line rows
+(machine icons, time, chevron to expand the same actions) and is hidden while the resident has no bookings. When
+someone is waiting, the note says so once, in the expanded row (`tests/compact-dine-tider.test.mjs`). A link to
+`#reservation-<id>` opens the row, also for the second booking of a paired reservation (`openTargetRow` in `client/app.ts`).
 Toasts are [Sonner](https://sonner.emilkowal.ski/) (bundled into `public/toaster.js` by `scripts/build-toaster.ts`,
 loaded on the first toast), so they stack and pause on hover. A confirmation toast shows the date, time, and
 machines with a quiet **Angre** action and a thin line that runs out with its timer, about 5 seconds. Other
