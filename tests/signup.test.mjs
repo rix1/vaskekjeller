@@ -147,7 +147,7 @@ before(async () => {
 
 beforeEach(() => {
   env = baseEnv();
-  sqlite.exec("DELETE FROM audit_log; DELETE FROM bookings; DELETE FROM calendar_feeds; DELETE FROM machines; DELETE FROM tenants; DELETE FROM signup_counts;");
+  sqlite.exec("DELETE FROM audit_log; DELETE FROM bookings; DELETE FROM machines; DELETE FROM tenants; DELETE FROM signup_counts;");
 });
 
 afterEach(() => {
@@ -484,11 +484,9 @@ test("the resident password is optional, readable, and the next step shows a new
   assert.equal(empty.status, 422);
   assert.equal(tenant("lofotgata").recovery_code_hash, null, "no code before the step is done");
 
-  sqlite.prepare("INSERT INTO calendar_feeds (tenant_id, apartment, token) VALUES (?, 'A1', 'feed-token')").run(tenant("lofotgata").id);
   const response = await b.post("/lofotgata/admin/kom-i-gang/beboere", { passord: "ja", access_password: "1234-dør" });
   assert.equal(location(response).pathname, "/lofotgata/admin/kom-i-gang/kode");
   const t = tenant("lofotgata");
-  assert.equal(sqlite.prepare("SELECT password_key FROM calendar_feeds").get().password_key, "retired", "old calendar links stop working");
   assert.ok(t.access_password_hash && t.access_password_enc);
   assert.ok(b.jar.has("vk_access"), "the admin's device stays signed in as a resident");
   assert.match(await (await b.get("/lofotgata/admin/kom-i-gang/beboere")).text(), /value="1234-dør"/);

@@ -150,22 +150,15 @@ export const AboutPage: FC = () => (
       <Section id="kalender">
         <Q q="Kan jeg se tidene mine i kalenderen?">
           <p>
-            Ja, i Apple Kalender på iPhone, iPad og Mac. Trykk på «Leilighet» øverst på bookingsiden og velg «Abonner i Apple
-            Kalender». Tidene dine dukker opp og holder seg oppdatert. Slår du på «Inkluder andres bookinger», ser du også når
-            naboene har vaskerommet.
+            Ja. Rett etter at du har booket, dukker «Legg i kalender» opp under tidene. Du finner den også på hver tid under
+            «Dine tider». Da laster du ned én kalenderhendelse som du åpner i kalenderappen din, og den virker i Apple Kalender,
+            Google Kalender og Outlook.
           </p>
         </Q>
-        <Q q="Hvorfor bare Apple Kalender?">
+        <Q q="Oppdateres kalenderen hvis jeg avbestiller?">
           <p>
-            En abonnert kalender er bare så fersk som sist appen hentet den. Vaskekjeller ber om ny henting hvert 15. minutt, og
-            det følger Apple Kalender. Google Kalender henter bare noen ganger i døgnet, så en avbestilt tid kan stå der i mange
-            timer etter at den ble ledig. Andre kalenderapper kan bruke lenken, men kan ligge like langt etter.
-          </p>
-        </Q>
-        <Q q="Er kalenderlenken hemmelig?">
-          <p>
-            Ja. Den gjelder din leilighet, og alle som har den kan se tidene i den uten passord, så ikke del den. «Lag ny lenke»
-            gjør den gamle ugyldig. Endrer styret beboerpassordet, slutter alle lenker å virke, og du finner en ny på samme sted.
+            Nei. Hendelsen er en kopi av tiden på det tidspunktet du la den inn, og er ikke koblet til Vaskekjeller. Avbestiller du,
+            må du slette den fra kalenderen selv.
           </p>
         </Q>
       </Section>
@@ -176,7 +169,6 @@ export const AboutPage: FC = () => (
             <li>Leilighetsnummeret på bookinger, ventelister og varsler.</li>
             <li>Tidene som bookes, også avbestilte (til statistikk), og kommentarene på dem.</li>
             <li>For varsler: en adresse fra nettleserens varseltjeneste, én per enhet.</li>
-            <li>Kalenderlenken for hver leilighet som har laget en.</li>
             <li>Daglige totaler: sidevisninger, antall besøkende og antall varsler.</li>
             <li>
               Koder som byttes hver dag, for å telle besøkende og nye vaskerom per nettverk (aldri selve IP-adressen).
