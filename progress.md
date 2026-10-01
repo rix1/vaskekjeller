@@ -8,7 +8,7 @@
 
 ## Features
 
-- [ ] Push reminder 5–10 minutes before your own booking starts.
+- [x] Push reminder 5–10 minutes before your own booking starts.
 
 ## Onboarding
 
@@ -18,6 +18,7 @@
 
 ## Log
 
+- 2026-10-01: Booking reminder push: `*/5 * * * *` cron (second `triggers.crons` entry, `REMINDER_CRON` in src/index.tsx) runs `sendReminders` (src/reminder.ts) for bookings starting within 10 minutes; `bookings.reminder_sent_at` (migration 0011) claims each once. README "Push"; tests/reminder.test.mjs.
 - 2026-10-01: Resident password is now a 4-digit PIN (`tenants.access_pin`, migration 0010): four-box input (`client/pin.ts`, `src/pin.tsx`) in signup, admin settings and login, centered, with a "Generer en kode" link under the boxes (not a button); resident login rate limited via `login_attempts` (`src/pin.ts`: 5/15 min per building+network, 40/h per building). Older free-text passwords keep working until an admin sets a PIN. README "Passwords".
 - 2026-10-01: Booking board refreshes on resume (visibilitychange, bfcache pageshow) and every 45 s while visible (`refreshBoard` in client/app.ts), skipped while the resident is busy; 'taken' message reworded. No websockets, no pull to refresh. README "Resident booking experience"; tests/board-refresh.test.mjs.
 - 2026-10-01: Calendar subscription replaced by single events: "Legg i kalender" downloads one reservation as `.ics` (`GET /<slug>/event.ics`, `buildEvent` in src/calendar.ts), below the schedule after booking and on "Dine tider" cards. Feed links, "Inkluder andres bookinger" and the `calendar_feeds` table are gone (migration 0009); /om and README updated; tests/calendar-event.test.mjs. The 2026-09-23/24 calendar-feed log entries below are history.
