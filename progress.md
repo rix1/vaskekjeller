@@ -18,6 +18,7 @@
 
 ## Log
 
+- 2026-10-01: Booking board refreshes on resume (visibilitychange, bfcache pageshow) and every 45 s while visible (`refreshBoard` in client/app.ts), skipped while the resident is busy; 'taken' message reworded. No websockets, no pull to refresh. README "Resident booking experience"; tests/board-refresh.test.mjs.
 - 2026-10-01: Calendar subscription replaced by single events: "Legg i kalender" downloads one reservation as `.ics` (`GET /<slug>/event.ics`, `buildEvent` in src/calendar.ts), below the schedule after booking and on "Dine tider" cards. Feed links, "Inkluder andres bookinger" and the `calendar_feeds` table are gone (migration 0009); /om and README updated; tests/calendar-event.test.mjs. The 2026-09-23/24 calendar-feed log entries below are history.
 - 2026-10-01: Resident onboarding hides steps that don't apply (Home Screen guide on desktop/installed, notifications when unsupported) instead of showing them disabled (`setupPush` in client/app.ts); intro copy says "Noen raske steg".
 - 2026-10-01: "Dine tider" reservation cards now show the washer/dryer icons (`MachineIcons`, 14px) before the machine label in `.reservation-machines` (src/views.tsx, public/style.css); covered by tests/dine-tider-icons.test.mjs.
