@@ -149,7 +149,7 @@ Each build installs dependencies, then runs `npm run deploy` (defined in `packag
 D1 migrations to the remote database and then runs `wrangler deploy`. Migrations run first, and the deploy only
 happens if they succeed, so the app never runs against an outdated database. A failed migration leaves the
 previous version live. `wrangler deploy` runs the `build` hook in `wrangler.jsonc`, which compiles `client/*.ts`
-into `public/`. Write migrations so the currently deployed version keeps working until the new one is live.
+into `public/` (and bundles the toaster with esbuild). Write migrations so the currently deployed version keeps working until the new one is live.
 `CI=true` makes the migration step skip wrangler's confirmation prompt, so `npm run deploy` behaves the same from
 your machine (after `npx wrangler login`) as in Workers Builds; use it when Workers Builds is unavailable.
 
@@ -192,10 +192,11 @@ and hand over the admin password.
 
 The default selection reserves one washer and one dryer together in a single atomic write.
 Residents select a day, then tap **Reserver**; comments are added afterward under **Dine tider**.
-A confirmation toast shows the date, time, and machines with an **Angre** action for about 8 seconds
-(paused while hovered or focused). Other status messages are toasts too: success toasts close after about
-4 seconds, errors stay until closed. Without JavaScript the same toasts are server-rendered and the timed ones
-fade out with CSS.
+Toasts are [Sonner](https://sonner.emilkowal.ski/) (bundled into `public/toaster.js` by `scripts/build-toaster.ts`,
+loaded on the first toast), so they stack and pause on hover. A confirmation toast shows the date, time, and
+machines with a quiet **Angre** action and a thin line that runs out with its timer, about 5 seconds. Other
+status messages are toasts too: success toasts close after about 4 seconds, errors stay until closed. Without
+JavaScript the same toasts are server-rendered and the timed ones fade out with CSS.
 Machine-only reservations, partial availability, and waitlists remain available.
 In the paired view a partly taken slot shows who holds each machine and offers the free machine in one tap,
 behind a small in-place confirmation; the day strip reads "Delvis" when only single machines are left and
