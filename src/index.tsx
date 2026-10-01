@@ -464,22 +464,39 @@ t.post("/note", async (c) => {
   return back(c, "note", `d-${bookings[0]!.date}`);
 });
 
+/** The machines a waitlist form names: `machine_ids` (comma-separated, one request for a whole row) or a single `machine_id`. */
+const machineIds = (f: Record<string, string>) =>
+  [...new Set((f.machine_ids ?? f.machine_id ?? "").split(",").map(Number))].filter(Number.isInteger).slice(0, 10);
+
 t.post("/wait", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
-  const s = await parseSlot(c, await form(c));
-  if (!s || s.over) return back(c, "invalid");
-  await joinWaitlist(c, s.machine.id, s.date, s.slot.start, apt);
-  return back(c, "waiting", `d-${s.date}`);
+  const f = await form(c);
+  const ids = machineIds(f);
+  if (!ids.length) return back(c, "invalid");
+  const slots = await Promise.all(ids.map((id) => parseSlot(c, { ...f, machine_id: String(id) })));
+  if (slots.some((s) => !s || s.over)) return back(c, "invalid");
+  for (const s of slots) await joinWaitlist(c, s!.machine.id, s!.date, s!.slot.start, apt);
+  return back(c, "waiting", `d-${slots[0]!.date}`);
 });
 
 t.post("/unwait", async (c) => {
   const apt = currentApartment(c);
   if (!apt) return back(c, "no-apt");
   const f = await form(c);
-  await c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?")
-    .bind(c.var.tenant.id, Number(f.machine_id), f.date ?? "", Number(f.start), apt)
-    .run();
+  const ids = machineIds(f);
+  if (!ids.length) return back(c, "invalid");
+  await c.env.DB.batch(
+    ids.map((id) =>
+      c.env.DB.prepare("DELETE FROM waitlist WHERE tenant_id = ? AND machine_id = ? AND date = ? AND start_min = ? AND apartment = ?").bind(
+        c.var.tenant.id,
+        id,
+        f.date ?? "",
+        Number(f.start),
+        apt,
+      ),
+    ),
+  );
   return back(c, "unwaited", `d-${f.date}`);
 });
 

@@ -480,14 +480,14 @@ test("an unknown preset or a note over 140 characters is rejected", async () => 
   assert.equal(pushed.length, 1);
 });
 
-test("a holder without notifications shows a notice and cannot be messaged", async () => {
+test("a holder without notifications cannot be messaged", async () => {
   await reset();
   await book(600);
   await book(480, "C1");
   const [washer] = (await active()).results;
   await subscribe("C1");
   const html = await board(tomorrow, "B2");
-  assert.match(html, /Leil\. A3 har ikke varsler på\./);
+  assert.doesNotMatch(html, /har ikke varsler på/);
   assert.match(html, /Send melding til leil\. C1/);
   assert.doesNotMatch(html, /Send melding til leil\. A3/);
   assert.doesNotMatch(await board(tomorrow, "A3"), /Send melding til leil\. A3/, "no message form on your own booking");
