@@ -2499,7 +2499,8 @@ details[open] > summary .expand-chevron {
   margin-top: 8px;
   scroll-margin-top: 24px;
 }
-.reservation-row:target {
+.reservation-row:target,
+.reservation-row:has(> span:target) {
   outline: 2px solid #b9caae;
   outline-offset: 2px;
   border-radius: 5px;

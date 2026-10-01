@@ -288,7 +288,7 @@ document.addEventListener("submit", (event) => {
 
 // A link to #reservation-N (push, toast) lands on a collapsed row; open it.
 const openTargetRow = () => {
-  const row = document.querySelector<HTMLDetailsElement>(".reservation-row:target");
+  const row = document.querySelector(":target")?.closest<HTMLDetailsElement>(".reservation-row");
   if (row) row.open = true;
 };
 window.addEventListener("hashchange", openTargetRow);
